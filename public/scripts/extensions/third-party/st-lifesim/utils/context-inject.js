@@ -49,7 +49,7 @@ export async function injectContext() {
     }
 
     // 하나의 블록으로 합친다
-    const prompt = `[ST-LifeSim 컨텍스트]\n${sections.join('\n\n')}\n[/ST-LifeSim 컨텍스트]`;
+    const prompt = `[ST-LifeSim Context]\n${sections.join('\n\n')}\n[/ST-LifeSim Context]`;
     // IN_PROMPT(1) 타입으로 depth 0에 주입
     ctx.setExtensionPrompt(INJECT_TAG, prompt, 1, 0);
 }

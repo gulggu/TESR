@@ -69,7 +69,7 @@ export function initWallet() {
     registerContextBuilder('wallet', () => {
         const wallet = loadWallet();
         const { currencyName, currencySymbol, balance } = wallet;
-        return `=== 지갑 (${currencyName} ${currencySymbol}) ===\n현재 잔액: ${formatCurrency(balance, currencySymbol)}`;
+        return `=== Wallet (${currencyName} ${currencySymbol}) ===\nCurrent Balance: ${formatCurrency(balance, currencySymbol)}`;
     });
 }
 

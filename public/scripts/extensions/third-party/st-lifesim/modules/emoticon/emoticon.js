@@ -61,7 +61,7 @@ export function initEmoticon() {
         const aiEmoticons = emoticons.filter(e => e.aiUsable);
         if (aiEmoticons.length === 0) return null;
         const list = aiEmoticons.map(e => `• ${e.name}: ![${e.name}](${e.url})`).join('\n');
-        return `=== AI 사용 가능 이모티콘 ===\n${list}`;
+        return `=== Available Emoticons for AI ===\n${list}`;
     });
 }
 
