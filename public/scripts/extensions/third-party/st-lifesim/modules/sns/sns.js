@@ -11,7 +11,7 @@ import { getContext } from '../../../../../st-context.js';
 import { slashSend, slashGen, slashEcho } from '../../utils/slash.js';
 import { loadData, saveData } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
-import { showToast } from '../../utils/ui.js';
+import { showToast, escapeHtml } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 import { getContacts } from '../contacts/contacts.js';
 
@@ -194,20 +194,20 @@ function buildSnsContent() {
 
             card.innerHTML = `
                 <div class="slm-post-header">
-                    <span class="slm-post-author">${post.authorName}</span>
+                    <span class="slm-post-author">${escapeHtml(post.authorName)}</span>
                     <span class="slm-post-date">· ${d.toLocaleDateString('ko-KR')}</span>
                 </div>
-                <div class="slm-post-content">${post.content}</div>
-                ${post.imageUrl ? `<img class="slm-post-img" src="${post.imageUrl}" alt="게시물 이미지">` : ''}
+                <div class="slm-post-content">${escapeHtml(post.content)}</div>
+                ${post.imageUrl ? `<img class="slm-post-img" src="${escapeHtml(post.imageUrl)}" alt="게시물 이미지">` : ''}
                 <div class="slm-post-actions">
-                    <button class="slm-like-btn ${post.likedByUser ? 'liked' : ''}" data-id="${post.id}">
+                    <button class="slm-like-btn ${post.likedByUser ? 'liked' : ''}" data-id="${escapeHtml(post.id)}">
                         ❤️ ${post.likes}
                     </button>
-                    <button class="slm-comment-toggle-btn" data-id="${post.id}">
+                    <button class="slm-comment-toggle-btn" data-id="${escapeHtml(post.id)}">
                         💬 댓글 ${post.comments.length}개
                     </button>
                     <label class="slm-context-toggle">
-                        <input type="checkbox" ${post.includeInContext ? 'checked' : ''} data-id="${post.id}">
+                        <input type="checkbox" ${post.includeInContext ? 'checked' : ''} data-id="${escapeHtml(post.id)}">
                         컨텍스트 포함
                     </label>
                 </div>
@@ -267,8 +267,8 @@ function renderComments(container, post, onUpdate) {
         const commentDiv = document.createElement('div');
         commentDiv.className = 'slm-comment';
         commentDiv.innerHTML = `
-            <span class="slm-comment-author">${c.author}</span>
-            <span class="slm-comment-text">${c.text}</span>
+            <span class="slm-comment-author">${escapeHtml(c.author)}</span>
+            <span class="slm-comment-text">${escapeHtml(c.text)}</span>
         `;
 
         // 답글 표시
@@ -277,8 +277,8 @@ function renderComments(container, post, onUpdate) {
                 const replyDiv = document.createElement('div');
                 replyDiv.className = 'slm-reply';
                 replyDiv.innerHTML = `
-                    <span class="slm-comment-author">└ ${r.author}</span>
-                    <span class="slm-comment-text">${r.text}</span>
+                    <span class="slm-comment-author">└ ${escapeHtml(r.author)}</span>
+                    <span class="slm-comment-text">${escapeHtml(r.text)}</span>
                 `;
                 commentDiv.appendChild(replyDiv);
             });

@@ -4,6 +4,21 @@
  */
 
 /**
+ * HTML 특수 문자를 이스케이프하여 XSS를 방지한다
+ * @param {string} str - 이스케이프할 문자열
+ * @returns {string} 안전한 HTML 문자열
+ */
+export function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+/**
  * 토스트 알림을 화면에 표시한다
  * @param {string} message - 표시할 메시지
  * @param {'info'|'success'|'error'|'warn'} type - 토스트 타입

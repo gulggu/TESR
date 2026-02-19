@@ -10,7 +10,7 @@
 import { getContext } from '../../../../../st-context.js';
 import { slashSend } from '../../utils/slash.js';
 import { loadData, saveData } from '../../utils/storage.js';
-import { showToast } from '../../utils/ui.js';
+import { showToast, escapeHtml } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 
 const MODULE_KEY = 'call-logs';
@@ -237,9 +237,9 @@ function buildCallLogsContent() {
             row.innerHTML = `
                 <div class="slm-call-info">
                     <span class="slm-call-icon">📞</span>
-                    <span class="slm-call-name">${log.contactName}</span>
-                    <span class="slm-call-date">${dateStr}</span>
-                    <span class="slm-call-dur">${durStr}</span>
+                    <span class="slm-call-name">${escapeHtml(log.contactName)}</span>
+                    <span class="slm-call-date">${escapeHtml(dateStr)}</span>
+                    <span class="slm-call-dur">${escapeHtml(durStr)}</span>
                 </div>
             `;
 

@@ -9,7 +9,7 @@
 
 import { loadData, saveData } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
-import { showToast } from '../../utils/ui.js';
+import { showToast, escapeHtml } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 import { getContacts } from '../contacts/contacts.js';
 
@@ -212,9 +212,9 @@ function buildCalendarContent() {
             const label = diff === 0 ? '오늘' : `D+${diff}`;
 
             row.innerHTML = `
-                <span class="slm-event-label">${label}(${ev.day}일)</span>
-                <span class="slm-event-time">${ev.time || ''}</span>
-                <span class="slm-event-title">${ev.title}</span>
+                <span class="slm-event-label">${escapeHtml(label)}(${ev.day}일)</span>
+                <span class="slm-event-time">${escapeHtml(ev.time || '')}</span>
+                <span class="slm-event-title">${escapeHtml(ev.title)}</span>
             `;
 
             const btnRow = document.createElement('div');

@@ -10,7 +10,7 @@
 import { slashSend } from '../../utils/slash.js';
 import { loadData, saveData } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
-import { showToast } from '../../utils/ui.js';
+import { showToast, escapeHtml } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 import { getContacts } from '../contacts/contacts.js';
 
@@ -289,8 +289,8 @@ function buildWalletContent() {
             const icon = h.type === 'send' ? '📤' : '📥';
             row.innerHTML = `
                 <span class="slm-hist-icon">${icon}</span>
-                <span class="slm-hist-name">${h.counterpart || '직접'}</span>
-                <span class="slm-hist-amount ${h.amount < 0 ? 'neg' : 'pos'}">${sign}${formatCurrency(h.amount, w.currencySymbol)}</span>
+                <span class="slm-hist-name">${escapeHtml(h.counterpart || '직접')}</span>
+                <span class="slm-hist-amount ${h.amount < 0 ? 'neg' : 'pos'}">${sign}${escapeHtml(formatCurrency(h.amount, w.currencySymbol))}</span>
                 <span class="slm-hist-date">${d.toLocaleDateString('ko-KR')}</span>
             `;
             histList.appendChild(row);
