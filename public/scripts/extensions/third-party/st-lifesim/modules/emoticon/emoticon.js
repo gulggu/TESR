@@ -14,6 +14,7 @@ import { registerContextBuilder } from '../../utils/context-inject.js';
 import { showToast } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 import { extension_settings } from '../../../../../extensions.js';
+import { isCallActive } from '../call/call.js';
 
 /**
  * 이모티콘 출력 크기를 가져온다 (extension_settings에서)
@@ -21,6 +22,14 @@ import { extension_settings } from '../../../../../extensions.js';
  */
 function getEmoticonSize() {
     return extension_settings?.['st-lifesim']?.emoticonSize || 80;
+}
+
+/**
+ * 이모티콘 border-radius를 가져온다 (extension_settings에서)
+ * @returns {number}
+ */
+function getEmoticonRadius() {
+    return extension_settings?.['st-lifesim']?.emoticonRadius ?? 10;
 }
 
 const MODULE_KEY = 'emoticons';
@@ -57,11 +66,21 @@ function saveEmoticons(emoticons) {
 export function initEmoticon() {
     // 컨텍스트 빌더 등록: AI 사용 가능 이모티콘 목록 주입
     registerContextBuilder('emoticon', () => {
+        // 통화 중에는 이모티콘 컨텍스트 주입 안 함
+        if (isCallActive()) return null;
+
         const emoticons = loadEmoticons();
         const aiEmoticons = emoticons.filter(e => e.aiUsable);
         if (aiEmoticons.length === 0) return null;
-        const list = aiEmoticons.map(e => `• ${e.name}: ![${e.name}](${e.url})`).join('\n');
-        return `=== Available Emoticons for AI ===\n${list}`;
+        const size = getEmoticonSize();
+        const radius = getEmoticonRadius();
+        const list = aiEmoticons.map(e => {
+            // Escape values for safe HTML embedding
+            const safeName = e.name.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const safeUrl = e.url.replace(/"/g, '&quot;');
+            return `• ${safeName}: <img src="${safeUrl}" alt="${safeName}" style="width:${size}px;height:${size}px;object-fit:contain;display:inline-block;vertical-align:middle;border-radius:${radius}px">`;
+        }).join('\n');
+        return `=== Available Emoticons for AI ===\nTo use an emoticon, copy the exact HTML tag shown below:\n${list}`;
     });
 }
 
@@ -121,7 +140,77 @@ function buildEmoticonContent() {
     addBtn.textContent = '+ 이모티콘 추가';
     addBtn.onclick = () => openAddEmoticonDialog(renderAll);
 
+    const importBtn = document.createElement('button');
+    importBtn.className = 'slm-btn slm-btn-secondary slm-btn-sm';
+    importBtn.textContent = '📥 가져오기';
+    importBtn.title = 'JSON 파일에서 이모티콘 프리셋 가져오기';
+    importBtn.onclick = () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            try {
+                const text = await file.text();
+                const data = JSON.parse(text);
+                const imported = Array.isArray(data) ? data : (data.emoticons || []);
+                if (!Array.isArray(imported) || imported.length === 0) {
+                    showToast('유효한 이모티콘 데이터가 없습니다.', 'warn');
+                    return;
+                }
+                const existing = loadEmoticons();
+                const existingUrls = new Set(existing.map(e => e.url));
+                let added = 0;
+                imported.forEach(em => {
+                    if (em.url && !existingUrls.has(em.url)) {
+                        existing.push({
+                            id: crypto.randomUUID(),
+                            name: em.name || '이모티콘',
+                            url: em.url,
+                            category: em.category || '기본',
+                            favorite: false,
+                            aiUsable: em.aiUsable !== false,
+                        });
+                        added++;
+                    }
+                });
+                saveEmoticons(existing);
+                renderAll();
+                showToast(`이모티콘 ${added}개 가져오기 완료`, 'success');
+            } catch (err) {
+                showToast('가져오기 실패: ' + err.message, 'error');
+            }
+        };
+        input.click();
+    };
+
+    const exportBtn = document.createElement('button');
+    exportBtn.className = 'slm-btn slm-btn-secondary slm-btn-sm';
+    exportBtn.textContent = '📤 내보내기';
+    exportBtn.title = '이모티콘 프리셋을 JSON 파일로 저장';
+    exportBtn.onclick = () => {
+        try {
+            const emoticons = loadEmoticons();
+            const data = { emoticons };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `emoticon-preset-${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('이모티콘 내보내기 완료', 'success');
+        } catch (err) {
+            showToast('내보내기 실패: ' + err.message, 'error');
+        }
+    };
+
     footer.appendChild(addBtn);
+    footer.appendChild(importBtn);
+    footer.appendChild(exportBtn);
     wrapper.appendChild(footer);
 
     // 전체 렌더링
@@ -190,8 +279,11 @@ function buildEmoticonContent() {
             cell.onclick = async () => {
                 try {
                     const size = getEmoticonSize();
-                    // HTML img 태그로 크기 지정 (scale 방식)
-                    const html = `<img src="${e.url}" alt="${e.name}" style="width:${size}px;height:${size}px;object-fit:contain;display:inline-block;vertical-align:middle">`;
+                    const radius = getEmoticonRadius();
+                    // HTML img 태그로 크기/모서리 지정 (URL/이름 이스케이프)
+                    const safeName = e.name.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    const safeUrl = e.url.replace(/"/g, '&quot;');
+                    const html = `<img src="${safeUrl}" alt="${safeName}" style="width:${size}px;height:${size}px;object-fit:contain;display:inline-block;vertical-align:middle;border-radius:${radius}px">`;
                     await slashSend(html);
                     showToast(`이모티콘 전송: ${e.name}`, 'success', 1000);
                 } catch (err) {
@@ -246,6 +338,7 @@ function openAddEmoticonDialog(onSave, existing = null) {
         if (val) {
             preview.src = val;
             preview.style.display = 'block';
+            preview.style.borderRadius = getEmoticonRadius() + 'px';
         } else {
             preview.style.display = 'none';
         }
@@ -253,6 +346,7 @@ function openAddEmoticonDialog(onSave, existing = null) {
     if (existing?.url) {
         preview.src = existing.url;
         preview.style.display = 'block';
+        preview.style.borderRadius = getEmoticonRadius() + 'px';
     }
 
     wrapper.appendChild(urlLabel);

@@ -180,6 +180,7 @@ export function renderTimeDividerUI() {
         const val = cssInput.value.trim();
         const sampleTime = '1시간 후';
         if (val) {
+            // 미리보기는 {TIME}을 샘플로 치환
             preview.innerHTML = val.replace('{TIME}', sampleTime);
         } else {
             preview.textContent = `─────────── ${sampleTime} ───────────`;
@@ -229,14 +230,22 @@ export function renderTimeDividerUI() {
  */
 async function insertTimeDivider(timeLabel) {
     const customStyle = loadData(DIVIDER_STYLE_KEY, '', getDefaultBinding());
+    const ctx = getContext();
+
+    // /setvar 로 시간경과 변수 갱신
+    try {
+        await ctx.executeSlashCommandsWithOptions(`/setvar key=시간경과 ${timeLabel}`, { showOutput: false });
+    } catch (e) {
+        console.error('[ST-LifeSim] setvar 실행 오류:', e);
+    }
+
     let text;
     if (customStyle) {
-        // 커스텀 HTML 스타일 적용 — {TIME}을 실제 시간으로 치환
-        const html = customStyle.replace('{TIME}', timeLabel);
-        // SillyTavern 렌더링을 위해 코드블록으로 감싸기
+        // 커스텀 HTML 스타일 적용 — {TIME}을 {{getvar::시간경과}}로 치환
+        const html = customStyle.replace('{TIME}', '{{getvar::시간경과}}');
         text = `\`\`\`\n${html}\n\`\`\``;
     } else {
-        text = `─────────── ${timeLabel} ───────────`;
+        text = `─────────── {{getvar::시간경과}} ───────────`;
     }
     await slashSend(text);
 }
@@ -549,7 +558,9 @@ async function handleVoiceMemo(seconds, hint) {
     const timeStr = `${m}:${String(s).padStart(2, '0')}`;
 
     try {
-        await slashSend(`🎤 음성메시지 (${timeStr})`);
+        // details/summary 토글 방식으로 출력
+        const voiceHtml = `<details><summary>🎤 음성메시지 (${timeStr})</summary><em>(음성메시지 내용)</em></details>`;
+        await slashSend(voiceHtml);
 
         if (hint) {
             await slashGen(
