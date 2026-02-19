@@ -2,13 +2,16 @@
  * call.js
  * 통화 & 통화기록 모듈
  * - AI 응답에서 통화 감지 키워드 탐지
+ * - 유저가 직접 통화 시작 가능
+ * - 통화 중 상단 배너 표시
  * - 통화 시작/종료 마커 삽입
+ * - 종료 시 AI가 통화 내용 자동 요약
  * - 통화 기록 아카이브 관리
  * - 부재중 전화 연출
  */
 
 import { getContext } from '../../../../../st-context.js';
-import { slashSend } from '../../utils/slash.js';
+import { slashSend, slashGen } from '../../utils/slash.js';
 import { loadData, saveData } from '../../utils/storage.js';
 import { showToast, escapeHtml } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
@@ -25,7 +28,7 @@ const DEFAULT_KEYWORDS = ['전화할게', '전화 걸게', '전화해도 돼', '
 let callActive = false;
 let callStartTime = null;
 let callContact = '';
-let callEndBtn = null;
+let callStartMessageIdx = -1; // 통화 시작 당시 채팅 메시지 인덱스
 
 /**
  * 통화 로그 데이터 불러오기
@@ -93,7 +96,6 @@ function detectCallKeywords(data) {
 
     toast.querySelector('#slm-call-confirm').onclick = async () => {
         toast.remove();
-        // 클릭 시점에 신선한 컨텍스트를 가져온다
         const freshCtx = getContext();
         const charName = freshCtx.name2 || '{{char}}';
         await startCall(charName);
@@ -102,6 +104,48 @@ function detectCallKeywords(data) {
 
     // 10초 후 자동 제거
     setTimeout(() => toast.remove(), 10000);
+}
+
+/**
+ * 통화 중 상단 배너를 표시한다
+ * @param {string} charName
+ */
+function showCallBanner(charName) {
+    let banner = document.getElementById('slm-call-banner');
+    if (banner) banner.remove();
+
+    banner = document.createElement('div');
+    banner.id = 'slm-call-banner';
+
+    const textEl = document.createElement('span');
+    textEl.id = 'slm-call-banner-text';
+    textEl.textContent = `📞 통화 중... ${charName}`;
+
+    const endBtn = document.createElement('button');
+    endBtn.id = 'slm-call-banner-end';
+    endBtn.textContent = '📵 통화 종료';
+    endBtn.onclick = () => endCall();
+
+    banner.appendChild(textEl);
+    banner.appendChild(endBtn);
+    document.body.appendChild(banner);
+
+    // 배너 시간 업데이트 (통화 경과 시간)
+    const timer = setInterval(() => {
+        if (!callActive) { clearInterval(timer); return; }
+        const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
+        const m = Math.floor(elapsed / 60);
+        const s = elapsed % 60;
+        textEl.textContent = `📞 통화 중... ${charName}  (${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')})`;
+    }, 1000);
+}
+
+/**
+ * 통화 중 배너를 제거한다
+ */
+function removeCallBanner() {
+    const banner = document.getElementById('slm-call-banner');
+    if (banner) banner.remove();
 }
 
 /**
@@ -115,30 +159,24 @@ async function startCall(charName) {
     callStartTime = Date.now();
     callContact = charName;
 
+    // 통화 시작 직전 채팅 메시지 인덱스 기록
+    const ctx = getContext();
+    callStartMessageIdx = (ctx.chat?.length ?? 1) - 1;
+
     try {
         await slashSend(`📞 통화 시작 — ${charName}`);
     } catch (e) {
         console.error('[ST-LifeSim] 통화 시작 오류:', e);
     }
 
-    // 툴바에 통화 종료 버튼 추가
-    if (!callEndBtn) {
-        callEndBtn = document.createElement('button');
-        callEndBtn.id = 'slm-call-end-btn';
-        callEndBtn.className = 'slm-call-end-btn';
-        callEndBtn.textContent = '📵 통화 종료';
-        callEndBtn.onclick = () => endCall();
-
-        // floating dock에 추가
-        const dock = document.getElementById('slm-dock');
-        if (dock) dock.appendChild(callEndBtn);
-    }
+    // 상단 배너 표시
+    showCallBanner(charName);
 
     showToast(`통화 시작: ${charName}`, 'info');
 }
 
 /**
- * 통화를 종료한다
+ * 통화를 종료하고 AI 요약을 생성한다
  */
 async function endCall() {
     if (!callActive) return;
@@ -149,7 +187,14 @@ async function endCall() {
     const timeStr = `${String(m).padStart(2, '0')}분 ${String(s).padStart(2, '0')}초`;
 
     callActive = false;
+    const endedContact = callContact;
+    const startIdx = callStartMessageIdx;
     callStartTime = null;
+    callContact = '';
+    callStartMessageIdx = -1;
+
+    // 상단 배너 제거
+    removeCallBanner();
 
     // 통화 종료 메시지 삽입
     try {
@@ -158,23 +203,45 @@ async function endCall() {
         console.error('[ST-LifeSim] 통화 종료 오류:', e);
     }
 
-    // 종료 버튼 제거
-    if (callEndBtn) { callEndBtn.remove(); callEndBtn = null; }
+    // AI가 통화 내용 요약 생성
+    let summary = '';
+    try {
+        const ctx = getContext();
+        const chatLen = ctx.chat?.length ?? 0;
+        const startFrom = Math.max(0, startIdx);
+        const callMsgs = ctx.chat?.slice(startFrom, chatLen) ?? [];
+        if (callMsgs.length > 0) {
+            const msgText = callMsgs.map(m => `${m.is_user ? '{{user}}' : m.name}: ${m.mes}`).join('\n');
+            await slashGen(
+                `다음은 ${endedContact}와의 통화 중 대화 내용이다. 통화 내용을 2~3문장으로 간결하게 요약하라:\n${msgText}`,
+                endedContact
+            );
+            // 생성된 마지막 메시지가 요약
+            const afterCtx = getContext();
+            const lastMsg = afterCtx.chat?.[afterCtx.chat.length - 1];
+            if (lastMsg && !lastMsg.is_user) {
+                summary = lastMsg.mes || '';
+            }
+        }
+    } catch (e) {
+        console.error('[ST-LifeSim] 통화 요약 생성 오류:', e);
+    }
 
-    // 통화 기록 저장 확인
+    // 통화 기록 저장
     const logs = loadCallLogs();
     logs.push({
         id: crypto.randomUUID(),
-        contactName: callContact,
+        contactName: endedContact,
         date: new Date().toISOString(),
         durationSeconds: duration,
+        summary,
+        startMessageIdx: startIdx,
         includeInContext: false,
         binding: 'chat',
     });
     saveCallLogs(logs);
 
     showToast(`통화 종료 (${timeStr})`, 'success');
-    callContact = '';
 }
 
 /**
@@ -197,6 +264,49 @@ export function openCallLogsPopup() {
 function buildCallLogsContent() {
     const wrapper = document.createElement('div');
     wrapper.className = 'slm-call-wrapper';
+
+    // 직접 전화 걸기 섹션
+    const dialSection = document.createElement('div');
+    dialSection.className = 'slm-dial-wrapper slm-form';
+
+    const dialTitle = document.createElement('h4');
+    dialTitle.style.cssText = 'margin:0 0 8px;font-size:14px;font-weight:600;color:var(--slm-text)';
+    dialTitle.textContent = '📲 전화 걸기';
+    dialSection.appendChild(dialTitle);
+
+    const dialRow = document.createElement('div');
+    dialRow.className = 'slm-input-row';
+
+    const dialInput = document.createElement('input');
+    dialInput.className = 'slm-input';
+    dialInput.type = 'text';
+    dialInput.placeholder = '상대방 이름 입력';
+
+    // {{char}} 이름을 기본값으로 설정
+    const ctx0 = getContext();
+    if (ctx0?.name2) dialInput.value = ctx0.name2;
+
+    const dialBtn = document.createElement('button');
+    dialBtn.className = 'slm-btn slm-btn-primary slm-btn-sm';
+    dialBtn.innerHTML = '📞 발신';
+    dialBtn.onclick = async () => {
+        const name = dialInput.value.trim();
+        if (!name) { showToast('이름을 입력해주세요.', 'warn'); return; }
+        if (callActive) { showToast('이미 통화 중입니다.', 'warn'); return; }
+        // 팝업 닫고 통화 시작
+        const overlay = document.getElementById('slm-overlay-call-logs');
+        if (overlay) overlay.remove();
+        await startCall(name);
+    };
+
+    dialRow.appendChild(dialInput);
+    dialRow.appendChild(dialBtn);
+    dialSection.appendChild(dialRow);
+    wrapper.appendChild(dialSection);
+
+    const hr0 = document.createElement('hr');
+    hr0.className = 'slm-hr';
+    wrapper.appendChild(hr0);
 
     const logs = loadCallLogs();
 
@@ -230,18 +340,43 @@ function buildCallLogsContent() {
 
             const d = new Date(log.date);
             const dateStr = d.toLocaleDateString('ko-KR');
-            const m = Math.floor(log.durationSeconds / 60);
-            const s = log.durationSeconds % 60;
-            const durStr = `${m}분 ${String(s).padStart(2, '0')}초`;
+            const mMin = Math.floor(log.durationSeconds / 60);
+            const sSec = log.durationSeconds % 60;
+            const durStr = `${mMin}분 ${String(sSec).padStart(2, '0')}초`;
 
-            row.innerHTML = `
-                <div class="slm-call-info">
-                    <span class="slm-call-icon">📞</span>
-                    <span class="slm-call-name">${escapeHtml(log.contactName)}</span>
-                    <span class="slm-call-date">${escapeHtml(dateStr)}</span>
-                    <span class="slm-call-dur">${escapeHtml(durStr)}</span>
-                </div>
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'slm-call-info';
+            infoDiv.innerHTML = `
+                <span class="slm-call-icon">📞</span>
+                <span class="slm-call-name">${escapeHtml(log.contactName)}</span>
+                <span class="slm-call-date">${escapeHtml(dateStr)}</span>
+                <span class="slm-call-dur">${escapeHtml(durStr)}</span>
             `;
+            row.appendChild(infoDiv);
+
+            // 요약 표시
+            if (log.summary) {
+                const sumDiv = document.createElement('div');
+                sumDiv.className = 'slm-call-summary';
+                sumDiv.textContent = `📝 ${log.summary}`;
+                row.appendChild(sumDiv);
+            }
+
+            // 통화 시작 위치로 점프 버튼
+            if (typeof log.startMessageIdx === 'number' && log.startMessageIdx >= 0) {
+                const jumpBtn = document.createElement('button');
+                jumpBtn.className = 'slm-btn slm-btn-ghost slm-btn-sm slm-jump-btn';
+                jumpBtn.textContent = '📌 대화 이동';
+                jumpBtn.onclick = async () => {
+                    try {
+                        const ctx = getContext();
+                        await ctx.executeSlashCommandsWithOptions(`/chat-jump ${log.startMessageIdx}`, { showOutput: false });
+                    } catch (e) {
+                        showToast('이동 실패', 'error', 2000);
+                    }
+                };
+                row.appendChild(jumpBtn);
+            }
 
             logList.appendChild(row);
         });

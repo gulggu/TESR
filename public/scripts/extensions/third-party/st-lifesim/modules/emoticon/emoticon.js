@@ -4,6 +4,7 @@
  * - 이모티콘 추가/편집/삭제
  * - 카테고리 탭 분류 + 검색 + 즐겨찾기
  * - 클릭 시 /send ![이름](URL) 전송
+ * - 출력 크기: 설정에서 지정한 px (scale 방식)
  * - AI 공용 이모티콘은 컨텍스트에 주입
  */
 
@@ -12,6 +13,15 @@ import { loadData, saveData } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
 import { showToast } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
+import { extension_settings } from '../../../../extensions.js';
+
+/**
+ * 이모티콘 출력 크기를 가져온다 (extension_settings에서)
+ * @returns {number}
+ */
+function getEmoticonSize() {
+    return extension_settings?.['st-lifesim']?.emoticonSize || 80;
+}
 
 const MODULE_KEY = 'emoticons';
 
@@ -175,10 +185,13 @@ function buildEmoticonContent() {
             lockIcon.className = 'slm-emoticon-lock';
             lockIcon.textContent = e.aiUsable ? '' : '🔒';
 
-            // 클릭 시 전송
+            // 클릭 시 전송 (설정된 크기로 scale)
             cell.onclick = async () => {
                 try {
-                    await slashSend(`![${e.name}](${e.url})`);
+                    const size = getEmoticonSize();
+                    // HTML img 태그로 크기 지정 (scale 방식)
+                    const html = `<img src="${e.url}" alt="${e.name}" style="width:${size}px;height:${size}px;object-fit:contain;display:inline-block;vertical-align:middle">`;
+                    await slashSend(`\`\`\`\n${html}\n\`\`\``);
                     showToast(`이모티콘 전송: ${e.name}`, 'success', 1000);
                 } catch (err) {
                     showToast('전송 실패', 'error');

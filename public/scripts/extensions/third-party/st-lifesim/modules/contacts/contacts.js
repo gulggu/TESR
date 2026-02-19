@@ -2,13 +2,16 @@
  * contacts.js
  * NPC 연락처 모듈
  * - 연락처 등록/편집/삭제
+ * - {{char}} 연락처 자동 등록
+ * - 연락처 클릭 시 상세 정보 팝업
  * - 컨텍스트에 인물 정보 주입
  * - 채팅별 또는 캐릭터별 바인딩
  */
 
+import { getContext } from '../../../../../st-context.js';
 import { loadData, saveData } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
-import { showToast } from '../../utils/ui.js';
+import { showToast, escapeHtml } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 
 const MODULE_KEY = 'contacts';
@@ -25,6 +28,7 @@ const MODULE_KEY = 'contacts';
  * @property {string} phone
  * @property {string[]} tags
  * @property {'chat'|'character'} binding
+ * @property {boolean} [isCharAuto] - {{char}} 자동 추가 여부
  */
 
 /**
@@ -46,12 +50,42 @@ function saveContacts(contacts, binding = 'chat') {
 }
 
 /**
+ * {{char}} 연락처를 자동으로 추가한다 (아직 없는 경우에만)
+ */
+function ensureCharContact() {
+    const ctx = getContext();
+    if (!ctx) return;
+    const charName = ctx.name2;
+    if (!charName) return;
+
+    const contacts = loadContacts('chat');
+    const exists = contacts.some(c => c.isCharAuto || c.name === charName);
+    if (exists) return;
+
+    contacts.push({
+        id: crypto.randomUUID(),
+        name: charName,
+        avatar: ctx.characters?.[ctx.characterId]?.avatar
+            ? `/characters/${ctx.characters?.[ctx.characterId]?.avatar}`
+            : '',
+        description: ctx.characters?.[ctx.characterId]?.description || '',
+        relationToUser: '주요 캐릭터',
+        relationToChar: '',
+        personality: ctx.characters?.[ctx.characterId]?.personality || '',
+        phone: '',
+        tags: [],
+        binding: 'chat',
+        isCharAuto: true,
+    });
+    saveContacts(contacts, 'chat');
+}
+
+/**
  * 연락처 모듈을 초기화한다
  */
 export function initContacts() {
     // 컨텍스트 빌더 등록
     registerContextBuilder('contacts', () => {
-        // 채팅 바인딩 우선
         const chatContacts = loadContacts('chat');
         const charContacts = loadContacts('character');
         const all = [...chatContacts, ...charContacts];
@@ -68,6 +102,16 @@ export function initContacts() {
 
         return `=== 주변 인물 ===\n${lines.join('\n')}\n→ 이 인물들은 언제든 {{user}}에게 연락하거나 {{char}}의 대화에 언급될 수 있음`;
     });
+
+    // 채팅 로드 시 {{char}} 자동 추가
+    const ctx = getContext();
+    if (ctx?.eventSource && ctx?.event_types) {
+        ctx.eventSource.on(ctx.event_types.CHAT_CHANGED, () => {
+            ensureCharContact();
+        });
+    }
+    // 즉시도 한번 실행
+    ensureCharContact();
 }
 
 /**
@@ -147,6 +191,7 @@ function buildContactsContent() {
         filtered.forEach(contact => {
             const row = document.createElement('div');
             row.className = 'slm-contact-row';
+            row.style.cursor = 'pointer';
 
             // 아바타
             const avatar = document.createElement('div');
@@ -176,25 +221,32 @@ function buildContactsContent() {
             info.appendChild(name);
             info.appendChild(rel);
 
+            // 클릭 시 상세 팝업
+            const clickArea = document.createElement('div');
+            clickArea.style.cssText = 'display:flex;align-items:center;gap:10px;flex:1;min-width:0;cursor:pointer';
+            clickArea.appendChild(avatar);
+            clickArea.appendChild(info);
+            clickArea.onclick = () => openContactDetailPopup(contact);
+
             // 편집 버튼
             const editBtn = document.createElement('button');
             editBtn.className = 'slm-btn slm-btn-ghost slm-btn-sm';
             editBtn.textContent = '편집';
-            editBtn.onclick = () => openContactDialog(contact, binding, renderList);
+            editBtn.onclick = (e) => { e.stopPropagation(); openContactDialog(contact, binding, renderList); };
 
             // 삭제 버튼
             const delBtn = document.createElement('button');
             delBtn.className = 'slm-btn slm-btn-danger slm-btn-sm';
             delBtn.textContent = '삭제';
-            delBtn.onclick = () => {
+            delBtn.onclick = (e) => {
+                e.stopPropagation();
                 const updated = loadContacts(binding).filter(c => c.id !== contact.id);
                 saveContacts(updated, binding);
                 renderList();
                 showToast('연락처 삭제', 'success', 1500);
             };
 
-            row.appendChild(avatar);
-            row.appendChild(info);
+            row.appendChild(clickArea);
             row.appendChild(editBtn);
             row.appendChild(delBtn);
             list.appendChild(row);
@@ -203,6 +255,68 @@ function buildContactsContent() {
 
     renderList();
     return wrapper;
+}
+
+/**
+ * 연락처 상세 팝업을 연다
+ * @param {Contact} contact
+ */
+function openContactDetailPopup(contact) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'slm-contact-detail';
+
+    // 아바타
+    const avatar = document.createElement('div');
+    avatar.className = 'slm-contact-detail-avatar';
+    if (contact.avatar) {
+        const img = document.createElement('img');
+        img.src = contact.avatar;
+        img.alt = contact.name;
+        img.onerror = () => { avatar.textContent = contact.name[0] || '?'; };
+        avatar.appendChild(img);
+    } else {
+        avatar.textContent = contact.name[0] || '?';
+    }
+    wrapper.appendChild(avatar);
+
+    // 이름
+    const nameEl = document.createElement('div');
+    nameEl.className = 'slm-contact-detail-name';
+    nameEl.textContent = contact.name;
+    wrapper.appendChild(nameEl);
+
+    // 상세 필드들
+    const fields = document.createElement('div');
+    fields.className = 'slm-contact-detail-fields';
+
+    const fieldDefs = [
+        { label: '전화번호', value: contact.phone },
+        { label: '관계', value: contact.relationToUser },
+        { label: '{{char}}과의 관계', value: contact.relationToChar },
+        { label: '성격/말투', value: contact.personality },
+        { label: '소개', value: contact.description },
+    ];
+
+    fieldDefs.forEach(({ label, value }) => {
+        if (!value) return;
+        const row = document.createElement('div');
+        row.className = 'slm-contact-field-row';
+        row.innerHTML = `
+            <span class="slm-contact-field-label">${escapeHtml(label)}</span>
+            <span class="slm-contact-field-value">${escapeHtml(value)}</span>
+        `;
+        fields.appendChild(row);
+    });
+
+    wrapper.appendChild(fields);
+
+    createPopup({
+        id: 'contact-detail',
+        title: `👤 ${contact.name}`,
+        content: wrapper,
+        className: 'slm-sub-panel',
+        onBack: () => openContactsPopup(),
+    });
 }
 
 /**
@@ -226,7 +340,6 @@ function openContactDialog(existing, binding, onSave) {
         phone: createFormField(wrapper, '전화번호', 'tel', existing?.phone || ''),
     };
 
-    // footer 버튼 생성 후 createPopup에 전달
     const footer = document.createElement('div');
     footer.className = 'slm-panel-footer';
 
@@ -247,6 +360,7 @@ function openContactDialog(existing, binding, onSave) {
         content: wrapper,
         footer,
         className: 'slm-sub-panel',
+        onBack: () => openContactsPopup(),
     });
 
     cancelBtn.onclick = () => close();
