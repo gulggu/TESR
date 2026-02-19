@@ -81,39 +81,59 @@ function isModuleEnabled(moduleKey) {
     return isEnabled() && getSettings().modules?.[moduleKey] !== false;
 }
 
-// 독 메뉴 열림 상태
-let dockMenuOpen = false;
+/**
+ * ST-LifeSim 메뉴 버튼을 sendform의 전송 버튼(#send_but) 바로 앞에 삽입한다
+ */
+function injectLifeSimMenuButton() {
+    if (document.getElementById('slm-menu-btn')) return;
+
+    const sendBtn = document.getElementById('send_but');
+    if (!sendBtn) {
+        const observer = new MutationObserver(() => {
+            if (document.getElementById('send_but')) {
+                observer.disconnect();
+                injectLifeSimMenuButton();
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+        return;
+    }
+
+    const btn = document.createElement('button');
+    btn.id = 'slm-menu-btn';
+    btn.className = 'slm-menu-btn interactable';
+    btn.title = 'ST-LifeSim 메뉴';
+    btn.innerHTML = '📱';
+    btn.setAttribute('aria-label', 'ST-LifeSim 메뉴 열기');
+    btn.setAttribute('tabindex', '0');
+
+    btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openMainMenuPopup();
+    });
+
+    sendBtn.parentNode.insertBefore(btn, sendBtn);
+}
 
 /**
- * 플로팅 버튼 및 독(Dock) UI를 렌더링한다 — 드래그 가능
+ * ST-LifeSim 메인 메뉴 팝업을 연다
  */
-function renderFloatingDock() {
-    // 이미 있으면 제거 후 재생성
-    const existing = document.getElementById('slm-dock');
-    if (existing) existing.remove();
+function openMainMenuPopup() {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'slm-main-menu';
 
-    const dock = document.createElement('div');
-    dock.id = 'slm-dock';
-    dock.className = 'slm-dock';
-    document.body.appendChild(dock);
+    const grid = document.createElement('div');
+    grid.className = 'slm-menu-grid';
+    wrapper.appendChild(grid);
 
-    // 서브 아이콘 컨테이너
-    const menuContainer = document.createElement('div');
-    menuContainer.id = 'slm-dock-menu';
-    menuContainer.className = 'slm-dock-menu';
-    menuContainer.style.display = 'none';
-    dock.appendChild(menuContainer);
+    const popup = createPopup({
+        id: 'main-menu',
+        title: '📱 ST-LifeSim',
+        content: wrapper,
+        className: 'slm-main-menu-panel',
+    });
 
-    // 플로팅 메인 버튼
-    const mainBtn = document.createElement('button');
-    mainBtn.id = 'slm-main-btn';
-    mainBtn.className = 'slm-main-btn';
-    mainBtn.title = 'ST-LifeSim';
-    mainBtn.innerHTML = '✉️';
-    mainBtn.setAttribute('aria-label', 'ST-LifeSim 메뉴');
-    dock.appendChild(mainBtn);
-
-    // 서브 메뉴 아이템 목록
     const menuItems = [
         { key: 'quickTools', icon: '🛠️', label: '퀵 도구', action: openQuickToolsPanel },
         { key: 'emoticon', icon: '😊', label: '이모티콘', action: openEmoticonPopup },
@@ -125,122 +145,15 @@ function renderFloatingDock() {
         { key: null, icon: '⚙️', label: '설정', action: openSettingsPanel },
     ];
 
-    // 메뉴 열기/닫기 토글
-    function toggleMenu() {
-        dockMenuOpen = !dockMenuOpen;
-        if (dockMenuOpen) {
-            mainBtn.classList.add('open');
-            menuContainer.style.display = 'flex';
-            menuContainer.innerHTML = '';
-
-            // 활성 모듈만 아이콘 버튼 추가 (역순으로 — 아래서 위로 슬라이드)
-            const activeItems = menuItems.filter(item => item.key === null || isModuleEnabled(item.key));
-            activeItems.reverse().forEach((item, i) => {
-                const btn = document.createElement('button');
-                btn.className = 'slm-sub-icon-btn';
-                btn.style.animationDelay = `${i * 0.04}s`;
-                btn.innerHTML = `<span class="slm-sub-icon-emoji">${item.icon}</span><span>${item.label}</span>`;
-                btn.onclick = (ev) => {
-                    ev.stopPropagation();
-                    closeDockMenu();
-                    item.action();
-                };
-                menuContainer.appendChild(btn);
-            });
-
-            // 외부 클릭으로 닫기
-            setTimeout(() => {
-                document.addEventListener('click', closeDockMenuOnClickOutside, { once: true });
-            }, 0);
-        } else {
-            closeDockMenu();
-        }
-    }
-
-    function closeDockMenu() {
-        dockMenuOpen = false;
-        mainBtn.classList.remove('open');
-        menuContainer.style.display = 'none';
-    }
-
-    function closeDockMenuOnClickOutside(e) {
-        if (!dock.contains(e.target)) {
-            closeDockMenu();
-        }
-    }
-
-    mainBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (!moved) toggleMenu();
-    });
-    // ── 드래그 지원 (마우스 + 터치) ──
-    let isDragging = false;
-    let dragStartX = 0, dragStartY = 0;
-    let dockStartRight = 20, dockStartBottom = 24;
-    let moved = false;
-
-    function onDragStart(clientX, clientY) {
-        isDragging = true;
-        moved = false;
-        dragStartX = clientX;
-        dragStartY = clientY;
-        const rect = dock.getBoundingClientRect();
-        dockStartRight = window.innerWidth - rect.right;
-        dockStartBottom = window.innerHeight - rect.bottom;
-    }
-
-    function onDragMove(clientX, clientY) {
-        if (!isDragging) return;
-        const dx = clientX - dragStartX;
-        const dy = clientY - dragStartY;
-        if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved = true;
-        if (!moved) return;
-
-        let newRight = dockStartRight - dx;
-        let newBottom = dockStartBottom - dy;
-
-        // 화면 밖으로 나가지 않도록 제한
-        newRight = Math.max(8, Math.min(newRight, window.innerWidth - 60));
-        newBottom = Math.max(8, Math.min(newBottom, window.innerHeight - 60));
-
-        dock.style.right = `${newRight}px`;
-        dock.style.bottom = `${newBottom}px`;
-    }
-
-    function onDragEnd() {
-        isDragging = false;
-    }
-
-    // 마우스 이벤트
-    mainBtn.addEventListener('mousedown', (e) => {
-        if (e.button !== 0) return;
-        onDragStart(e.clientX, e.clientY);
-        const onMove = (ev) => onDragMove(ev.clientX, ev.clientY);
-        const onUp = () => {
-            onDragEnd();
-            document.removeEventListener('mousemove', onMove);
-            document.removeEventListener('mouseup', onUp);
+    menuItems.filter(item => item.key === null || isModuleEnabled(item.key)).forEach(item => {
+        const itemBtn = document.createElement('button');
+        itemBtn.className = 'slm-menu-item';
+        itemBtn.innerHTML = `<span class="slm-menu-icon">${item.icon}</span><span class="slm-menu-label">${item.label}</span>`;
+        itemBtn.onclick = () => {
+            popup.close();
+            item.action();
         };
-        document.addEventListener('mousemove', onMove);
-        document.addEventListener('mouseup', onUp);
-    });
-
-    // 터치 이벤트
-    mainBtn.addEventListener('touchstart', (e) => {
-        const t = e.touches[0];
-        onDragStart(t.clientX, t.clientY);
-    }, { passive: true });
-
-    mainBtn.addEventListener('touchmove', (e) => {
-        const t = e.touches[0];
-        onDragMove(t.clientX, t.clientY);
-    }, { passive: true });
-
-    mainBtn.addEventListener('touchend', () => {
-        if (!moved) {
-            toggleMenu();
-        }
-        onDragEnd();
+        grid.appendChild(itemBtn);
     });
 }
 
@@ -534,8 +447,8 @@ async function init() {
         injectQuickSendButton();
     }
 
-    // 플로팅 독 렌더링
-    renderFloatingDock();
+    // ST-LifeSim 메뉴 버튼 삽입 (sendform 옆)
+    injectLifeSimMenuButton();
 
     // AI 응답 후 컨텍스트 주입
     if (ctx.eventSource && ctx.event_types) {

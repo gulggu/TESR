@@ -576,7 +576,30 @@ body[data-theme="dark"],
   opacity: 0.75;
 }
 #slm-quick-send-btn:hover { opacity: 1; background: var(--slm-bg-secondary); border-radius: 6px; }
-#slm-quick-send-btn:active { transform: scale(0.95); }
+#slm-quick-send-btn:active { transform: scale(0.95); background: transparent !important; }
+
+/* ──────────────────────────────────────────
+   ST-LifeSim 메뉴 버튼 (sendform 옆)
+────────────────────────────────────────── */
+#slm-menu-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, opacity 0.15s;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  vertical-align: middle;
+  opacity: 0.75;
+}
+#slm-menu-btn:hover { opacity: 1; background: var(--slm-bg-secondary); border-radius: 6px; }
+#slm-menu-btn:active { transform: scale(0.95); background: transparent !important; }
 
 /* ──────────────────────────────────────────
    퀵 도구 패널
