@@ -291,11 +291,9 @@ function openContactDetailPopup(contact) {
     fields.className = 'slm-contact-detail-fields';
 
     const fieldDefs = [
-        { label: '전화번호', value: contact.phone },
         { label: '관계', value: contact.relationToUser },
         { label: '{{char}}과의 관계', value: contact.relationToChar },
         { label: '성격/말투', value: contact.personality },
-        { label: '소개', value: contact.description },
     ];
 
     fieldDefs.forEach(({ label, value }) => {
@@ -334,11 +332,10 @@ function openContactDialog(existing, binding, onSave) {
     const fields = {
         name: createFormField(wrapper, '이름 *', 'text', existing?.name || ''),
         avatar: createFormField(wrapper, '프로필 이미지 URL', 'url', existing?.avatar || ''),
-        description: createFormField(wrapper, '한줄 소개', 'text', existing?.description || ''),
+        description: createFormField(wrapper, '설명', 'text', existing?.description || ''),
         relationToUser: createFormField(wrapper, '{{user}}와의 관계 *', 'text', existing?.relationToUser || ''),
         relationToChar: createFormField(wrapper, '{{char}}와의 관계', 'text', existing?.relationToChar || ''),
         personality: createFormField(wrapper, '성격/말투', 'text', existing?.personality || ''),
-        phone: createFormField(wrapper, '전화번호', 'tel', existing?.phone || ''),
     };
 
     const footer = document.createElement('div');
@@ -383,7 +380,7 @@ function openContactDialog(existing, binding, onSave) {
             relationToUser,
             relationToChar: fields.relationToChar.value.trim(),
             personality: fields.personality.value.trim(),
-            phone: fields.phone.value.trim(),
+            phone: '',
             tags: existing?.tags || [],
             binding,
         };

@@ -26,6 +26,14 @@ const DEFAULT_KEYWORDS = ['전화할게', '전화 걸게', '전화해도 돼', '
 
 // 통화 진행 중 상태
 let callActive = false;
+
+/**
+ * 현재 통화 중인지 여부를 반환한다
+ * @returns {boolean}
+ */
+export function isCallActive() {
+    return callActive;
+}
 let callStartTime = null;
 let callContact = '';
 let callStartMessageIdx = -1; // 통화 시작 당시 채팅 메시지 인덱스

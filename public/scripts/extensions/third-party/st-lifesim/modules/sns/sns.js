@@ -14,8 +14,18 @@ import { registerContextBuilder } from '../../utils/context-inject.js';
 import { showToast, escapeHtml } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 import { getContacts } from '../contacts/contacts.js';
+import { extension_settings } from '../../../../../extensions.js';
 
 const MODULE_KEY = 'sns-feed';
+const AVATARS_KEY = 'sns-avatars';
+
+/**
+ * SNS 기본 이미지 URL을 가져온다
+ * @returns {string}
+ */
+function getDefaultImageUrl() {
+    return extension_settings?.['st-lifesim']?.defaultSnsImageUrl || '';
+}
 
 /**
  * SNS 피드 데이터 불러오기
@@ -31,6 +41,22 @@ function loadFeed() {
  */
 function saveFeed(feed) {
     saveData(MODULE_KEY, feed, getDefaultBinding());
+}
+
+/**
+ * SNS 작성자별 아바타(프로필 사진) 저장소 불러오기
+ * @returns {Object} { [authorName]: avatarUrl }
+ */
+function loadAvatars() {
+    return loadData(AVATARS_KEY, {}, getDefaultBinding());
+}
+
+/**
+ * SNS 작성자별 아바타 저장
+ * @param {Object} avatars
+ */
+function saveAvatars(avatars) {
+    saveData(AVATARS_KEY, avatars, getDefaultBinding());
 }
 
 /**
@@ -83,13 +109,15 @@ export async function triggerNpcPosting() {
         }
 
         const feed = loadFeed();
+        const defaultImg = getDefaultImageUrl();
         feed.push({
             id: crypto.randomUUID(),
             authorName: pick.name,
             authorIsUser: false,
             date: new Date().toISOString(),
             content: postContent,
-            imageUrl: '',
+            imageUrl: defaultImg,
+            imageDescription: '',
             likes: Math.floor(Math.random() * 30),
             likedByUser: false,
             comments: [],
@@ -157,8 +185,15 @@ function buildSnsContent() {
         }
     };
 
+    const avatarBtn = document.createElement('button');
+    avatarBtn.className = 'slm-btn slm-btn-sm';
+    avatarBtn.style.cssText = 'background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:8px';
+    avatarBtn.textContent = '🖼️ 프로필';
+    avatarBtn.onclick = () => openAvatarSettingsDialog(renderFeed);
+
     headerBtns.appendChild(writeBtn);
     headerBtns.appendChild(npcPostBtn);
+    headerBtns.appendChild(avatarBtn);
     header.appendChild(logo);
     header.appendChild(headerBtns);
     wrapper.appendChild(header);
@@ -197,9 +232,10 @@ function buildPostCard(post, onUpdate) {
     const card = document.createElement('div');
     card.className = 'slm-post-card';
 
-    const d = new Date(post.date);
+    const avatars = loadAvatars();
+    const avatarUrl = avatars[post.authorName] || '';
 
-    // 헤더 (아바타 + 이름 + 메뉴)
+    // 헤더 (아바타 + 이름 + 메뉴) — 시간 제거
     const header = document.createElement('div');
     header.className = 'slm-post-header';
 
@@ -207,16 +243,24 @@ function buildPostCard(post, onUpdate) {
     avatarWrap.className = 'slm-post-avatar';
     const avatarInner = document.createElement('div');
     avatarInner.className = 'slm-post-avatar-inner';
-    avatarInner.textContent = ((post.authorName || '?')[0] || '?').toUpperCase();
+    if (avatarUrl) {
+        const avatarImg = document.createElement('img');
+        avatarImg.src = avatarUrl;
+        avatarImg.alt = post.authorName;
+        avatarImg.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%';
+        avatarImg.onerror = () => {
+            avatarInner.removeChild(avatarImg);
+            avatarInner.textContent = ((post.authorName || '?')[0] || '?').toUpperCase();
+        };
+        avatarInner.appendChild(avatarImg);
+    } else {
+        avatarInner.textContent = ((post.authorName || '?')[0] || '?').toUpperCase();
+    }
     avatarWrap.appendChild(avatarInner);
 
     const authorEl = document.createElement('span');
     authorEl.className = 'slm-post-author';
     authorEl.textContent = post.authorName;
-
-    const dateEl = document.createElement('span');
-    dateEl.className = 'slm-post-date';
-    dateEl.textContent = d.toLocaleDateString('ko-KR');
 
     const moreBtn = document.createElement('button');
     moreBtn.className = 'slm-post-more-btn';
@@ -225,18 +269,29 @@ function buildPostCard(post, onUpdate) {
 
     header.appendChild(avatarWrap);
     header.appendChild(authorEl);
-    header.appendChild(dateEl);
     header.appendChild(moreBtn);
     card.appendChild(header);
 
-    // 이미지
+    // 이미지 (설명을 hover 툴팁으로)
     if (post.imageUrl) {
+        const imgWrap = document.createElement('div');
+        imgWrap.className = 'slm-post-img-wrap';
+
         const img = document.createElement('img');
         img.className = 'slm-post-img';
         img.src = post.imageUrl;
-        img.alt = '게시물 이미지';
-        img.onerror = () => img.style.display = 'none';
-        card.appendChild(img);
+        img.alt = post.imageDescription || '게시물 이미지';
+        img.onerror = () => imgWrap.style.display = 'none';
+        imgWrap.appendChild(img);
+
+        // 이미지 설명: hover 말풍선
+        if (post.imageDescription) {
+            const tooltip = document.createElement('div');
+            tooltip.className = 'slm-img-tooltip';
+            tooltip.textContent = post.imageDescription;
+            imgWrap.appendChild(tooltip);
+        }
+        card.appendChild(imgWrap);
     }
 
     // 액션 버튼 행
@@ -378,15 +433,43 @@ function openEditPostDialog(post, onUpdate) {
     imgLabel.className = 'slm-label';
     imgLabel.textContent = '이미지 URL (선택)';
 
+    const defaultImg = getDefaultImageUrl();
+    const useDefaultLabel = document.createElement('label');
+    useDefaultLabel.className = 'slm-toggle-label';
+    useDefaultLabel.style.marginBottom = '4px';
+    const useDefaultCheck = document.createElement('input');
+    useDefaultCheck.type = 'checkbox';
+    useDefaultCheck.checked = !post.imageUrl && !!defaultImg;
+    useDefaultLabel.appendChild(useDefaultCheck);
+    useDefaultLabel.appendChild(document.createTextNode(' 기본 이미지 사용'));
+
     const imgInput = document.createElement('input');
     imgInput.className = 'slm-input';
     imgInput.type = 'url';
     imgInput.value = post.imageUrl || '';
+    imgInput.style.display = useDefaultCheck.checked ? 'none' : '';
+
+    useDefaultCheck.onchange = () => {
+        imgInput.style.display = useDefaultCheck.checked ? 'none' : '';
+    };
+
+    const imgDescLabel = document.createElement('label');
+    imgDescLabel.className = 'slm-label';
+    imgDescLabel.textContent = '사진 설명 (선택, 이미지 위에 마우스 호버 시 표시)';
+
+    const imgDescInput = document.createElement('input');
+    imgDescInput.className = 'slm-input';
+    imgDescInput.type = 'text';
+    imgDescInput.value = post.imageDescription || '';
+    imgDescInput.placeholder = '이미지 설명...';
 
     wrapper.appendChild(contentLabel);
     wrapper.appendChild(contentInput);
     wrapper.appendChild(imgLabel);
+    if (defaultImg) wrapper.appendChild(useDefaultLabel);
     wrapper.appendChild(imgInput);
+    wrapper.appendChild(imgDescLabel);
+    wrapper.appendChild(imgDescInput);
 
     const footer = document.createElement('div');
     footer.className = 'slm-panel-footer';
@@ -421,7 +504,8 @@ function openEditPostDialog(post, onUpdate) {
         const p = f.find(p => p.id === post.id);
         if (p) {
             p.content = text;
-            p.imageUrl = imgInput.value.trim();
+            p.imageUrl = useDefaultCheck.checked ? (getDefaultImageUrl() || '') : imgInput.value.trim();
+            p.imageDescription = imgDescInput.value.trim();
             saveFeed(f);
         }
         close();
@@ -566,15 +650,42 @@ function openWritePostDialog(onSave) {
     imgLabel.className = 'slm-label';
     imgLabel.textContent = '이미지 URL (선택)';
 
+    const defaultImg = getDefaultImageUrl();
+    const useDefaultLabel = document.createElement('label');
+    useDefaultLabel.className = 'slm-toggle-label';
+    useDefaultLabel.style.marginBottom = '4px';
+    const useDefaultCheck = document.createElement('input');
+    useDefaultCheck.type = 'checkbox';
+    useDefaultCheck.checked = !!defaultImg;
+    useDefaultLabel.appendChild(useDefaultCheck);
+    useDefaultLabel.appendChild(document.createTextNode(' 기본 이미지 사용'));
+
     const imgInput = document.createElement('input');
     imgInput.className = 'slm-input';
     imgInput.type = 'url';
     imgInput.placeholder = 'https://...';
+    imgInput.style.display = useDefaultCheck.checked ? 'none' : '';
+
+    useDefaultCheck.onchange = () => {
+        imgInput.style.display = useDefaultCheck.checked ? 'none' : '';
+    };
+
+    const imgDescLabel = document.createElement('label');
+    imgDescLabel.className = 'slm-label';
+    imgDescLabel.textContent = '사진 설명 (선택, 이미지 위에 마우스 호버 시 표시)';
+
+    const imgDescInput = document.createElement('input');
+    imgDescInput.className = 'slm-input';
+    imgDescInput.type = 'text';
+    imgDescInput.placeholder = '이미지 설명...';
 
     wrapper.appendChild(contentLabel);
     wrapper.appendChild(contentInput);
     wrapper.appendChild(imgLabel);
+    if (defaultImg) wrapper.appendChild(useDefaultLabel);
     wrapper.appendChild(imgInput);
+    wrapper.appendChild(imgDescLabel);
+    wrapper.appendChild(imgDescInput);
 
     const footer = document.createElement('div');
     footer.className = 'slm-panel-footer';
@@ -606,6 +717,10 @@ function openWritePostDialog(onSave) {
         if (!text) { showToast('내용을 입력해주세요.', 'warn'); return; }
 
         const freshCtx = getContext();
+        const finalImageUrl = useDefaultCheck.checked
+            ? (getDefaultImageUrl() || '')
+            : imgInput.value.trim();
+
         const feed = loadFeed();
         feed.push({
             id: crypto.randomUUID(),
@@ -613,7 +728,8 @@ function openWritePostDialog(onSave) {
             authorIsUser: true,
             date: new Date().toISOString(),
             content: text,
-            imageUrl: imgInput.value.trim(),
+            imageUrl: finalImageUrl,
+            imageDescription: imgDescInput.value.trim(),
             likes: 0,
             likedByUser: false,
             comments: [],
@@ -626,4 +742,111 @@ function openWritePostDialog(onSave) {
         onSave();
         showToast('게시물 올리기 완료', 'success');
     };
+}
+
+/**
+ * SNS 프로필 사진(아바타) 설정 다이얼로그를 연다
+ * @param {Function} onUpdate
+ */
+function openAvatarSettingsDialog(onUpdate) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'slm-form';
+
+    const desc = document.createElement('p');
+    desc.className = 'slm-desc';
+    desc.textContent = '작성자 이름별 프로필 사진 URL을 설정합니다. 이름 정확히 입력해주세요.';
+    wrapper.appendChild(desc);
+
+    const avatars = loadAvatars();
+
+    const listDiv = document.createElement('div');
+    wrapper.appendChild(listDiv);
+
+    function renderAvatarList() {
+        listDiv.innerHTML = '';
+        const entries = Object.entries(avatars);
+        if (entries.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'slm-empty';
+            empty.textContent = '등록된 프로필 사진이 없습니다.';
+            listDiv.appendChild(empty);
+        }
+        entries.forEach(([name, url]) => {
+            const row = document.createElement('div');
+            row.className = 'slm-input-row';
+            row.style.gap = '6px';
+
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'slm-label';
+            nameSpan.style.minWidth = '80px';
+            nameSpan.textContent = name;
+
+            const urlSpan = document.createElement('span');
+            urlSpan.className = 'slm-label';
+            urlSpan.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px';
+            urlSpan.textContent = url;
+
+            const delBtn = document.createElement('button');
+            delBtn.className = 'slm-btn slm-btn-danger slm-btn-sm';
+            delBtn.textContent = '삭제';
+            delBtn.onclick = () => {
+                delete avatars[name];
+                saveAvatars(avatars);
+                renderAvatarList();
+                onUpdate();
+            };
+
+            row.appendChild(nameSpan);
+            row.appendChild(urlSpan);
+            row.appendChild(delBtn);
+            listDiv.appendChild(row);
+        });
+    }
+    renderAvatarList();
+
+    // 추가 폼
+    const addRow = document.createElement('div');
+    addRow.className = 'slm-input-row';
+    addRow.style.marginTop = '8px';
+
+    const nameInput = document.createElement('input');
+    nameInput.className = 'slm-input';
+    nameInput.type = 'text';
+    nameInput.placeholder = '작성자 이름';
+    nameInput.style.flex = '1';
+
+    const urlInput = document.createElement('input');
+    urlInput.className = 'slm-input';
+    urlInput.type = 'url';
+    urlInput.placeholder = '프로필 이미지 URL';
+    urlInput.style.flex = '2';
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'slm-btn slm-btn-primary slm-btn-sm';
+    addBtn.textContent = '추가';
+    addBtn.onclick = () => {
+        const n = nameInput.value.trim();
+        const u = urlInput.value.trim();
+        if (!n || !u) { showToast('이름과 URL을 모두 입력해주세요.', 'warn'); return; }
+        avatars[n] = u;
+        saveAvatars(avatars);
+        nameInput.value = '';
+        urlInput.value = '';
+        renderAvatarList();
+        onUpdate();
+        showToast(`${n} 프로필 사진 설정됨`, 'success', 1500);
+    };
+
+    addRow.appendChild(nameInput);
+    addRow.appendChild(urlInput);
+    addRow.appendChild(addBtn);
+    wrapper.appendChild(addRow);
+
+    createPopup({
+        id: 'sns-avatars',
+        title: '🖼️ SNS 프로필 사진 설정',
+        content: wrapper,
+        className: 'slm-sub-panel',
+        onBack: () => openSnsPopup(),
+    });
 }

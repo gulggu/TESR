@@ -2884,3 +2884,77 @@ body[data-theme="dark"],
   flex-direction: column;
   gap: 6px;
 }
+
+/* ──────────────────────────────────────────
+   SNS 이미지 툴팁 (호버 시 설명 말풍선)
+────────────────────────────────────────── */
+.slm-post-img-wrap {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+.slm-img-tooltip {
+  display: none;
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.78);
+  color: #fff;
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  white-space: pre-wrap;
+  max-width: 90%;
+  text-align: center;
+  pointer-events: none;
+  z-index: 10;
+}
+.slm-img-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: rgba(0,0,0,0.78);
+}
+.slm-post-img-wrap:hover .slm-img-tooltip { display: block; }
+
+/* ──────────────────────────────────────────
+   기프티콘 모듈 스타일
+────────────────────────────────────────── */
+.slm-gifticon-wrapper { display: flex; flex-direction: column; gap: 0; }
+.slm-gifticon-inbox { display: flex; flex-direction: column; gap: 8px; padding: 8px 0; }
+.slm-gifticon-card {
+  background: var(--slm-surface);
+  border: 1px solid var(--slm-border);
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.slm-gifticon-card.slm-gifticon-used { opacity: 0.5; }
+.slm-gifticon-top { display: flex; gap: 10px; align-items: flex-start; }
+.slm-gifticon-img { width: 70px; height: 70px; object-fit: cover; border-radius: 8px; }
+.slm-gifticon-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.slm-gifticon-name { font-size: 14px; font-weight: 600; color: var(--slm-text); }
+.slm-gifticon-brand { font-size: 12px; color: var(--slm-text-secondary, #aaa); }
+.slm-gifticon-value { font-size: 13px; color: var(--slm-primary); font-weight: 500; }
+.slm-gifticon-expiry { font-size: 11px; color: #e07040; }
+.slm-gifticon-counterpart { font-size: 11px; color: var(--slm-text-secondary, #aaa); }
+.slm-gifticon-memo { font-size: 11px; color: var(--slm-text-secondary, #aaa); font-style: italic; }
+
+/* ──────────────────────────────────────────
+   테마 색상 커스터마이저
+────────────────────────────────────────── */
+.slm-color-picker {
+  width: 40px;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid var(--slm-border);
+  border-radius: 6px;
+  cursor: pointer;
+  background: none;
+}
