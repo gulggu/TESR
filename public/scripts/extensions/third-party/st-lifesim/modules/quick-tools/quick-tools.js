@@ -330,6 +330,7 @@ export function renderNoContactUI() {
 
 /**
  * 연락 안 됨 연출 실행
+ * ({{char}}가 {{user}}에게 연락했지만 {{user}}가 확인하지 않은 상황)
  */
 async function handleNoContact() {
     const ctx = getContext();
