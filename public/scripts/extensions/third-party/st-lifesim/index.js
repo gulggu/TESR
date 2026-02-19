@@ -513,13 +513,13 @@ function openSettingsPanel(onBack) {
         if (!settings.themeColors) settings.themeColors = {};
 
         const colorDefs = [
-            { key: '--slm-primary', label: '주요 색 (버튼/강조)', defaultVal: '#1a73e8' },
+            { key: '--slm-primary', label: '주요 색 (버튼/강조)', defaultVal: '#007aff' },
             { key: '--slm-secondary', label: '보조 색 (보조 버튼)', defaultVal: '#6c757d' },
-            { key: '--slm-bg', label: '패널 배경', defaultVal: '#1e1e2e' },
-            { key: '--slm-surface', label: '카드/셀 배경', defaultVal: '#2a2a3c' },
-            { key: '--slm-text', label: '텍스트 색', defaultVal: '#e0e0e0' },
-            { key: '--slm-border', label: '테두리 색', defaultVal: '#3a3a5c' },
-            { key: '--slm-accent', label: '액센트 색 (SNS 헤더 등)', defaultVal: '#833ab4' },
+            { key: '--slm-bg', label: '패널 배경', defaultVal: '#ffffff' },
+            { key: '--slm-surface', label: '카드/셀 배경', defaultVal: '#ffffff' },
+            { key: '--slm-text', label: '텍스트 색', defaultVal: '#1c1c1e' },
+            { key: '--slm-border', label: '테두리 색', defaultVal: '#c7c7cc' },
+            { key: '--slm-accent', label: '액센트 색 (SNS 헤더 등)', defaultVal: '#007aff' },
         ];
 
         colorDefs.forEach(def => {
