@@ -225,7 +225,7 @@ function buildEmoticonContent() {
                 return;
             }
             const lines = emoticons.map(e =>
-                `[${e.category || '기본'}] ${e.name}\t${e.url}`
+                `[${e.category || '기본'}] ${e.name}\t${e.url}`,
             );
             const text = `ST-LifeSim 이모티콘 URL 목록 (${new Date().toLocaleDateString('ko-KR')})\n` +
                          `총 ${emoticons.length}개\n\n` +

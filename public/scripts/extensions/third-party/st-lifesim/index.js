@@ -20,7 +20,7 @@ import { createPopup, createTabs, closePopup } from './utils/popup.js';
 import { showToast } from './utils/ui.js';
 import { exportAllData, importAllData } from './utils/storage.js';
 import { injectQuickSendButton, renderTimeDividerUI, renderReadReceiptUI, renderNoContactUI, renderEventGeneratorUI, renderVoiceMemoUI } from './modules/quick-tools/quick-tools.js';
-import { startFirstMsgTimer, stopFirstMsgTimer, renderFirstMsgSettingsUI } from './modules/firstmsg/firstmsg.js';
+import { startFirstMsgTimer, renderFirstMsgSettingsUI } from './modules/firstmsg/firstmsg.js';
 import { initEmoticon, openEmoticonPopup } from './modules/emoticon/emoticon.js';
 import { initContacts, openContactsPopup } from './modules/contacts/contacts.js';
 import { initCall, openCallLogsPopup } from './modules/call/call.js';

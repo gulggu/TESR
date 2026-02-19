@@ -10,7 +10,7 @@
  */
 
 import { getContext } from '../../../../../st-context.js';
-import { slashSend, slashGen, slashSendAs } from '../../utils/slash.js';
+import { slashSend, slashGen } from '../../utils/slash.js';
 import { showToast } from '../../utils/ui.js';
 import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
 
@@ -245,7 +245,7 @@ async function insertTimeDivider(timeLabel) {
         const html = customStyle.replace('{TIME}', '{{getvar::시간경과}}');
         text = `\`\`\`\n${html}\n\`\`\``;
     } else {
-        text = `─────────── {{getvar::시간경과}} ───────────`;
+        text = '─────────── {{getvar::시간경과}} ───────────';
     }
     await slashSend(text);
 }
@@ -295,7 +295,7 @@ async function handleReadReceipt() {
         await slashSend('읽음 ✓✓');
         await slashGen(
             `${charName} has read the message but has not replied yet. Briefly describe the situation in 1-2 sentences.`,
-            charName
+            charName,
         );
         showToast('읽씹 연출 완료', 'success', 1500);
     } catch (e) {
@@ -349,7 +349,7 @@ async function handleNoContact() {
         await slashSend('📵 연결되지 않습니다');
         await slashGen(
             `${charName} tried to reach the user but the user has not seen or responded yet. Briefly describe the situation in 1-2 sentences.`,
-            charName
+            charName,
         );
         showToast('연락 안 됨 연출 완료', 'success', 1500);
     } catch (e) {
@@ -565,7 +565,7 @@ async function handleVoiceMemo(seconds, hint) {
         if (hint) {
             await slashGen(
                 `A voice message has arrived for ${charName}. Content hint: ${hint}. React naturally to this voice message.`,
-                charName
+                charName,
             );
         }
 

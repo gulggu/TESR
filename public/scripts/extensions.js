@@ -670,10 +670,12 @@ function addExtensionStyle(name, manifest) {
             link.onload = function () {
                 resolve();
             };
-            link.onerror = function (e) {
-                reject(e);
+            link.onerror = function () {
+                reject(new Error(`Failed to load style: ${url}`));
             };
             document.head.appendChild(link);
+        } else {
+            resolve();
         }
     });
 }
