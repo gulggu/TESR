@@ -16,10 +16,11 @@
 import { getContext } from '../../../st-context.js';
 import { extension_settings } from '../../../extensions.js';
 import { injectContext, clearContext } from './utils/context-inject.js';
-import { createPopup } from './utils/popup.js';
+import { createPopup, createTabs, closePopup } from './utils/popup.js';
 import { showToast } from './utils/ui.js';
 import { exportAllData, importAllData } from './utils/storage.js';
 import { injectQuickSendButton, renderTimeDividerUI, renderReadReceiptUI, renderNoContactUI, renderEventGeneratorUI, renderVoiceMemoUI } from './modules/quick-tools/quick-tools.js';
+import { startFirstMsgTimer, stopFirstMsgTimer, renderFirstMsgSettingsUI } from './modules/firstmsg/firstmsg.js';
 import { initEmoticon, openEmoticonPopup } from './modules/emoticon/emoticon.js';
 import { initContacts, openContactsPopup } from './modules/contacts/contacts.js';
 import { initCall, openCallLogsPopup } from './modules/call/call.js';
@@ -43,7 +44,13 @@ const DEFAULT_SETTINGS = {
         sns: true,
         calendar: true,
     },
-    emoticonSize: 80, // px
+    emoticonSize: 80,   // px
+    emoticonRadius: 10, // px
+    firstMsg: {
+        enabled: false,
+        intervalSec: 10,
+        probability: 8,
+    },
 };
 
 /**
@@ -58,8 +65,14 @@ function getSettings() {
     if (extension_settings[SETTINGS_KEY].emoticonSize == null) {
         extension_settings[SETTINGS_KEY].emoticonSize = DEFAULT_SETTINGS.emoticonSize;
     }
+    if (extension_settings[SETTINGS_KEY].emoticonRadius == null) {
+        extension_settings[SETTINGS_KEY].emoticonRadius = DEFAULT_SETTINGS.emoticonRadius;
+    }
     if (extension_settings[SETTINGS_KEY].defaultBinding == null) {
         extension_settings[SETTINGS_KEY].defaultBinding = DEFAULT_SETTINGS.defaultBinding;
+    }
+    if (extension_settings[SETTINGS_KEY].firstMsg == null) {
+        extension_settings[SETTINGS_KEY].firstMsg = { ...DEFAULT_SETTINGS.firstMsg };
     }
     return extension_settings[SETTINGS_KEY];
 }
@@ -110,7 +123,11 @@ function injectLifeSimMenuButton() {
     btn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        openMainMenuPopup();
+        if (document.getElementById('slm-overlay-main-menu')) {
+            closePopup('main-menu');
+        } else {
+            openMainMenuPopup();
+        }
     });
 
     sendBtn.parentNode.insertBefore(btn, sendBtn);
@@ -151,7 +168,7 @@ function openMainMenuPopup() {
         itemBtn.innerHTML = `<span class="slm-menu-icon">${item.icon}</span><span class="slm-menu-label">${item.label}</span>`;
         itemBtn.onclick = () => {
             popup.close();
-            item.action();
+            item.action(openMainMenuPopup);
         };
         grid.appendChild(itemBtn);
     });
@@ -160,32 +177,48 @@ function openMainMenuPopup() {
 /**
  * 퀵 도구 패널을 연다 (시간구분선, 읽씹, 연락안됨, 사건생성, 음성메모)
  */
-function openQuickToolsPanel() {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'slm-quick-tools-panel';
-
-    // 각 퀵 도구를 순서대로 추가
-    wrapper.appendChild(renderTimeDividerUI());
-    const hr = document.createElement('hr');
-    hr.className = 'slm-hr';
-    wrapper.appendChild(hr);
-    wrapper.appendChild(renderReadReceiptUI());
-    wrapper.appendChild(renderNoContactUI());
-    wrapper.appendChild(renderEventGeneratorUI());
-    wrapper.appendChild(renderVoiceMemoUI());
+function openQuickToolsPanel(onBack) {
+    const tabs = createTabs([
+        {
+            key: 'divider',
+            label: '⏱️ 구분선',
+            content: renderTimeDividerUI(),
+        },
+        {
+            key: 'read',
+            label: '👻 읽씹/안읽씹',
+            content: (() => {
+                const c = document.createElement('div');
+                c.appendChild(renderReadReceiptUI());
+                c.appendChild(renderNoContactUI());
+                return c;
+            })(),
+        },
+        {
+            key: 'event',
+            label: '⚡ 사건 발생',
+            content: renderEventGeneratorUI(),
+        },
+        {
+            key: 'media',
+            label: '🎤 음성/사진',
+            content: renderVoiceMemoUI(),
+        },
+    ], 'divider');
 
     createPopup({
         id: 'quick-tools',
         title: '🛠️ 퀵 도구',
-        content: wrapper,
+        content: tabs,
         className: 'slm-quick-panel',
+        onBack,
     });
 }
 
 /**
  * 설정 패널을 연다
  */
-function openSettingsPanel() {
+function openSettingsPanel(onBack) {
     const wrapper = document.createElement('div');
     wrapper.className = 'slm-settings-wrapper slm-form';
 
@@ -302,9 +335,55 @@ function openSettingsPanel() {
     sizeRow.appendChild(sizeApplyBtn);
     wrapper.appendChild(sizeRow);
 
+    // 이모티콘 모서리 반경 설정
+    const radiusRow = document.createElement('div');
+    radiusRow.className = 'slm-input-row';
+    radiusRow.style.marginTop = '8px';
+
+    const radiusLbl = document.createElement('label');
+    radiusLbl.className = 'slm-label';
+    radiusLbl.textContent = '이모티콘 모서리:';
+
+    const radiusInput = document.createElement('input');
+    radiusInput.className = 'slm-input slm-input-sm';
+    radiusInput.type = 'number';
+    radiusInput.min = '0';
+    radiusInput.max = '50';
+    radiusInput.value = String(settings.emoticonRadius ?? 10);
+    radiusInput.style.width = '70px';
+
+    const radiusPxLabel = document.createElement('span');
+    radiusPxLabel.className = 'slm-label';
+    radiusPxLabel.textContent = 'px';
+
+    const radiusApplyBtn = document.createElement('button');
+    radiusApplyBtn.className = 'slm-btn slm-btn-primary slm-btn-sm';
+    radiusApplyBtn.textContent = '적용';
+    radiusApplyBtn.onclick = () => {
+        const val = parseInt(radiusInput.value);
+        settings.emoticonRadius = Math.max(0, Math.min(50, isNaN(val) ? 10 : val));
+        radiusInput.value = String(settings.emoticonRadius);
+        document.documentElement.style.setProperty('--slm-emoticon-radius', settings.emoticonRadius + 'px');
+        saveSettings();
+        showToast(`이모티콘 모서리: ${settings.emoticonRadius}px`, 'success', 1500);
+    };
+
+    radiusRow.appendChild(radiusLbl);
+    radiusRow.appendChild(radiusInput);
+    radiusRow.appendChild(radiusPxLabel);
+    radiusRow.appendChild(radiusApplyBtn);
+    wrapper.appendChild(radiusRow);
+
     const sizeHr = document.createElement('hr');
     sizeHr.className = 'slm-hr';
     wrapper.appendChild(sizeHr);
+
+    // 선톡 설정
+    wrapper.appendChild(renderFirstMsgSettingsUI(settings, saveSettings));
+
+    const firstMsgHr = document.createElement('hr');
+    firstMsgHr.className = 'slm-hr';
+    wrapper.appendChild(firstMsgHr);
 
     // 모듈별 토글
     const moduleList = [
@@ -409,6 +488,7 @@ function openSettingsPanel() {
         title: '⚙️ ST-LifeSim 설정',
         content: wrapper,
         className: 'slm-sub-panel',
+        onBack,
     });
 }
 
@@ -434,6 +514,9 @@ async function init() {
 
     const settings = getSettings();
 
+    // 이모티콘 모서리 반경 CSS 변수 적용
+    document.documentElement.style.setProperty('--slm-emoticon-radius', (settings.emoticonRadius ?? 10) + 'px');
+
     // 각 모듈 초기화 (활성화된 경우만)
     if (isModuleEnabled('emoticon')) initEmoticon();
     if (isModuleEnabled('contacts')) initContacts();
@@ -449,6 +532,9 @@ async function init() {
 
     // ST-LifeSim 메뉴 버튼 삽입 (sendform 옆)
     injectLifeSimMenuButton();
+
+    // 선톡 타이머 시작 (활성화된 경우)
+    startFirstMsgTimer(settings.firstMsg);
 
     // AI 응답 후 컨텍스트 주입
     if (ctx.eventSource && ctx.event_types) {

@@ -240,13 +240,14 @@ async function endCall() {
 /**
  * 통화 기록 팝업을 연다
  */
-export function openCallLogsPopup() {
+export function openCallLogsPopup(onBack) {
     const content = buildCallLogsContent();
     createPopup({
         id: 'call-logs',
         title: '📞 통화기록',
         content,
         className: 'slm-call-panel',
+        onBack,
     });
 }
 

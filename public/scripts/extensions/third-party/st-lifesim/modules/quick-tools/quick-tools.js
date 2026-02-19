@@ -71,7 +71,6 @@ async function handleQuickSend() {
         await slashSend(text);
         textarea.value = '';
         textarea.dispatchEvent(new Event('input'));
-        showToast('전송 완료 (AI 응답 없음)', 'success', 1500);
     } catch (e) {
         showToast('전송 실패: ' + e.message, 'error');
     }
@@ -167,6 +166,28 @@ export function renderTimeDividerUI() {
     cssDesc2.textContent = '{TIME} 자리에 시간 텍스트가 삽입됩니다.';
     cssBody.appendChild(cssDesc2);
 
+    // 미리보기 영역
+    const previewLabel = document.createElement('p');
+    previewLabel.className = 'slm-desc';
+    previewLabel.textContent = '미리보기:';
+    cssBody.appendChild(previewLabel);
+
+    const preview = document.createElement('div');
+    preview.className = 'slm-divider-preview';
+    cssBody.appendChild(preview);
+
+    function updatePreview() {
+        const val = cssInput.value.trim();
+        const sampleTime = '1시간 후';
+        if (val) {
+            preview.innerHTML = val.replace('{TIME}', sampleTime);
+        } else {
+            preview.textContent = `─────────── ${sampleTime} ───────────`;
+        }
+    }
+    cssInput.addEventListener('input', updatePreview);
+    updatePreview();
+
     const cssBtnRow = document.createElement('div');
     cssBtnRow.className = 'slm-btn-row';
 
@@ -184,6 +205,7 @@ export function renderTimeDividerUI() {
     cssResetBtn.onclick = () => {
         cssInput.value = '';
         saveData(DIVIDER_STYLE_KEY, '', getDefaultBinding());
+        updatePreview();
         showToast('기본 스타일로 복원', 'success', 1500);
     };
 
@@ -195,6 +217,7 @@ export function renderTimeDividerUI() {
         const isOpen = cssBody.style.display !== 'none';
         cssBody.style.display = isOpen ? 'none' : 'block';
         cssToggle.textContent = isOpen ? '🎨 구분선 스타일 커스텀 ▸' : '🎨 구분선 스타일 커스텀 ▾';
+        if (!isOpen) updatePreview();
     };
 
     return container;
@@ -273,7 +296,7 @@ async function handleReadReceipt() {
 
 /**
  * 연락 안 됨 연출 UI를 렌더링한다
- * (유저가 char에게 연락 안 됨 — char는 자율적으로도 연락 안 될 수 있음)
+ * (char가 user에게 연락했지만 user가 보지 않음)
  * @returns {HTMLElement}
  */
 export function renderNoContactUI() {
@@ -286,7 +309,7 @@ export function renderNoContactUI() {
 
     const desc = document.createElement('p');
     desc.className = 'slm-desc';
-    desc.textContent = '{{char}}에게 연락이 닿지 않는 상황을 연출합니다. (char는 지시사항에 따라 자율적으로 연락 불가 상황을 만들 수 있습니다)';
+    desc.textContent = '{{char}}가 {{user}}에게 연락했지만 {{user}}가 아직 확인하지 않은 상황을 연출합니다.';
     container.appendChild(desc);
 
     const btn = document.createElement('button');
@@ -307,6 +330,7 @@ export function renderNoContactUI() {
 
 /**
  * 연락 안 됨 연출 실행
+ * ({{char}}가 {{user}}에게 연락했지만 {{user}}가 확인하지 않은 상황)
  */
 async function handleNoContact() {
     const ctx = getContext();
@@ -315,7 +339,7 @@ async function handleNoContact() {
     try {
         await slashSend('📵 연결되지 않습니다');
         await slashGen(
-            `${charName}에게 연락이 닿지 않는다. 전화를 받지 않거나 메시지 미확인 상태인 상황을 짧게 묘사하라.`,
+            `${charName}가 유저에게 연락을 했지만 유저가 아직 확인하지 않은 상황을 짧게 묘사하라.`,
             charName
         );
         showToast('연락 안 됨 연출 완료', 'success', 1500);

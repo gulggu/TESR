@@ -27,10 +27,11 @@
   --slm-danger: #ff3b30;
   --slm-danger-bg: #fff0ee;
   --slm-overlay-bg: rgba(0, 0, 0, 0.45);
-  --slm-panel-radius: 16px;
-  --slm-btn-radius: 10px;
+  --slm-panel-radius: 20px;
+  --slm-btn-radius: 12px;
   --slm-shadow: 0 8px 30px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08);
   --slm-z: 99999;
+  --slm-emoticon-radius: 10px;
 }
 
 /* 다크 모드 감지 */
@@ -97,6 +98,37 @@ body[data-theme="dark"],
     max-width: 100%;
     max-height: 90vh;
     border-radius: 12px;
+  }
+}
+
+/* 세로 공간이 좁은 환경 (모바일 가로, 소형 화면 등) */
+@media (max-height: 700px) {
+  .slm-overlay {
+    align-items: flex-start;
+    padding: 8px;
+    overflow-y: auto;
+  }
+  .slm-panel {
+    max-height: calc(100vh - 16px);
+    border-radius: 10px;
+    margin: auto;
+  }
+}
+
+@media (max-height: 480px) {
+  .slm-overlay {
+    padding: 4px;
+  }
+  .slm-panel {
+    max-height: calc(100vh - 8px);
+    border-radius: 8px;
+  }
+  .slm-panel-title {
+    padding: 10px 14px;
+    font-size: 15px;
+  }
+  .slm-panel-body {
+    padding: 10px 14px;
   }
 }
 
@@ -542,14 +574,15 @@ body[data-theme="dark"],
   padding: 16px 8px;
   background: var(--slm-bg-secondary);
   border: 1.5px solid var(--slm-border);
-  border-radius: 14px;
+  border-radius: 18px;
   cursor: pointer;
   font-family: var(--slm-font);
   color: var(--slm-text) !important;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.15s, border-color 0.15s, transform 0.12s;
   -webkit-tap-highlight-color: transparent;
 }
-.slm-menu-item:hover { background: var(--slm-bg-tertiary); border-color: var(--slm-accent); }
+.slm-menu-item:hover { background: var(--slm-bg-tertiary); border-color: var(--slm-accent); transform: scale(1.03); }
+.slm-menu-item:active { transform: scale(0.97); }
 .slm-menu-icon { font-size: 26px; }
 .slm-menu-label { font-size: 12px; font-weight: 500; }
 
@@ -668,7 +701,7 @@ body[data-theme="dark"],
 .slm-emoticon-cell {
   position: relative;
   aspect-ratio: 1;
-  border-radius: 10px;
+  border-radius: var(--slm-emoticon-radius);
   background: var(--slm-bg-secondary);
   border: 1.5px solid transparent;
   cursor: pointer;
@@ -1416,4 +1449,13 @@ body[data-theme="dark"],
   min-width: 0;
   gap: 4px;
   overflow: hidden;
+}
+
+/* ──────────────────────────────────────────
+   설정 패널 - 선톡 섹션
+────────────────────────────────────────── */
+.slm-firstmsg-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }

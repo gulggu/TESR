@@ -85,13 +85,14 @@ export function initCalendar() {
 /**
  * 캘린더 팝업을 연다
  */
-export function openCalendarPopup() {
+export function openCalendarPopup(onBack) {
     const content = buildCalendarContent();
     createPopup({
         id: 'calendar',
         title: '📅 캘린더',
         content,
         className: 'slm-calendar-panel',
+        onBack,
     });
 }
 

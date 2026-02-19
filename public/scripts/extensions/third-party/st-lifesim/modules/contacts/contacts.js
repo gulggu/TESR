@@ -117,13 +117,14 @@ export function initContacts() {
 /**
  * 연락처 팝업을 연다
  */
-export function openContactsPopup() {
+export function openContactsPopup(onBack) {
     const content = buildContactsContent();
     createPopup({
         id: 'contacts',
         title: '📋 연락처',
         content,
         className: 'slm-contacts-panel',
+        onBack,
     });
 }
 
