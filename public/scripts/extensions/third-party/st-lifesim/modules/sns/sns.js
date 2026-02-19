@@ -11,7 +11,7 @@
 import { getContext } from '../../../../../st-context.js';
 import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
-import { showToast, escapeHtml } from '../../utils/ui.js';
+import { showToast } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 import { getContacts } from '../contacts/contacts.js';
 import { extension_settings } from '../../../../../extensions.js';
