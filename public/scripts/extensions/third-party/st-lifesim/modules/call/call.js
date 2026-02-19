@@ -11,8 +11,8 @@
  */
 
 import { getContext } from '../../../../../st-context.js';
-import { slashSend, slashGen } from '../../utils/slash.js';
-import { loadData, saveData } from '../../utils/storage.js';
+import { slashSend } from '../../utils/slash.js';
+import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
 import { showToast, escapeHtml } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 
@@ -35,7 +35,7 @@ let callStartMessageIdx = -1; // 통화 시작 당시 채팅 메시지 인덱스
  * @returns {Object[]}
  */
 function loadCallLogs() {
-    return loadData(MODULE_KEY, [], 'chat');
+    return loadData(MODULE_KEY, [], getDefaultBinding());
 }
 
 /**
@@ -43,7 +43,7 @@ function loadCallLogs() {
  * @param {Object[]} logs
  */
 function saveCallLogs(logs) {
-    saveData(MODULE_KEY, logs, 'chat');
+    saveData(MODULE_KEY, logs, getDefaultBinding());
 }
 
 /**
@@ -72,7 +72,7 @@ function detectCallKeywords(data) {
     if (!lastMsg || lastMsg.is_user) return;
 
     const text = (lastMsg.mes || '').toLowerCase();
-    const keywords = loadData(KEYWORDS_KEY, DEFAULT_KEYWORDS, 'chat');
+    const keywords = loadData(KEYWORDS_KEY, DEFAULT_KEYWORDS, getDefaultBinding());
     const found = keywords.some(kw => text.includes(kw.toLowerCase()));
 
     if (!found) return;
@@ -203,7 +203,7 @@ async function endCall() {
         console.error('[ST-LifeSim] 통화 종료 오류:', e);
     }
 
-    // AI가 통화 내용 요약 생성
+    // AI가 통화 내용 요약 생성 (채팅창에 보이지 않는 조용한 생성)
     let summary = '';
     try {
         const ctx = getContext();
@@ -212,19 +212,12 @@ async function endCall() {
         const callMsgs = ctx.chat?.slice(startFrom, chatLen) ?? [];
         if (callMsgs.length > 0) {
             const msgText = callMsgs.map(m => `${m.is_user ? '{{user}}' : m.name}: ${m.mes}`).join('\n');
-            await slashGen(
-                `다음은 ${endedContact}와의 통화 중 대화 내용이다. 통화 내용을 2~3문장으로 간결하게 요약하라:\n${msgText}`,
-                endedContact
-            );
-            // 생성된 마지막 메시지가 요약
-            const afterCtx = getContext();
-            const lastMsg = afterCtx.chat?.[afterCtx.chat.length - 1];
-            if (lastMsg && !lastMsg.is_user) {
-                summary = lastMsg.mes || '';
-            }
+            const summaryPrompt = `다음은 ${endedContact}와의 통화 중 대화 내용이다. 통화 내용을 2~3문장으로 간결하게 요약하라:\n${msgText}`;
+            summary = await ctx.generateQuietPrompt({ quietPrompt: summaryPrompt, quietName: endedContact }) || '';
         }
     } catch (e) {
         console.error('[ST-LifeSim] 통화 요약 생성 오류:', e);
+        showToast('통화 요약 생성 실패 (기록은 저장됩니다)', 'warn', 2500);
     }
 
     // 통화 기록 저장
@@ -237,7 +230,7 @@ async function endCall() {
         summary,
         startMessageIdx: startIdx,
         includeInContext: false,
-        binding: 'chat',
+        binding: getDefaultBinding(),
     });
     saveCallLogs(logs);
 

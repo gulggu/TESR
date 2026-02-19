@@ -8,7 +8,7 @@
  * - 거래 내역 관리 (토글 접힘)
  */
 
-import { loadData, saveData } from '../../utils/storage.js';
+import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
 import { showToast, escapeHtml } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
@@ -33,7 +33,7 @@ const DEFAULT_WALLET = {
  * @returns {Object}
  */
 function loadWallet() {
-    return loadData(MODULE_KEY, { ...DEFAULT_WALLET }, 'chat');
+    return loadData(MODULE_KEY, { ...DEFAULT_WALLET }, getDefaultBinding());
 }
 
 /**
@@ -41,7 +41,7 @@ function loadWallet() {
  * @param {Object} wallet
  */
 function saveWallet(wallet) {
-    saveData(MODULE_KEY, wallet, 'chat');
+    saveData(MODULE_KEY, wallet, getDefaultBinding());
 }
 
 /**
@@ -59,7 +59,7 @@ function formatCurrency(amount, symbol) {
  * @returns {boolean}
  */
 function isSetupDone() {
-    return loadData(SETUP_DONE_KEY, false, 'chat') === true;
+    return loadData(SETUP_DONE_KEY, false, getDefaultBinding()) === true;
 }
 
 /**
@@ -135,7 +135,7 @@ function openWalletSetupPopup() {
         w.currencySymbol = currSymInput.value.trim() || '₩';
         w.balance = parseInt(balInput.value) || 0;
         saveWallet(w);
-        saveData(SETUP_DONE_KEY, true, 'chat');
+        saveData(SETUP_DONE_KEY, true, getDefaultBinding());
         close();
         openWalletPopup();
         showToast('지갑 설정 완료', 'success');

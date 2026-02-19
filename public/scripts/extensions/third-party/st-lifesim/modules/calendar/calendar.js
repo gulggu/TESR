@@ -7,7 +7,7 @@
  * - 컨텍스트에 오늘/예정 일정 주입
  */
 
-import { loadData, saveData } from '../../utils/storage.js';
+import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
 import { showToast, escapeHtml } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
@@ -28,7 +28,7 @@ const DEFAULT_CALENDAR = {
  * @returns {Object}
  */
 function loadCalendar() {
-    return loadData(MODULE_KEY, { ...DEFAULT_CALENDAR }, 'chat');
+    return loadData(MODULE_KEY, { ...DEFAULT_CALENDAR }, getDefaultBinding());
 }
 
 /**
@@ -36,7 +36,7 @@ function loadCalendar() {
  * @param {Object} cal
  */
 function saveCalendar(cal) {
-    saveData(MODULE_KEY, cal, 'chat');
+    saveData(MODULE_KEY, cal, getDefaultBinding());
 }
 
 /**

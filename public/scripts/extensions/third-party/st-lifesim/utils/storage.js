@@ -4,9 +4,18 @@
  */
 
 import { getContext } from '../../../../st-context.js';
+import { extension_settings } from '../../../../extensions.js';
 
 // 로컬스토리지 키 접두사
 const PREFIX = 'st-lifesim:';
+
+/**
+ * 전역 설정에서 기본 바인딩 타입을 가져온다
+ * @returns {'chat'|'character'}
+ */
+export function getDefaultBinding() {
+    return extension_settings?.['st-lifesim']?.defaultBinding || 'chat';
+}
 
 /**
  * 현재 바인딩 키를 반환한다 (채팅 ID 또는 캐릭터 ID)
