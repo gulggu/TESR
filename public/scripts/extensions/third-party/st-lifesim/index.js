@@ -15,6 +15,7 @@ import { extension_settings } from '../../../extensions.js';
 import { injectContext, clearContext } from './utils/context-inject.js';
 import { createPopup } from './utils/popup.js';
 import { showToast } from './utils/ui.js';
+import { exportAllData, importAllData } from './utils/storage.js';
 import { injectQuickSendButton, renderTimeDividerUI, renderReadReceiptUI, renderNoContactUI, renderEventGeneratorUI, renderVoiceMemoUI } from './modules/quick-tools/quick-tools.js';
 import { initEmoticon, openEmoticonPopup } from './modules/emoticon/emoticon.js';
 import { initContacts, openContactsPopup } from './modules/contacts/contacts.js';
@@ -265,6 +266,66 @@ function openSettingsPanel() {
         row.appendChild(lbl);
         wrapper.appendChild(row);
     });
+
+    // 데이터 백업/복원 섹션
+    const backupHr = document.createElement('hr');
+    backupHr.className = 'slm-hr';
+    wrapper.appendChild(backupHr);
+
+    const backupTitle = document.createElement('h4');
+    backupTitle.className = 'slm-settings-section-title';
+    backupTitle.textContent = '💾 데이터 백업 / 복원';
+    wrapper.appendChild(backupTitle);
+
+    const backupRow = document.createElement('div');
+    backupRow.className = 'slm-btn-row';
+
+    const exportBtn = document.createElement('button');
+    exportBtn.className = 'slm-btn slm-btn-secondary slm-btn-sm';
+    exportBtn.textContent = '📤 내보내기';
+    exportBtn.onclick = () => {
+        try {
+            const json = exportAllData();
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'st-lifesim-backup.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('데이터 내보내기 완료', 'success');
+        } catch (e) {
+            showToast('내보내기 실패: ' + e.message, 'error');
+        }
+    };
+
+    const importBtn = document.createElement('button');
+    importBtn.className = 'slm-btn slm-btn-secondary slm-btn-sm';
+    importBtn.textContent = '📥 가져오기';
+    importBtn.onclick = () => {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.json,application/json';
+        fileInput.onchange = () => {
+            const file = fileInput.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    importAllData(e.target.result);
+                    showToast('데이터 가져오기 완료', 'success');
+                } catch (err) {
+                    showToast('가져오기 실패: ' + err.message, 'error');
+                }
+            };
+            reader.readAsText(file);
+        };
+        fileInput.click();
+    };
+
+    backupRow.appendChild(exportBtn);
+    backupRow.appendChild(importBtn);
+    wrapper.appendChild(backupRow);
 
     createPopup({
         id: 'settings',
