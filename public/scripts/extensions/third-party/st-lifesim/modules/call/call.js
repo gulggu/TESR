@@ -286,6 +286,57 @@ function buildCallLogsContent() {
     missedRow.appendChild(missedBtn);
     wrapper.appendChild(missedRow);
 
+    // 통화 감지 키워드 설정 섹션
+    const kwHr = document.createElement('hr');
+    kwHr.className = 'slm-hr';
+    wrapper.appendChild(kwHr);
+
+    const kwTitle = document.createElement('h4');
+    kwTitle.className = 'slm-settings-section-title';
+    kwTitle.textContent = '🔍 통화 감지 키워드';
+    wrapper.appendChild(kwTitle);
+
+    const kwDesc = document.createElement('p');
+    kwDesc.className = 'slm-desc';
+    kwDesc.textContent = 'AI 응답에서 통화 시작을 감지할 키워드를 관리합니다. (쉼표로 구분)';
+    wrapper.appendChild(kwDesc);
+
+    const kwInput = document.createElement('input');
+    kwInput.className = 'slm-input';
+    kwInput.type = 'text';
+    const currentKeywords = loadData(KEYWORDS_KEY, DEFAULT_KEYWORDS, 'chat');
+    kwInput.value = currentKeywords.join(', ');
+    wrapper.appendChild(kwInput);
+
+    const kwBtnRow = document.createElement('div');
+    kwBtnRow.className = 'slm-btn-row';
+
+    const kwSaveBtn = document.createElement('button');
+    kwSaveBtn.className = 'slm-btn slm-btn-primary slm-btn-sm';
+    kwSaveBtn.textContent = '저장';
+    kwSaveBtn.onclick = () => {
+        const keywords = kwInput.value.split(',').map(k => k.trim()).filter(Boolean);
+        if (keywords.length === 0) {
+            showToast('키워드를 하나 이상 입력해주세요.', 'warn');
+            return;
+        }
+        saveData(KEYWORDS_KEY, keywords, 'chat');
+        showToast('키워드 저장 완료', 'success', 1500);
+    };
+
+    const kwResetBtn = document.createElement('button');
+    kwResetBtn.className = 'slm-btn slm-btn-ghost slm-btn-sm';
+    kwResetBtn.textContent = '초기화';
+    kwResetBtn.onclick = () => {
+        saveData(KEYWORDS_KEY, DEFAULT_KEYWORDS, 'chat');
+        kwInput.value = DEFAULT_KEYWORDS.join(', ');
+        showToast('키워드 초기화 완료', 'success', 1500);
+    };
+
+    kwBtnRow.appendChild(kwSaveBtn);
+    kwBtnRow.appendChild(kwResetBtn);
+    wrapper.appendChild(kwBtnRow);
+
     renderLogs();
     return wrapper;
 }

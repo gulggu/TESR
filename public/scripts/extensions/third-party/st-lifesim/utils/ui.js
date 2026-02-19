@@ -68,15 +68,22 @@ export function showConfirm(message, confirmText = '확인', cancelText = '취�
         const btns = document.createElement('div');
         btns.className = 'slm-confirm-btns';
 
+        let onKey;
+
+        function close() {
+            overlay.remove();
+            document.removeEventListener('keydown', onKey);
+        }
+
         const cancelBtn = document.createElement('button');
         cancelBtn.className = 'slm-btn slm-btn-secondary';
         cancelBtn.textContent = cancelText;
-        cancelBtn.onclick = () => { overlay.remove(); resolve(false); };
+        cancelBtn.onclick = () => { close(); resolve(false); };
 
         const confirmBtn = document.createElement('button');
         confirmBtn.className = 'slm-btn slm-btn-primary';
         confirmBtn.textContent = confirmText;
-        confirmBtn.onclick = () => { overlay.remove(); resolve(true); };
+        confirmBtn.onclick = () => { close(); resolve(true); };
 
         btns.appendChild(cancelBtn);
         btns.appendChild(confirmBtn);
@@ -85,11 +92,10 @@ export function showConfirm(message, confirmText = '확인', cancelText = '취�
         overlay.appendChild(dialog);
         document.body.appendChild(overlay);
 
-        // ESC로 취소 (once 옵션으로 자동 정리, 버튼 클릭 시에는 아래 cancelBtn/confirmBtn에서 overlay 제거)
-        const onKey = (e) => {
-            if (e.key === 'Escape') { overlay.remove(); resolve(false); }
+        onKey = (e) => {
+            if (e.key === 'Escape') { close(); resolve(false); }
         };
-        document.addEventListener('keydown', onKey, { once: true });
+        document.addEventListener('keydown', onKey);
     });
 }
 
