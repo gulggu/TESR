@@ -20,6 +20,8 @@
   --slm-border: #c7c7cc;
   --slm-text: #1c1c1e;
   --slm-text-secondary: #6d6d72;
+  --slm-primary: #007aff;
+  --slm-secondary: #6c757d;
   --slm-accent: #007aff;
   --slm-accent-hover: #0056cc;
   --slm-success: #34c759;
@@ -66,7 +68,7 @@ body[data-theme="dark"],
    오버레이 & 팝업 패널
 ────────────────────────────────────────── */
 .slm-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
   background: var(--slm-overlay-bg);
   z-index: var(--slm-z);
