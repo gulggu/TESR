@@ -16,8 +16,6 @@ import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
 
 // 사건 기록 아카이브 저장 키
 const ARCHIVE_KEY = 'event-archive';
-// 시간구분선 CSS 커스텀 저장 키
-const DIVIDER_STYLE_KEY = 'divider-style';
 
 /**
  * 퀵 센드 버튼을 sendform의 전송 버튼(#send_but) 바로 앞에 삽입한다
@@ -137,90 +135,6 @@ export function renderTimeDividerUI() {
     customRow.appendChild(customBtn);
     container.appendChild(customRow);
 
-    // CSS 커스텀 토글
-    const cssToggle = document.createElement('div');
-    cssToggle.className = 'slm-divider-css-toggle';
-    cssToggle.textContent = '🎨 구분선 스타일 커스텀 ▸';
-    container.appendChild(cssToggle);
-
-    const cssBody = document.createElement('div');
-    cssBody.style.display = 'none';
-    container.appendChild(cssBody);
-
-    const cssHint = document.createElement('p');
-    cssHint.className = 'slm-desc';
-    cssHint.textContent = 'HTML로 구분선 서식을 직접 지정하세요. 저장하면 이후 모든 구분선에 적용됩니다. (첫 줄/마지막 줄에 ``` 없이 입력)';
-    cssBody.appendChild(cssHint);
-
-    const savedStyle = loadData(DIVIDER_STYLE_KEY, '', getDefaultBinding());
-
-    const cssInput = document.createElement('textarea');
-    cssInput.className = 'slm-textarea';
-    cssInput.rows = 3;
-    cssInput.placeholder = '예: <div style="text-align:center;color:#888;border-top:1px solid #ccc;padding:6px 0">{TIME}</div>';
-    cssInput.value = savedStyle;
-    cssBody.appendChild(cssInput);
-
-    const cssDesc2 = document.createElement('p');
-    cssDesc2.className = 'slm-desc';
-    cssDesc2.textContent = '{TIME} 자리에 시간 텍스트가 삽입됩니다.';
-    cssBody.appendChild(cssDesc2);
-
-    // 미리보기 영역
-    const previewLabel = document.createElement('p');
-    previewLabel.className = 'slm-desc';
-    previewLabel.textContent = '미리보기:';
-    cssBody.appendChild(previewLabel);
-
-    const preview = document.createElement('div');
-    preview.className = 'slm-divider-preview';
-    cssBody.appendChild(preview);
-
-    function updatePreview() {
-        const val = cssInput.value.trim();
-        const sampleTime = '1시간 후';
-        if (val) {
-            // 미리보기는 {TIME}을 샘플로 치환
-            preview.innerHTML = val.replace('{TIME}', sampleTime);
-        } else {
-            preview.textContent = `─────────── ${sampleTime} ───────────`;
-        }
-    }
-    cssInput.addEventListener('input', updatePreview);
-    updatePreview();
-
-    const cssBtnRow = document.createElement('div');
-    cssBtnRow.className = 'slm-btn-row';
-
-    const cssSaveBtn = document.createElement('button');
-    cssSaveBtn.className = 'slm-btn slm-btn-primary slm-btn-sm';
-    cssSaveBtn.textContent = '스타일 저장';
-    cssSaveBtn.onclick = () => {
-        saveData(DIVIDER_STYLE_KEY, cssInput.value.trim(), getDefaultBinding());
-        showToast('구분선 스타일 저장됨', 'success', 1500);
-    };
-
-    const cssResetBtn = document.createElement('button');
-    cssResetBtn.className = 'slm-btn slm-btn-secondary slm-btn-sm';
-    cssResetBtn.textContent = '기본으로';
-    cssResetBtn.onclick = () => {
-        cssInput.value = '';
-        saveData(DIVIDER_STYLE_KEY, '', getDefaultBinding());
-        updatePreview();
-        showToast('기본 스타일로 복원', 'success', 1500);
-    };
-
-    cssBtnRow.appendChild(cssSaveBtn);
-    cssBtnRow.appendChild(cssResetBtn);
-    cssBody.appendChild(cssBtnRow);
-
-    cssToggle.onclick = () => {
-        const isOpen = cssBody.style.display !== 'none';
-        cssBody.style.display = isOpen ? 'none' : 'block';
-        cssToggle.textContent = isOpen ? '🎨 구분선 스타일 커스텀 ▸' : '🎨 구분선 스타일 커스텀 ▾';
-        if (!isOpen) updatePreview();
-    };
-
     return container;
 }
 
@@ -229,24 +143,7 @@ export function renderTimeDividerUI() {
  * @param {string} timeLabel - 시간 텍스트
  */
 async function insertTimeDivider(timeLabel) {
-    const customStyle = loadData(DIVIDER_STYLE_KEY, '', getDefaultBinding());
-    const ctx = getContext();
-
-    // /setvar 로 시간경과 변수 갱신
-    try {
-        await ctx.executeSlashCommandsWithOptions(`/setvar key=시간경과 ${timeLabel}`, { showOutput: false });
-    } catch (e) {
-        console.error('[ST-LifeSim] setvar 실행 오류:', e);
-    }
-
-    let text;
-    if (customStyle) {
-        // 커스텀 HTML 스타일 적용 — {TIME}을 {{getvar::시간경과}}로 치환
-        const html = customStyle.replace('{TIME}', '{{getvar::시간경과}}');
-        text = `\`\`\`\n${html}\n\`\`\``;
-    } else {
-        text = '─────────── {{getvar::시간경과}} ───────────';
-    }
+    const text = `<hr><p style="text-align:center;color:gray;font-size:0.85em">${timeLabel}</p>`;
     await slashSend(text);
 }
 

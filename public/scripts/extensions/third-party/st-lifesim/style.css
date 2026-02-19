@@ -1385,29 +1385,6 @@ body[data-theme="dark"],
 }
 .slm-voice-hint-toggle-chevron.open { transform: rotate(180deg); }
 
-/* ──────────────────────────────────────────
-   시간구분선 - CSS 커스텀
-────────────────────────────────────────── */
-.slm-divider-preview {
-  padding: 10px;
-  background: var(--slm-bg-secondary);
-  border-radius: 8px;
-  font-size: 13px;
-  color: var(--slm-text);
-  text-align: center;
-  margin-top: 4px;
-  overflow-x: auto;
-}
-.slm-divider-css-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  font-size: 12px;
-  color: var(--slm-accent);
-  user-select: none;
-  padding: 4px 0;
-}
 
 /* ──────────────────────────────────────────
    통화 기록 - 요약 / 점프 버튼
@@ -2810,29 +2787,6 @@ body[data-theme="dark"],
 }
 .slm-voice-hint-toggle-chevron.open { transform: rotate(180deg); }
 
-/* ──────────────────────────────────────────
-   시간구분선 - CSS 커스텀
-────────────────────────────────────────── */
-.slm-divider-preview {
-  padding: 10px;
-  background: var(--slm-bg-secondary);
-  border-radius: 8px;
-  font-size: 13px;
-  color: var(--slm-text);
-  text-align: center;
-  margin-top: 4px;
-  overflow-x: auto;
-}
-.slm-divider-css-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  font-size: 12px;
-  color: var(--slm-accent);
-  user-select: none;
-  padding: 4px 0;
-}
 
 /* ──────────────────────────────────────────
    통화 기록 - 요약 / 점프 버튼
