@@ -13,7 +13,7 @@ const MIN_INTERVAL_SEC = 5;
 
 // 선톡 프롬프트 템플릿
 const FIRST_MSG_PROMPT = (charName) =>
-    `${charName}가 {{user}}에게 먼저 연락을 취한다. 현재 상황과 캐릭터 성격에 어울리는 자연스러운 선톡을 한 줄로 보내라.`;
+    `${charName} initiates contact with {{user}} out of the blue. Send a single-line natural message that fits the current situation and ${charName}'s personality.`;
 
 // 선톡 타이머 ID
 let firstMsgTimer = null;

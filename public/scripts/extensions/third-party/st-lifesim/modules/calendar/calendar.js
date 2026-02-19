@@ -73,12 +73,12 @@ export function initCalendar() {
 
         const lines = upcoming.map(e => {
             const label = e.diff === 0
-                ? `오늘(${today}일)`
-                : `D+${e.diff}(${e.day}일)`;
+                ? `Today (Day ${today})`
+                : `D+${e.diff} (Day ${e.day})`;
             return `${label}: ${e.title}${e.time ? ` (${e.time})` : ''}${e.description ? `, ${e.description}` : ''}`;
         });
 
-        return `=== 일정 ===\n${lines.join('\n')}`;
+        return `=== Schedule ===\n${lines.join('\n')}`;
     });
 }
 

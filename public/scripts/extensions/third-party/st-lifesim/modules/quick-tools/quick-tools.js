@@ -285,7 +285,7 @@ async function handleReadReceipt() {
     try {
         await slashSend('읽음 ✓✓');
         await slashGen(
-            `${charName}는 메시지를 읽었지만 아직 답장하지 않은 상황을 짧게 묘사하라.`,
+            `${charName} has read the message but has not replied yet. Briefly describe the situation in 1-2 sentences.`,
             charName
         );
         showToast('읽씹 연출 완료', 'success', 1500);
@@ -339,7 +339,7 @@ async function handleNoContact() {
     try {
         await slashSend('📵 연결되지 않습니다');
         await slashGen(
-            `${charName}가 유저에게 연락을 했지만 유저가 아직 확인하지 않은 상황을 짧게 묘사하라.`,
+            `${charName} tried to reach the user but the user has not seen or responded yet. Briefly describe the situation in 1-2 sentences.`,
             charName
         );
         showToast('연락 안 됨 연출 완료', 'success', 1500);
@@ -409,7 +409,7 @@ async function generateEvent(category) {
     const charName = ctx.name2 || '{{char}}';
 
     try {
-        const prompt = `${category} 분류의 사건이 발생했다. 현재 상황에 어울리는 사건을 간결하게 묘사하라.`;
+        const prompt = `An unexpected event in the "${category}" category has just occurred. Clearly and concisely describe a specific event that fits naturally into the current situation.`;
         await slashGen(prompt, charName);
 
         const archive = loadData(ARCHIVE_KEY, [], getDefaultBinding());
@@ -553,7 +553,7 @@ async function handleVoiceMemo(seconds, hint) {
 
         if (hint) {
             await slashGen(
-                `${charName}에게 음성메시지가 도착했다. 내용: ${hint}. 이에 반응하라.`,
+                `A voice message has arrived for ${charName}. Content hint: ${hint}. React naturally to this voice message.`,
                 charName
             );
         }

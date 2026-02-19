@@ -212,7 +212,7 @@ async function endCall() {
         const callMsgs = ctx.chat?.slice(startFrom, chatLen) ?? [];
         if (callMsgs.length > 0) {
             const msgText = callMsgs.map(m => `${m.is_user ? '{{user}}' : m.name}: ${m.mes}`).join('\n');
-            const summaryPrompt = `다음은 ${endedContact}와의 통화 중 대화 내용이다. 통화 내용을 2~3문장으로 간결하게 요약하라:\n${msgText}`;
+            const summaryPrompt = `The following is the conversation transcript from a call with ${endedContact}. Write a concise 2-3 sentence summary of what was discussed during the call:\n${msgText}`;
             summary = await ctx.generateQuietPrompt({ quietPrompt: summaryPrompt, quietName: endedContact }) || '';
         }
     } catch (e) {

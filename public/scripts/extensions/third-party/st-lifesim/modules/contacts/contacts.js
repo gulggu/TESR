@@ -94,13 +94,13 @@ export function initContacts() {
 
         const lines = all.map(c => {
             let line = `• ${c.name}`;
-            if (c.relationToUser) line += ` | {{user}}의 ${c.relationToUser}`;
-            if (c.relationToChar) line += ` | {{char}}와: ${c.relationToChar}`;
-            if (c.personality) line += ` | 성격: ${c.personality}`;
+            if (c.relationToUser) line += ` | Relation to {{user}}: ${c.relationToUser}`;
+            if (c.relationToChar) line += ` | Relation to {{char}}: ${c.relationToChar}`;
+            if (c.personality) line += ` | Personality: ${c.personality}`;
             return line;
         });
 
-        return `=== 주변 인물 ===\n${lines.join('\n')}\n→ 이 인물들은 언제든 {{user}}에게 연락하거나 {{char}}의 대화에 언급될 수 있음`;
+        return `=== Contacts ===\n${lines.join('\n')}\n→ These characters may contact {{user}} or be mentioned in {{char}}'s conversation at any time.`;
     });
 
     // 채팅 로드 시 {{char}} 자동 추가
