@@ -3,6 +3,7 @@
  * 팝업창 공통 생성/열기/닫기 컴포넌트
  * - ESC 키 + 외부 클릭으로 닫기 지원
  * - 화면 밖으로 나가지 않도록 모바일 대응
+ * - 돌아가기 버튼 지원 (onBack 옵션)
  */
 
 // 현재 열려있는 팝업 목록
@@ -17,9 +18,10 @@ const openPopups = new Set();
  * @param {string} [options.className] - 추가 CSS 클래스
  * @param {HTMLElement} [options.footer] - 팝업 하단에 표시할 엘리먼트 (선택)
  * @param {Function} [options.onClose] - 닫힐 때 콜백
+ * @param {Function} [options.onBack] - 돌아가기 버튼 콜백 (있으면 돌아가기 버튼 표시)
  * @returns {{ overlay: HTMLElement, panel: HTMLElement, body: HTMLElement, close: Function }}
  */
-export function createPopup({ id, title, content, className = '', footer, onClose }) {
+export function createPopup({ id, title, content, className = '', footer, onClose, onBack }) {
     // 이미 열린 팝업이 있으면 닫는다
     closePopup(id);
 
@@ -40,8 +42,26 @@ export function createPopup({ id, title, content, className = '', footer, onClos
     const titleBar = document.createElement('div');
     titleBar.className = 'slm-panel-title';
 
+    // 왼쪽 영역 (돌아가기 버튼 + 제목)
+    const titleLeft = document.createElement('div');
+    titleLeft.className = 'slm-panel-title-left';
+
+    // 돌아가기 버튼 (onBack이 있을 때만)
+    if (typeof onBack === 'function') {
+        const backBtn = document.createElement('button');
+        backBtn.className = 'slm-panel-back';
+        backBtn.textContent = '← 뒤로';
+        backBtn.setAttribute('aria-label', '이전 패널로 돌아가기');
+        backBtn.onclick = () => {
+            close();
+            onBack();
+        };
+        titleLeft.appendChild(backBtn);
+    }
+
     const titleText = document.createElement('span');
     titleText.textContent = title;
+    titleLeft.appendChild(titleText);
 
     const closeBtn = document.createElement('button');
     closeBtn.className = 'slm-panel-close';
@@ -49,7 +69,7 @@ export function createPopup({ id, title, content, className = '', footer, onClos
     closeBtn.setAttribute('aria-label', '닫기');
     closeBtn.onclick = () => close();
 
-    titleBar.appendChild(titleText);
+    titleBar.appendChild(titleLeft);
     titleBar.appendChild(closeBtn);
 
     // 내용 영역

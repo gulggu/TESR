@@ -344,7 +344,7 @@ body[data-theme="dark"],
 ────────────────────────────────────────── */
 #slm-toast-container {
   position: fixed;
-  bottom: 80px;
+  top: 16px;
   left: 50%;
   transform: translateX(-50%);
   z-index: calc(var(--slm-z) + 100);
@@ -390,11 +390,11 @@ body[data-theme="dark"],
 }
 
 @keyframes slm-toast-in {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(-10px); }
   to { opacity: 1; transform: translateY(0); }
 }
 @keyframes slm-toast-out {
-  to { opacity: 0; transform: translateY(10px); }
+  to { opacity: 0; transform: translateY(-10px); }
 }
 
 /* ──────────────────────────────────────────
@@ -440,8 +440,46 @@ body[data-theme="dark"],
   align-items: flex-end;
   gap: 8px;
   pointer-events: none;
+  user-select: none;
+  touch-action: none;
 }
 .slm-dock > * { pointer-events: auto; }
+
+/* 독 메뉴 열린 상태 */
+.slm-dock-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.slm-sub-icon-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 12px;
+  background: var(--slm-bg);
+  border: 1.5px solid var(--slm-border);
+  border-radius: 22px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+  cursor: pointer;
+  font-family: var(--slm-font);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--slm-text) !important;
+  white-space: nowrap;
+  transition: background 0.15s, transform 0.12s;
+  -webkit-tap-highlight-color: transparent;
+  animation: slm-icon-in 0.2s ease both;
+}
+.slm-sub-icon-btn:hover { background: var(--slm-bg-secondary); transform: scale(1.04); }
+.slm-sub-icon-btn:active { transform: scale(0.96); }
+.slm-sub-icon-emoji { font-size: 18px; }
+
+@keyframes slm-icon-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.9); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
 
 .slm-main-btn {
   width: 52px;
@@ -457,9 +495,11 @@ body[data-theme="dark"],
   align-items: center;
   justify-content: center;
   -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
 }
 .slm-main-btn:hover { transform: scale(1.08); box-shadow: 0 6px 20px rgba(0,122,255,0.5); }
 .slm-main-btn:active { transform: scale(0.96); }
+.slm-main-btn.open { transform: rotate(15deg) scale(1.05); }
 
 /* 통화 종료 버튼 */
 .slm-call-end-btn {
@@ -958,3 +998,399 @@ body[data-theme="dark"],
 .slm-panel *::-webkit-scrollbar { width: 5px; height: 5px; }
 .slm-panel *::-webkit-scrollbar-track { background: transparent; }
 .slm-panel *::-webkit-scrollbar-thumb { background: var(--slm-border); border-radius: 10px; }
+
+/* ──────────────────────────────────────────
+   통화 중 배너
+────────────────────────────────────────── */
+#slm-call-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: calc(var(--slm-z) + 200);
+  background: var(--slm-success);
+  color: #fff !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  font-family: var(--slm-font);
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  animation: slm-banner-in 0.3s ease;
+}
+@keyframes slm-banner-in {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(0); }
+}
+#slm-call-banner-text { flex: 1; }
+#slm-call-banner-end {
+  padding: 6px 14px;
+  border-radius: 16px;
+  background: var(--slm-danger);
+  border: none;
+  color: #fff !important;
+  font-family: var(--slm-font);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* ──────────────────────────────────────────
+   통화 - 발신 다이얼 팝업
+────────────────────────────────────────── */
+.slm-dial-wrapper { display: flex; flex-direction: column; gap: 10px; }
+
+/* ──────────────────────────────────────────
+   SNS - 인스타그램 스타일
+────────────────────────────────────────── */
+.slm-sns-wrapper { display: flex; flex-direction: column; gap: 10px; }
+
+/* 상단 헤더 (그라디언트) */
+.slm-sns-header {
+  background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.slm-sns-logo {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  font-style: italic;
+  letter-spacing: -0.5px;
+}
+
+/* 피드 카드 */
+.slm-feed-list { display: flex; flex-direction: column; gap: 0; max-height: 500px; overflow-y: auto; }
+
+.slm-post-card {
+  background: var(--slm-bg);
+  border-bottom: 1px solid var(--slm-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  border-radius: 0;
+}
+.slm-post-card:first-child { border-radius: 12px 12px 0 0; }
+.slm-post-card:last-child { border-radius: 0 0 12px 12px; border-bottom: none; }
+
+.slm-post-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+.slm-post-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(45deg, #f09433, #bc1888);
+  padding: 2px;
+  flex-shrink: 0;
+}
+.slm-post-avatar-inner {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--slm-bg-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--slm-text);
+  overflow: hidden;
+}
+.slm-post-avatar-inner img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.slm-post-author { font-size: 13px; font-weight: 700; color: var(--slm-text); flex: 1; }
+.slm-post-more-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 16px; color: var(--slm-text-secondary); padding: 4px;
+}
+.slm-post-date { font-size: 11px; color: var(--slm-text-secondary); }
+
+.slm-post-img { width: 100%; max-height: 300px; object-fit: cover; display: block; }
+
+.slm-post-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px 4px;
+  flex-wrap: nowrap;
+}
+.slm-post-action-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 22px;
+  padding: 4px;
+  border-radius: 6px;
+  transition: transform 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.slm-post-action-btn:active { transform: scale(0.85); }
+.slm-post-action-btn.liked { color: #e0245e; }
+
+.slm-post-likes {
+  padding: 0 12px 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--slm-text);
+}
+
+.slm-post-content {
+  padding: 2px 12px 8px;
+  font-size: 13px;
+  color: var(--slm-text);
+  line-height: 1.5;
+  word-break: break-word;
+}
+.slm-post-content-author { font-weight: 700; margin-right: 6px; }
+
+.slm-post-comments-link {
+  padding: 0 12px 8px;
+  font-size: 13px;
+  color: var(--slm-text-secondary);
+  cursor: pointer;
+  background: none;
+  border: none;
+  text-align: left;
+  font-family: var(--slm-font);
+}
+
+.slm-context-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--slm-text-secondary);
+  cursor: pointer;
+  margin-left: auto;
+}
+.slm-context-toggle input { accent-color: var(--slm-accent); }
+
+.slm-comment-section {
+  padding: 0 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--slm-border);
+  padding-top: 8px;
+}
+
+.slm-comment {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+.slm-reply { padding-left: 16px; margin-top: 4px; font-size: 12px; color: var(--slm-text-secondary); }
+.slm-comment-author { font-weight: 600; color: var(--slm-text); margin-right: 6px; }
+.slm-comment-text { color: var(--slm-text); }
+
+/* SNS 색상 커스터마이징 - CSS 변수 오버라이드 지원 */
+.slm-sns-panel { --slm-sns-accent: var(--slm-accent); }
+
+/* ──────────────────────────────────────────
+   지갑 - 첫 액세스 설정
+────────────────────────────────────────── */
+.slm-wallet-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px 0;
+}
+.slm-wallet-setup h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--slm-text);
+  margin: 0 0 4px;
+  text-align: center;
+}
+.slm-wallet-setup p {
+  font-size: 13px;
+  color: var(--slm-text-secondary);
+  margin: 0;
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* 지갑 - 토글 섹션 */
+.slm-toggle-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  padding: 4px 0;
+  user-select: none;
+}
+.slm-toggle-section-header h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--slm-text);
+}
+.slm-toggle-chevron {
+  font-size: 12px;
+  color: var(--slm-text-secondary);
+  transition: transform 0.2s;
+}
+.slm-toggle-chevron.open { transform: rotate(180deg); }
+.slm-toggle-section-body { overflow: hidden; }
+
+/* ──────────────────────────────────────────
+   이모티콘 크기 설정
+────────────────────────────────────────── */
+.slm-emoticon-size-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: var(--slm-bg-secondary);
+  border-radius: 8px;
+}
+
+/* ──────────────────────────────────────────
+   연락처 - 상세 팝업
+────────────────────────────────────────── */
+.slm-contact-detail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+.slm-contact-detail-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--slm-accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 700;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.slm-contact-detail-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.slm-contact-detail-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--slm-text);
+  text-align: center;
+}
+.slm-contact-detail-fields {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.slm-contact-field-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--slm-bg-secondary);
+  border-radius: 10px;
+  font-size: 13px;
+}
+.slm-contact-field-label {
+  font-weight: 600;
+  color: var(--slm-text-secondary);
+  min-width: 80px;
+  flex-shrink: 0;
+}
+.slm-contact-field-value { color: var(--slm-text); word-break: break-word; flex: 1; }
+
+/* ──────────────────────────────────────────
+   음성메모 - 내용 힌트 토글
+────────────────────────────────────────── */
+.slm-voice-hint-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--slm-text-secondary);
+  user-select: none;
+  padding: 4px 0;
+}
+.slm-voice-hint-toggle-chevron {
+  font-size: 11px;
+  transition: transform 0.2s;
+}
+.slm-voice-hint-toggle-chevron.open { transform: rotate(180deg); }
+
+/* ──────────────────────────────────────────
+   시간구분선 - CSS 커스텀
+────────────────────────────────────────── */
+.slm-divider-preview {
+  padding: 10px;
+  background: var(--slm-bg-secondary);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--slm-text);
+  text-align: center;
+  margin-top: 4px;
+  overflow-x: auto;
+}
+.slm-divider-css-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--slm-accent);
+  user-select: none;
+  padding: 4px 0;
+}
+
+/* ──────────────────────────────────────────
+   통화 기록 - 요약 / 점프 버튼
+────────────────────────────────────────── */
+.slm-call-summary {
+  font-size: 12px;
+  color: var(--slm-text-secondary);
+  margin-top: 4px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+.slm-jump-btn {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+/* ──────────────────────────────────────────
+   패널 헤더 - 돌아가기 버튼
+────────────────────────────────────────── */
+.slm-panel-back {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--slm-accent);
+  padding: 0 8px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--slm-font);
+  font-size: 14px;
+  font-weight: 500;
+}
+.slm-panel-back:hover { opacity: 0.7; }
+.slm-panel-title-left {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+  overflow: hidden;
+}

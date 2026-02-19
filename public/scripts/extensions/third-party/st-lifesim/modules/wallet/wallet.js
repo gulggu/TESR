@@ -1,13 +1,13 @@
 /**
  * wallet.js
  * 지갑 & 송금 모듈
+ * - 첫 액세스 시 초기 잔액/화폐 설정
  * - 잔액 관리 (충전/차감)
- * - 송금 기능 (채팅에 송금 메시지 삽입)
- * - 커스텀 화폐 이름/기호 설정
- * - 거래 내역 관리
+ * - 송금 기능 (채팅에 노출되지 않음 — 내부 기록만)
+ * - 커스텀 화폐 이름/기호 설정 (토글 접힘)
+ * - 거래 내역 관리 (토글 접힘)
  */
 
-import { slashSend } from '../../utils/slash.js';
 import { loadData, saveData } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
 import { showToast, escapeHtml } from '../../utils/ui.js';
@@ -15,6 +15,8 @@ import { createPopup } from '../../utils/popup.js';
 import { getContacts } from '../contacts/contacts.js';
 
 const MODULE_KEY = 'wallet';
+// 초기 설정 완료 여부 키
+const SETUP_DONE_KEY = 'wallet-setup-done';
 
 /**
  * 기본 지갑 데이터
@@ -22,7 +24,7 @@ const MODULE_KEY = 'wallet';
 const DEFAULT_WALLET = {
     currencyName: '원',
     currencySymbol: '₩',
-    balance: 1000000,
+    balance: 0,
     history: [],
 };
 
@@ -53,10 +55,17 @@ function formatCurrency(amount, symbol) {
 }
 
 /**
+ * 초기 설정이 완료되었는지 확인한다
+ * @returns {boolean}
+ */
+function isSetupDone() {
+    return loadData(SETUP_DONE_KEY, false, 'chat') === true;
+}
+
+/**
  * 지갑 모듈을 초기화한다
  */
 export function initWallet() {
-    // 컨텍스트 빌더 등록
     registerContextBuilder('wallet', () => {
         const wallet = loadWallet();
         const { currencyName, currencySymbol, balance } = wallet;
@@ -68,6 +77,12 @@ export function initWallet() {
  * 지갑 팝업을 연다
  */
 export function openWalletPopup() {
+    // 첫 액세스 시 초기 설정
+    if (!isSetupDone()) {
+        openWalletSetupPopup();
+        return;
+    }
+
     const content = buildWalletContent();
     createPopup({
         id: 'wallet',
@@ -75,6 +90,56 @@ export function openWalletPopup() {
         content,
         className: 'slm-wallet-panel',
     });
+}
+
+/**
+ * 첫 액세스 초기 설정 팝업
+ */
+function openWalletSetupPopup() {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'slm-wallet-setup slm-form';
+
+    const h3 = document.createElement('h3');
+    h3.textContent = '💰 지갑 초기 설정';
+    wrapper.appendChild(h3);
+
+    const p = document.createElement('p');
+    p.textContent = '처음 사용 전 현재 잔액과 화폐 단위를 설정해주세요.';
+    wrapper.appendChild(p);
+
+    const currNameInput = createInlineField(wrapper, '화폐 이름', '원');
+    const currSymInput = createInlineField(wrapper, '화폐 기호', '₩');
+    const balInput = createInlineField(wrapper, '현재 잔액', '1000000');
+    balInput.type = 'number';
+
+    const footer = document.createElement('div');
+    footer.className = 'slm-panel-footer';
+
+    const startBtn = document.createElement('button');
+    startBtn.className = 'slm-btn slm-btn-primary';
+    startBtn.textContent = '시작하기';
+
+    footer.appendChild(startBtn);
+
+    const { close } = createPopup({
+        id: 'wallet-setup',
+        title: '💰 지갑 설정',
+        content: wrapper,
+        footer,
+        className: 'slm-sub-panel',
+    });
+
+    startBtn.onclick = () => {
+        const w = loadWallet();
+        w.currencyName = currNameInput.value.trim() || '원';
+        w.currencySymbol = currSymInput.value.trim() || '₩';
+        w.balance = parseInt(balInput.value) || 0;
+        saveWallet(w);
+        saveData(SETUP_DONE_KEY, true, 'chat');
+        close();
+        openWalletPopup();
+        showToast('지갑 설정 완료', 'success');
+    };
 }
 
 /**
@@ -139,7 +204,6 @@ function buildWalletContent() {
     sendTitle.textContent = '💸 송금하기';
     sendSection.appendChild(sendTitle);
 
-    // 받는 사람 선택
     const recipientLabel = document.createElement('label');
     recipientLabel.className = 'slm-label';
     recipientLabel.textContent = '받는 사람';
@@ -166,14 +230,9 @@ function buildWalletContent() {
     recipientInput.style.display = 'none';
 
     recipientSelect.onchange = () => {
-        if (recipientSelect.value === '') {
-            recipientInput.style.display = 'block';
-        } else {
-            recipientInput.style.display = 'none';
-        }
+        recipientInput.style.display = recipientSelect.value === '' ? 'block' : 'none';
     };
 
-    // 금액 입력
     const amountLabel = document.createElement('label');
     amountLabel.className = 'slm-label';
     amountLabel.textContent = '금액';
@@ -184,7 +243,6 @@ function buildWalletContent() {
     amountInput.min = '0';
     amountInput.placeholder = '0';
 
-    // 메모 입력
     const memoLabel = document.createElement('label');
     memoLabel.className = 'slm-label';
     memoLabel.textContent = '메모';
@@ -194,7 +252,6 @@ function buildWalletContent() {
     memoInput.type = 'text';
     memoInput.placeholder = '메모 (선택)';
 
-    // 송금 버튼
     const sendBtn = document.createElement('button');
     sendBtn.className = 'slm-btn slm-btn-primary';
     sendBtn.textContent = '송금 확인';
@@ -232,30 +289,21 @@ function buildWalletContent() {
     hr2.className = 'slm-hr';
     wrapper.appendChild(hr2);
 
-    // 거래 내역
-    const historySection = document.createElement('div');
-    historySection.className = 'slm-history-section';
-
-    const histTitle = document.createElement('h4');
-    histTitle.textContent = '📋 거래 내역';
-    historySection.appendChild(histTitle);
+    // 거래 내역 (토글 접힘)
+    const historySection = createToggleSection('📋 거래 내역', false);
+    wrapper.appendChild(historySection.container);
 
     const histList = document.createElement('div');
     histList.className = 'slm-history-list';
-    historySection.appendChild(histList);
-    wrapper.appendChild(historySection);
+    historySection.body.appendChild(histList);
 
-    // 화폐 설정 섹션
-    const settingsSection = document.createElement('div');
-    settingsSection.className = 'slm-settings-section';
+    // 화폐 설정 (토글 접힘)
+    const settingsSection = createToggleSection('⚙️ 화폐 설정', false);
+    wrapper.appendChild(settingsSection.container);
 
-    const setTitle = document.createElement('h4');
-    setTitle.textContent = '⚙️ 화폐 설정';
-    settingsSection.appendChild(setTitle);
-
-    const currNameInput = createInlineField(settingsSection, '화폐 이름', wallet.currencyName);
-    const currSymInput = createInlineField(settingsSection, '화폐 기호', wallet.currencySymbol);
-    const initBalInput = createInlineField(settingsSection, '초기 잔액', String(wallet.balance));
+    const currNameInput = createInlineField(settingsSection.body, '화폐 이름', wallet.currencyName);
+    const currSymInput = createInlineField(settingsSection.body, '화폐 기호', wallet.currencySymbol);
+    const initBalInput = createInlineField(settingsSection.body, '잔액 직접 설정', String(wallet.balance));
     initBalInput.type = 'number';
 
     const applyBtn = document.createElement('button');
@@ -265,13 +313,13 @@ function buildWalletContent() {
         const w = loadWallet();
         w.currencyName = currNameInput.value.trim() || '원';
         w.currencySymbol = currSymInput.value.trim() || '₩';
-        w.balance = parseInt(initBalInput.value) || w.balance;
+        const newBal = parseInt(initBalInput.value);
+        if (!isNaN(newBal)) w.balance = newBal;
         saveWallet(w);
         refreshAll();
         showToast('화폐 설정 적용', 'success', 1500);
     };
-    settingsSection.appendChild(applyBtn);
-    wrapper.appendChild(settingsSection);
+    settingsSection.body.appendChild(applyBtn);
 
     // 거래 내역 렌더링
     function renderHistory() {
@@ -307,11 +355,45 @@ function buildWalletContent() {
 }
 
 /**
+ * 토글 가능한 섹션을 생성한다
+ * @param {string} title
+ * @param {boolean} openByDefault
+ * @returns {{ container: HTMLElement, body: HTMLElement }}
+ */
+function createToggleSection(title, openByDefault = false) {
+    const container = document.createElement('div');
+
+    const header = document.createElement('div');
+    header.className = 'slm-toggle-section-header';
+
+    const h4 = document.createElement('h4');
+    h4.textContent = title;
+
+    const chevron = document.createElement('span');
+    chevron.className = 'slm-toggle-chevron' + (openByDefault ? ' open' : '');
+    chevron.textContent = '▾';
+
+    header.appendChild(h4);
+    header.appendChild(chevron);
+
+    const body = document.createElement('div');
+    body.className = 'slm-toggle-section-body';
+    body.style.display = openByDefault ? 'block' : 'none';
+
+    header.onclick = () => {
+        const isOpen = body.style.display !== 'none';
+        body.style.display = isOpen ? 'none' : 'block';
+        chevron.classList.toggle('open', !isOpen);
+    };
+
+    container.appendChild(header);
+    container.appendChild(body);
+
+    return { container, body };
+}
+
+/**
  * 잔액을 조정한다
- * @param {number} delta - 변동 금액 (양수: 충전, 음수: 차감)
- * @param {string} type - 타입 설명
- * @param {string} counterpart - 상대방
- * @param {Function} onDone - 완료 후 콜백
  */
 function adjustBalance(delta, type, counterpart, onDone) {
     if (delta === 0) return;
@@ -332,10 +414,7 @@ function adjustBalance(delta, type, counterpart, onDone) {
 }
 
 /**
- * 송금을 처리하고 채팅에 송금 메시지를 삽입한다
- * @param {string} recipient - 받는 사람
- * @param {number} amount - 송금 금액
- * @param {string} memo - 메모
+ * 송금을 처리한다 (채팅에 노출되지 않음 — 내부 기록만)
  */
 async function handleSend(recipient, amount, memo) {
     const wallet = loadWallet();
@@ -357,22 +436,7 @@ async function handleSend(recipient, amount, memo) {
     });
     saveWallet(wallet);
 
-    // 채팅에 송금 메시지 삽입
-    const dateStr = `${now.getMonth() + 1}월 ${now.getDate()}일 ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    const msg = [
-        '━━━━━━━━━━━━',
-        '💸 송금 완료',
-        '━━━━━━━━━━━━',
-        `받는 분: ${recipient}`,
-        `금  액: ${formatCurrency(amount, wallet.currencySymbol)}`,
-        `잔  액: ${formatCurrency(wallet.balance, wallet.currencySymbol)}`,
-        `일  시: ${dateStr}`,
-        memo ? `메  모: ${memo}` : '',
-        '━━━━━━━━━━━━',
-    ].filter(Boolean).join('\n');
-
-    await slashSend(msg);
-    showToast('송금 완료', 'success');
+    showToast(`💸 ${recipient}에게 ${formatCurrency(amount, wallet.currencySymbol)} 송금 완료`, 'success');
 }
 
 /**
@@ -396,3 +460,4 @@ function createInlineField(container, label, value) {
     container.appendChild(row);
     return input;
 }
+

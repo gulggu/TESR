@@ -1,12 +1,12 @@
 /**
  * quick-tools.js
  * 퀵 도구 모음 모듈
- * - 퀵 센드: 입력창 텍스트를 /send로 전송 (AI 응답 없음) - sendform 전송 아이콘 옆에 배치
- * - 시간 구분선: 시간 경과 구분선 삽입
- * - 읽씹 연출: 읽음 표시 후 AI가 묘사
- * - 연락 안 됨 연출: 연락 불가 상황 삽입
+ * - 퀵 센드: 입력창 텍스트를 /send로 전송 (AI 응답 없음)
+ * - 시간 구분선: 시간 경과 구분선 삽입 (직접 입력 + CSS/HTML 커스텀)
+ * - 읽씹 연출: 읽음 표시 후 AI가 묘사 (유저 → char 방향)
+ * - 연락 안 됨 연출: 연락 불가 상황 삽입 (유저 → char 방향)
  * - 사건 생성기: 카테고리별 사건 생성
- * - 음성메모 연출: 음성메시지 삽입
+ * - 음성메모 연출: 음성메시지 삽입 (내용힌트 토글)
  */
 
 import { getContext } from '../../../../../st-context.js';
@@ -16,19 +16,17 @@ import { loadData, saveData } from '../../utils/storage.js';
 
 // 사건 기록 아카이브 저장 키
 const ARCHIVE_KEY = 'event-archive';
+// 시간구분선 CSS 커스텀 저장 키
+const DIVIDER_STYLE_KEY = 'divider-style';
 
 /**
  * 퀵 센드 버튼을 sendform의 전송 버튼(#send_but) 바로 앞에 삽입한다
- * 아이콘만 표시하고 클릭 시 /send로 전송한다
  */
 export function injectQuickSendButton() {
-    // 이미 있으면 건너뛴다
     if (document.getElementById('slm-quick-send-btn')) return;
 
-    // SillyTavern의 전송 버튼(#send_but)을 찾는다
     const sendBtn = document.getElementById('send_but');
     if (!sendBtn) {
-        // DOM이 준비되지 않았으면 MutationObserver로 대기한다
         const observer = new MutationObserver(() => {
             if (document.getElementById('send_but')) {
                 observer.disconnect();
@@ -53,7 +51,6 @@ export function injectQuickSendButton() {
         await handleQuickSend();
     });
 
-    // send_but 바로 앞에 삽입 (같은 #rightSendForm 부모 내)
     sendBtn.parentNode.insertBefore(btn, sendBtn);
 }
 
@@ -61,7 +58,6 @@ export function injectQuickSendButton() {
  * 퀵 센드 동작: 입력창 텍스트를 /send로 전송
  */
 async function handleQuickSend() {
-    // 입력창 텍스트 가져오기
     const textarea = document.getElementById('send_textarea');
     if (!textarea) return;
 
@@ -73,7 +69,6 @@ async function handleQuickSend() {
 
     try {
         await slashSend(text);
-        // 입력창 비우기
         textarea.value = '';
         textarea.dispatchEvent(new Event('input'));
         showToast('전송 완료 (AI 응답 없음)', 'success', 1500);
@@ -119,14 +114,14 @@ export function renderTimeDividerUI() {
 
     container.appendChild(btnRow);
 
-    // 직접 입력
+    // 직접 입력 (시간/날짜 지정)
     const customRow = document.createElement('div');
     customRow.className = 'slm-input-row';
 
     const customInput = document.createElement('input');
     customInput.className = 'slm-input';
     customInput.type = 'text';
-    customInput.placeholder = '직접 입력 (예: 2일 후)';
+    customInput.placeholder = '직접 입력 (예: 2025년 5월 3일 오후 2시)';
 
     const customBtn = document.createElement('button');
     customBtn.className = 'slm-btn slm-btn-primary slm-btn-sm';
@@ -143,6 +138,65 @@ export function renderTimeDividerUI() {
     customRow.appendChild(customBtn);
     container.appendChild(customRow);
 
+    // CSS 커스텀 토글
+    const cssToggle = document.createElement('div');
+    cssToggle.className = 'slm-divider-css-toggle';
+    cssToggle.textContent = '🎨 구분선 스타일 커스텀 ▸';
+    container.appendChild(cssToggle);
+
+    const cssBody = document.createElement('div');
+    cssBody.style.display = 'none';
+    container.appendChild(cssBody);
+
+    const cssHint = document.createElement('p');
+    cssHint.className = 'slm-desc';
+    cssHint.textContent = 'HTML로 구분선 서식을 직접 지정하세요. 저장하면 이후 모든 구분선에 적용됩니다. (첫 줄/마지막 줄에 ``` 없이 입력)';
+    cssBody.appendChild(cssHint);
+
+    const savedStyle = loadData(DIVIDER_STYLE_KEY, '', 'chat');
+
+    const cssInput = document.createElement('textarea');
+    cssInput.className = 'slm-textarea';
+    cssInput.rows = 3;
+    cssInput.placeholder = '예: <div style="text-align:center;color:#888;border-top:1px solid #ccc;padding:6px 0">{TIME}</div>';
+    cssInput.value = savedStyle;
+    cssBody.appendChild(cssInput);
+
+    const cssDesc2 = document.createElement('p');
+    cssDesc2.className = 'slm-desc';
+    cssDesc2.textContent = '{TIME} 자리에 시간 텍스트가 삽입됩니다.';
+    cssBody.appendChild(cssDesc2);
+
+    const cssBtnRow = document.createElement('div');
+    cssBtnRow.className = 'slm-btn-row';
+
+    const cssSaveBtn = document.createElement('button');
+    cssSaveBtn.className = 'slm-btn slm-btn-primary slm-btn-sm';
+    cssSaveBtn.textContent = '스타일 저장';
+    cssSaveBtn.onclick = () => {
+        saveData(DIVIDER_STYLE_KEY, cssInput.value.trim(), 'chat');
+        showToast('구분선 스타일 저장됨', 'success', 1500);
+    };
+
+    const cssResetBtn = document.createElement('button');
+    cssResetBtn.className = 'slm-btn slm-btn-secondary slm-btn-sm';
+    cssResetBtn.textContent = '기본으로';
+    cssResetBtn.onclick = () => {
+        cssInput.value = '';
+        saveData(DIVIDER_STYLE_KEY, '', 'chat');
+        showToast('기본 스타일로 복원', 'success', 1500);
+    };
+
+    cssBtnRow.appendChild(cssSaveBtn);
+    cssBtnRow.appendChild(cssResetBtn);
+    cssBody.appendChild(cssBtnRow);
+
+    cssToggle.onclick = () => {
+        const isOpen = cssBody.style.display !== 'none';
+        cssBody.style.display = isOpen ? 'none' : 'block';
+        cssToggle.textContent = isOpen ? '🎨 구분선 스타일 커스텀 ▸' : '🎨 구분선 스타일 커스텀 ▾';
+    };
+
     return container;
 }
 
@@ -151,11 +205,22 @@ export function renderTimeDividerUI() {
  * @param {string} timeLabel - 시간 텍스트
  */
 async function insertTimeDivider(timeLabel) {
-    await slashSend(`─────────── ${timeLabel} ───────────`);
+    const customStyle = loadData(DIVIDER_STYLE_KEY, '', 'chat');
+    let text;
+    if (customStyle) {
+        // 커스텀 HTML 스타일 적용 — {TIME}을 실제 시간으로 치환
+        const html = customStyle.replace('{TIME}', timeLabel);
+        // SillyTavern 렌더링을 위해 코드블록으로 감싸기
+        text = `\`\`\`\n${html}\n\`\`\``;
+    } else {
+        text = `─────────── ${timeLabel} ───────────`;
+    }
+    await slashSend(text);
 }
 
 /**
  * 읽씹 연출 UI를 렌더링한다
+ * (유저가 char에게 하는 기능 — char는 메시지를 읽고 답장하지 않음)
  * @returns {HTMLElement}
  */
 export function renderReadReceiptUI() {
@@ -168,7 +233,7 @@ export function renderReadReceiptUI() {
 
     const desc = document.createElement('p');
     desc.className = 'slm-desc';
-    desc.textContent = '읽음 표시를 삽입하고 캐릭터가 답장하지 않는 상황을 연출합니다.';
+    desc.textContent = '유저가 {{char}}에게 보낸 메시지를 읽었지만 답장하지 않는 상황을 연출합니다. (char는 지시사항에 따라 자율적으로 읽씹할 수 있습니다)';
     container.appendChild(desc);
 
     const btn = document.createElement('button');
@@ -195,9 +260,7 @@ async function handleReadReceipt() {
     const charName = ctx.name2 || '{{char}}';
 
     try {
-        // 1. 읽음 표시 삽입
         await slashSend('읽음 ✓✓');
-        // 2. AI가 읽씹 상황 묘사
         await slashGen(
             `${charName}는 메시지를 읽었지만 아직 답장하지 않은 상황을 짧게 묘사하라.`,
             charName
@@ -210,6 +273,7 @@ async function handleReadReceipt() {
 
 /**
  * 연락 안 됨 연출 UI를 렌더링한다
+ * (유저가 char에게 연락 안 됨 — char는 자율적으로도 연락 안 될 수 있음)
  * @returns {HTMLElement}
  */
 export function renderNoContactUI() {
@@ -222,7 +286,7 @@ export function renderNoContactUI() {
 
     const desc = document.createElement('p');
     desc.className = 'slm-desc';
-    desc.textContent = '캐릭터에게 연락이 닿지 않는 상황을 연출합니다.';
+    desc.textContent = '{{char}}에게 연락이 닿지 않는 상황을 연출합니다. (char는 지시사항에 따라 자율적으로 연락 불가 상황을 만들 수 있습니다)';
     container.appendChild(desc);
 
     const btn = document.createElement('button');
@@ -249,9 +313,7 @@ async function handleNoContact() {
     const charName = ctx.name2 || '{{char}}';
 
     try {
-        // 1. 연결 불가 메시지 삽입
         await slashSend('📵 연결되지 않습니다');
-        // 2. AI가 연락 안 되는 상황 묘사
         await slashGen(
             `${charName}에게 연락이 닿지 않는다. 전화를 받지 않거나 메시지 미확인 상태인 상황을 짧게 묘사하라.`,
             charName
@@ -274,7 +336,6 @@ export function renderEventGeneratorUI() {
     title.textContent = '⚡ 사건 생성기';
     container.appendChild(title);
 
-    // 카테고리 버튼
     const categories = [
         { label: '📰 일상', key: '일상' },
         { label: '💼 직장/학교', key: '직장/학교' },
@@ -305,7 +366,6 @@ export function renderEventGeneratorUI() {
 
     container.appendChild(btnRow);
 
-    // 사건 기록 보기 버튼
     const archiveBtn = document.createElement('button');
     archiveBtn.className = 'slm-btn slm-btn-ghost slm-btn-sm';
     archiveBtn.textContent = '📜 사건 기록';
@@ -328,7 +388,6 @@ async function generateEvent(category) {
         const prompt = `${category} 분류의 사건이 발생했다. 현재 상황에 어울리는 사건을 간결하게 묘사하라.`;
         await slashGen(prompt, charName);
 
-        // 사건 기록 아카이브에 저장
         const archive = loadData(ARCHIVE_KEY, [], 'chat');
         archive.push({
             id: crypto.randomUUID(),
@@ -351,7 +410,6 @@ async function generateEvent(category) {
 function showEventArchive(container) {
     const archive = loadData(ARCHIVE_KEY, [], 'chat');
 
-    // 이미 있으면 제거
     const existing = container.querySelector('.slm-archive');
     if (existing) { existing.remove(); return; }
 
@@ -374,7 +432,7 @@ function showEventArchive(container) {
 }
 
 /**
- * 음성메모 연출 UI를 렌더링한다
+ * 음성메모 연출 UI를 렌더링한다 (내용힌트 기본 접힘)
  * @returns {HTMLElement}
  */
 export function renderVoiceMemoUI() {
@@ -404,26 +462,38 @@ export function renderVoiceMemoUI() {
     durationRow.appendChild(durationInput);
     container.appendChild(durationRow);
 
-    // 내용 힌트 입력
-    const hintRow = document.createElement('div');
-    hintRow.className = 'slm-input-row';
+    // 내용 힌트 토글 (기본 접힘)
+    const hintToggle = document.createElement('div');
+    hintToggle.className = 'slm-voice-hint-toggle';
+    const hintChevron = document.createElement('span');
+    hintChevron.className = 'slm-voice-hint-toggle-chevron';
+    hintChevron.textContent = '▶';
+    hintToggle.appendChild(hintChevron);
+    hintToggle.appendChild(document.createTextNode(' 내용 힌트 (선택)'));
+    container.appendChild(hintToggle);
 
-    const hintLabel = document.createElement('label');
-    hintLabel.className = 'slm-label';
-    hintLabel.textContent = '내용 힌트(선택):';
+    const hintBody = document.createElement('div');
+    hintBody.style.display = 'none';
+    hintBody.style.marginTop = '6px';
 
     const hintInput = document.createElement('input');
     hintInput.className = 'slm-input';
     hintInput.type = 'text';
     hintInput.placeholder = '예: 오늘 늦겠다고';
+    hintBody.appendChild(hintInput);
+    container.appendChild(hintBody);
 
-    hintRow.appendChild(hintLabel);
-    hintRow.appendChild(hintInput);
-    container.appendChild(hintRow);
+    hintToggle.onclick = () => {
+        const isOpen = hintBody.style.display !== 'none';
+        hintBody.style.display = isOpen ? 'none' : 'block';
+        hintChevron.textContent = isOpen ? '▶' : '▼';
+        hintChevron.classList.toggle('open', !isOpen);
+    };
 
     // 실행 버튼
     const btn = document.createElement('button');
     btn.className = 'slm-btn slm-btn-primary';
+    btn.style.marginTop = '8px';
     btn.textContent = '음성메모 삽입';
     btn.onclick = async () => {
         btn.disabled = true;
@@ -450,16 +520,13 @@ async function handleVoiceMemo(seconds, hint) {
     const ctx = getContext();
     const charName = ctx.name2 || '{{char}}';
 
-    // 초를 mm:ss 형태로 변환
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
     const timeStr = `${m}:${String(s).padStart(2, '0')}`;
 
     try {
-        // 1. 음성메시지 말풍선 삽입
         await slashSend(`🎤 음성메시지 (${timeStr})`);
 
-        // 2. 힌트가 있으면 AI 반응 생성
         if (hint) {
             await slashGen(
                 `${charName}에게 음성메시지가 도착했다. 내용: ${hint}. 이에 반응하라.`,
@@ -471,4 +538,3 @@ async function handleVoiceMemo(seconds, hint) {
     } catch (e) {
         showToast('음성메모 삽입 실패: ' + e.message, 'error');
     }
-}

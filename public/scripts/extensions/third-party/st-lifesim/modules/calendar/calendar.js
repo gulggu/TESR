@@ -147,7 +147,24 @@ function buildCalendarContent() {
     addBtn.className = 'slm-btn slm-btn-primary slm-btn-sm';
     addBtn.textContent = '+ 일정 추가';
     addBtn.onclick = () => openEventDialog(null, renderAll);
-    wrapper.appendChild(addBtn);
+
+    const clearAllBtn = document.createElement('button');
+    clearAllBtn.className = 'slm-btn slm-btn-danger slm-btn-sm';
+    clearAllBtn.textContent = '🗑️ 전체 삭제';
+    clearAllBtn.onclick = () => {
+        if (!confirm('모든 일정을 삭제하시겠습니까?')) return;
+        const c = loadCalendar();
+        c.events = [];
+        saveCalendar(c);
+        renderAll();
+        showToast('모든 일정이 삭제되었습니다.', 'success', 1500);
+    };
+
+    const btnRow = document.createElement('div');
+    btnRow.className = 'slm-btn-row';
+    btnRow.appendChild(addBtn);
+    btnRow.appendChild(clearAllBtn);
+    wrapper.appendChild(btnRow);
 
     const eventList = document.createElement('div');
     eventList.className = 'slm-event-list';
