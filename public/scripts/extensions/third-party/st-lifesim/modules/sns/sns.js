@@ -107,13 +107,14 @@ export async function triggerNpcPosting() {
 /**
  * SNS 팝업을 연다
  */
-export function openSnsPopup() {
+export function openSnsPopup(onBack) {
     const content = buildSnsContent();
     createPopup({
         id: 'sns',
         title: '📸 SNS',
         content,
         className: 'slm-sns-panel',
+        onBack,
     });
 }
 

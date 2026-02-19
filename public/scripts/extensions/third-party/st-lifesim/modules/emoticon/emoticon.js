@@ -68,13 +68,14 @@ export function initEmoticon() {
 /**
  * 이모티콘 팝업을 연다
  */
-export function openEmoticonPopup() {
+export function openEmoticonPopup(onBack) {
     const content = buildEmoticonContent();
     createPopup({
         id: 'emoticon',
         title: '😊 이모티콘',
         content,
         className: 'slm-emoticon-panel',
+        onBack,
     });
 }
 
@@ -191,7 +192,7 @@ function buildEmoticonContent() {
                     const size = getEmoticonSize();
                     // HTML img 태그로 크기 지정 (scale 방식)
                     const html = `<img src="${e.url}" alt="${e.name}" style="width:${size}px;height:${size}px;object-fit:contain;display:inline-block;vertical-align:middle">`;
-                    await slashSend(`\`\`\`\n${html}\n\`\`\``);
+                    await slashSend(html);
                     showToast(`이모티콘 전송: ${e.name}`, 'success', 1000);
                 } catch (err) {
                     showToast('전송 실패', 'error');

@@ -100,6 +100,37 @@ body[data-theme="dark"],
   }
 }
 
+/* 세로 공간이 좁은 환경 (모바일 가로, 소형 화면 등) */
+@media (max-height: 700px) {
+  .slm-overlay {
+    align-items: flex-start;
+    padding: 8px;
+    overflow-y: auto;
+  }
+  .slm-panel {
+    max-height: calc(100vh - 16px);
+    border-radius: 10px;
+    margin: auto;
+  }
+}
+
+@media (max-height: 480px) {
+  .slm-overlay {
+    padding: 4px;
+  }
+  .slm-panel {
+    max-height: calc(100vh - 8px);
+    border-radius: 8px;
+  }
+  .slm-panel-title {
+    padding: 10px 14px;
+    font-size: 15px;
+  }
+  .slm-panel-body {
+    padding: 10px 14px;
+  }
+}
+
 .slm-panel-title {
   display: flex;
   align-items: center;

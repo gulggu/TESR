@@ -16,7 +16,7 @@
 import { getContext } from '../../../st-context.js';
 import { extension_settings } from '../../../extensions.js';
 import { injectContext, clearContext } from './utils/context-inject.js';
-import { createPopup } from './utils/popup.js';
+import { createPopup, createTabs } from './utils/popup.js';
 import { showToast } from './utils/ui.js';
 import { exportAllData, importAllData } from './utils/storage.js';
 import { injectQuickSendButton, renderTimeDividerUI, renderReadReceiptUI, renderNoContactUI, renderEventGeneratorUI, renderVoiceMemoUI } from './modules/quick-tools/quick-tools.js';
@@ -151,7 +151,7 @@ function openMainMenuPopup() {
         itemBtn.innerHTML = `<span class="slm-menu-icon">${item.icon}</span><span class="slm-menu-label">${item.label}</span>`;
         itemBtn.onclick = () => {
             popup.close();
-            item.action();
+            item.action(openMainMenuPopup);
         };
         grid.appendChild(itemBtn);
     });
@@ -160,32 +160,48 @@ function openMainMenuPopup() {
 /**
  * 퀵 도구 패널을 연다 (시간구분선, 읽씹, 연락안됨, 사건생성, 음성메모)
  */
-function openQuickToolsPanel() {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'slm-quick-tools-panel';
-
-    // 각 퀵 도구를 순서대로 추가
-    wrapper.appendChild(renderTimeDividerUI());
-    const hr = document.createElement('hr');
-    hr.className = 'slm-hr';
-    wrapper.appendChild(hr);
-    wrapper.appendChild(renderReadReceiptUI());
-    wrapper.appendChild(renderNoContactUI());
-    wrapper.appendChild(renderEventGeneratorUI());
-    wrapper.appendChild(renderVoiceMemoUI());
+function openQuickToolsPanel(onBack) {
+    const tabs = createTabs([
+        {
+            key: 'divider',
+            label: '⏱️ 구분선',
+            content: renderTimeDividerUI(),
+        },
+        {
+            key: 'read',
+            label: '👻 읽씹/안읽씹',
+            content: (() => {
+                const c = document.createElement('div');
+                c.appendChild(renderReadReceiptUI());
+                c.appendChild(renderNoContactUI());
+                return c;
+            })(),
+        },
+        {
+            key: 'event',
+            label: '⚡ 사건 발생',
+            content: renderEventGeneratorUI(),
+        },
+        {
+            key: 'media',
+            label: '🎤 음성/사진',
+            content: renderVoiceMemoUI(),
+        },
+    ], 'divider');
 
     createPopup({
         id: 'quick-tools',
         title: '🛠️ 퀵 도구',
-        content: wrapper,
+        content: tabs,
         className: 'slm-quick-panel',
+        onBack,
     });
 }
 
 /**
  * 설정 패널을 연다
  */
-function openSettingsPanel() {
+function openSettingsPanel(onBack) {
     const wrapper = document.createElement('div');
     wrapper.className = 'slm-settings-wrapper slm-form';
 
@@ -409,6 +425,7 @@ function openSettingsPanel() {
         title: '⚙️ ST-LifeSim 설정',
         content: wrapper,
         className: 'slm-sub-panel',
+        onBack,
     });
 }
 

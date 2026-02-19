@@ -76,10 +76,10 @@ export function initWallet() {
 /**
  * 지갑 팝업을 연다
  */
-export function openWalletPopup() {
+export function openWalletPopup(onBack) {
     // 첫 액세스 시 초기 설정
     if (!isSetupDone()) {
-        openWalletSetupPopup();
+        openWalletSetupPopup(onBack);
         return;
     }
 
@@ -89,13 +89,14 @@ export function openWalletPopup() {
         title: '💰 지갑',
         content,
         className: 'slm-wallet-panel',
+        onBack,
     });
 }
 
 /**
  * 첫 액세스 초기 설정 팝업
  */
-function openWalletSetupPopup() {
+function openWalletSetupPopup(onBack) {
     const wrapper = document.createElement('div');
     wrapper.className = 'slm-wallet-setup slm-form';
 
@@ -127,6 +128,7 @@ function openWalletSetupPopup() {
         content: wrapper,
         footer,
         className: 'slm-sub-panel',
+        onBack,
     });
 
     startBtn.onclick = () => {
@@ -137,7 +139,7 @@ function openWalletSetupPopup() {
         saveWallet(w);
         saveData(SETUP_DONE_KEY, true, getDefaultBinding());
         close();
-        openWalletPopup();
+        openWalletPopup(onBack);
         showToast('지갑 설정 완료', 'success');
     };
 }
