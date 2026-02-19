@@ -28,6 +28,7 @@ export function registerContextBuilder(moduleKey, builder) {
  */
 export async function injectContext() {
     const ctx = getContext();
+    if (!ctx || typeof ctx.setExtensionPrompt !== 'function') return;
     const sections = [];
 
     // 각 모듈의 컨텍스트 블록을 수집한다
@@ -59,6 +60,8 @@ export async function injectContext() {
  */
 export function clearContext() {
     const ctx = getContext();
-    ctx.setExtensionPrompt(INJECT_TAG, '', 1, 0);
+    if (ctx && typeof ctx.setExtensionPrompt === 'function') {
+        ctx.setExtensionPrompt(INJECT_TAG, '', 1, 0);
+    }
     contextBuilders.clear();
 }

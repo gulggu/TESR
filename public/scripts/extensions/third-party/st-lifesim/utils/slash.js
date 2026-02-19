@@ -12,9 +12,15 @@ import { getContext } from '../../../../st-context.js';
  */
 async function run(command) {
     const ctx = getContext();
+    if (!ctx) return;
     try {
-        // SillyTavern의 executeSlashCommandsWithOptions 함수를 사용한다
-        await ctx.executeSlashCommandsWithOptions(command, { showOutput: false });
+        if (typeof ctx.executeSlashCommandsWithOptions === 'function') {
+            // SillyTavern의 executeSlashCommandsWithOptions 함수를 사용한다
+            await ctx.executeSlashCommandsWithOptions(command, { showOutput: false });
+        } else if (typeof ctx.executeSlashCommands === 'function') {
+            // 구버전 폴백
+            await ctx.executeSlashCommands(command);
+        }
     } catch (e) {
         console.error('[ST-LifeSim] 슬래시 커맨드 실행 오류:', command, e);
         throw e;
