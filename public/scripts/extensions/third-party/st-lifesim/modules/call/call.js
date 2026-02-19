@@ -15,6 +15,9 @@ import { createPopup } from '../../utils/popup.js';
 
 const MODULE_KEY = 'call-logs';
 
+// 통화 감지 키워드 설정 저장 키
+const KEYWORDS_KEY = 'call-keywords';
+
 // 통화 감지 키워드 (설정에서 변경 가능)
 const DEFAULT_KEYWORDS = ['전화할게', '전화 걸게', '전화해도 돼', '전화 줄게', 'call', 'phone'];
 
@@ -66,7 +69,7 @@ function detectCallKeywords(data) {
     if (!lastMsg || lastMsg.is_user) return;
 
     const text = (lastMsg.mes || '').toLowerCase();
-    const keywords = loadData('call-keywords', DEFAULT_KEYWORDS, 'chat');
+    const keywords = loadData(KEYWORDS_KEY, DEFAULT_KEYWORDS, 'chat');
     const found = keywords.some(kw => text.includes(kw.toLowerCase()));
 
     if (!found) return;
@@ -90,7 +93,9 @@ function detectCallKeywords(data) {
 
     toast.querySelector('#slm-call-confirm').onclick = async () => {
         toast.remove();
-        const charName = ctx.name2 || '{{char}}';
+        // 클릭 시점에 신선한 컨텍스트를 가져온다
+        const freshCtx = getContext();
+        const charName = freshCtx.name2 || '{{char}}';
         await startCall(charName);
     };
     toast.querySelector('#slm-call-ignore').onclick = () => toast.remove();

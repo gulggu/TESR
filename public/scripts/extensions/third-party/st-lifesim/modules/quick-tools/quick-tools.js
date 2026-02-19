@@ -28,8 +28,14 @@ export function injectQuickSendButton() {
     // SillyTavern의 전송 버튼(#send_but)을 찾는다
     const sendBtn = document.getElementById('send_but');
     if (!sendBtn) {
-        // 아직 렌더링되지 않았으면 나중에 재시도
-        setTimeout(injectQuickSendButton, 1000);
+        // DOM이 준비되지 않았으면 MutationObserver로 대기한다
+        const observer = new MutationObserver(() => {
+            if (document.getElementById('send_but')) {
+                observer.disconnect();
+                injectQuickSendButton();
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
         return;
     }
 

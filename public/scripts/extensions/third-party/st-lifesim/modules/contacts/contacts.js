@@ -226,25 +226,31 @@ function openContactDialog(existing, binding, onSave) {
         phone: createFormField(wrapper, '전화번호', 'tel', existing?.phone || ''),
     };
 
-    const { close } = createPopup({
-        id: 'contact-edit',
-        title: isEdit ? '연락처 편집' : '연락처 등록',
-        content: wrapper,
-        className: 'slm-sub-panel',
-    });
-
-    // footer 버튼
+    // footer 버튼 생성 후 createPopup에 전달
     const footer = document.createElement('div');
     footer.className = 'slm-panel-footer';
 
     const cancelBtn = document.createElement('button');
     cancelBtn.className = 'slm-btn slm-btn-secondary';
     cancelBtn.textContent = '취소';
-    cancelBtn.onclick = () => close();
 
     const saveBtn = document.createElement('button');
     saveBtn.className = 'slm-btn slm-btn-primary';
     saveBtn.textContent = '저장';
+
+    footer.appendChild(cancelBtn);
+    footer.appendChild(saveBtn);
+
+    const { close } = createPopup({
+        id: 'contact-edit',
+        title: isEdit ? '연락처 편집' : '연락처 등록',
+        content: wrapper,
+        footer,
+        className: 'slm-sub-panel',
+    });
+
+    cancelBtn.onclick = () => close();
+
     saveBtn.onclick = () => {
         const name = fields.name.value.trim();
         const relationToUser = fields.relationToUser.value.trim();
@@ -279,17 +285,6 @@ function openContactDialog(existing, binding, onSave) {
         onSave();
         showToast(isEdit ? '연락처 수정 완료' : '연락처 추가 완료', 'success');
     };
-
-    footer.appendChild(cancelBtn);
-    footer.appendChild(saveBtn);
-
-    setTimeout(() => {
-        const panel = document.getElementById('slm-panel-contact-edit');
-        if (panel) {
-            const body = panel.querySelector('.slm-panel-body');
-            if (body) body.appendChild(footer);
-        }
-    }, 0);
 }
 
 /**

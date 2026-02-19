@@ -280,26 +280,31 @@ function openAddEmoticonDialog(onSave, existing = null) {
     aiRow.appendChild(radioNoLabel);
     wrapper.appendChild(aiRow);
 
-    const { close } = createPopup({
-        id: 'emoticon-add',
-        title: isEdit ? '이모티콘 편집' : '이모티콘 추가',
-        content: wrapper,
-        className: 'slm-sub-panel',
-        onClose: () => {},
-    });
-
-    // 저장 버튼 추가
+    // footer 버튼 생성 후 createPopup에 전달
     const footer = document.createElement('div');
     footer.className = 'slm-panel-footer';
 
     const cancelBtn = document.createElement('button');
     cancelBtn.className = 'slm-btn slm-btn-secondary';
     cancelBtn.textContent = '취소';
-    cancelBtn.onclick = () => close();
 
     const saveBtn = document.createElement('button');
     saveBtn.className = 'slm-btn slm-btn-primary';
     saveBtn.textContent = '저장';
+
+    footer.appendChild(cancelBtn);
+    footer.appendChild(saveBtn);
+
+    const { close } = createPopup({
+        id: 'emoticon-add',
+        title: isEdit ? '이모티콘 편집' : '이모티콘 추가',
+        content: wrapper,
+        footer,
+        className: 'slm-sub-panel',
+    });
+
+    cancelBtn.onclick = () => close();
+
     saveBtn.onclick = () => {
         const name = nameInput.value.trim();
         const url = urlInput.value.trim();
@@ -330,16 +335,6 @@ function openAddEmoticonDialog(onSave, existing = null) {
         onSave();
         showToast(isEdit ? '이모티콘 편집 완료' : '이모티콘 추가 완료', 'success');
     };
-
-    footer.appendChild(cancelBtn);
-    footer.appendChild(saveBtn);
-
-    // 패널 body에 footer 추가
-    const panel = document.getElementById('slm-panel-emoticon-add');
-    if (panel) {
-        const body = panel.querySelector('.slm-panel-body');
-        if (body) body.appendChild(footer);
-    }
 }
 
 /**

@@ -41,11 +41,12 @@ function saveCalendar(cal) {
 
 /**
  * 일수를 30일 범위로 정규화한다 (1~30)
+ * 음수 입력도 정상 처리한다
  * @param {number} day
  * @returns {number}
  */
 function normalizeDay(day) {
-    return ((day - 1 + 30) % 30) + 1;
+    return ((day - 1) % 30 + 30) % 30 + 1;
 }
 
 /**
@@ -325,24 +326,31 @@ function openEventDialog(existing, onSave) {
     wrapper.appendChild(contactLabel);
     wrapper.appendChild(contactSelect);
 
-    const { close } = createPopup({
-        id: 'event-edit',
-        title: isEdit ? '일정 편집' : '일정 추가',
-        content: wrapper,
-        className: 'slm-sub-panel',
-    });
-
+    // footer 버튼 생성 후 createPopup에 전달
     const footer = document.createElement('div');
     footer.className = 'slm-panel-footer';
 
     const cancelBtn = document.createElement('button');
     cancelBtn.className = 'slm-btn slm-btn-secondary';
     cancelBtn.textContent = '취소';
-    cancelBtn.onclick = () => close();
 
     const saveBtn = document.createElement('button');
     saveBtn.className = 'slm-btn slm-btn-primary';
     saveBtn.textContent = '저장';
+
+    footer.appendChild(cancelBtn);
+    footer.appendChild(saveBtn);
+
+    const { close } = createPopup({
+        id: 'event-edit',
+        title: isEdit ? '일정 편집' : '일정 추가',
+        content: wrapper,
+        footer,
+        className: 'slm-sub-panel',
+    });
+
+    cancelBtn.onclick = () => close();
+
     saveBtn.onclick = () => {
         const title = titleInput.value.trim();
         if (!title) { showToast('제목을 입력해주세요.', 'warn'); return; }
@@ -372,17 +380,6 @@ function openEventDialog(existing, onSave) {
         onSave();
         showToast(isEdit ? '일정 수정 완료' : '일정 추가 완료', 'success');
     };
-
-    footer.appendChild(cancelBtn);
-    footer.appendChild(saveBtn);
-
-    setTimeout(() => {
-        const panel = document.getElementById('slm-panel-event-edit');
-        if (panel) {
-            const body = panel.querySelector('.slm-panel-body');
-            if (body) body.appendChild(footer);
-        }
-    }, 0);
 }
 
 /**

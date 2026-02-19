@@ -15,10 +15,11 @@ const openPopups = new Set();
  * @param {string} options.title - 팝업 제목
  * @param {HTMLElement|string} options.content - 팝업 내용 (HTML 엘리먼트 또는 문자열)
  * @param {string} [options.className] - 추가 CSS 클래스
+ * @param {HTMLElement} [options.footer] - 팝업 하단에 표시할 엘리먼트 (선택)
  * @param {Function} [options.onClose] - 닫힐 때 콜백
- * @returns {{ overlay: HTMLElement, panel: HTMLElement, close: Function }}
+ * @returns {{ overlay: HTMLElement, panel: HTMLElement, body: HTMLElement, close: Function }}
  */
-export function createPopup({ id, title, content, className = '', onClose }) {
+export function createPopup({ id, title, content, className = '', footer, onClose }) {
     // 이미 열린 팝업이 있으면 닫는다
     closePopup(id);
 
@@ -62,6 +63,10 @@ export function createPopup({ id, title, content, className = '', onClose }) {
 
     panel.appendChild(titleBar);
     panel.appendChild(body);
+    // footer 옵션이 있으면 패널 하단에 추가한다
+    if (footer instanceof HTMLElement) {
+        panel.appendChild(footer);
+    }
     overlay.appendChild(panel);
     document.body.appendChild(overlay);
 

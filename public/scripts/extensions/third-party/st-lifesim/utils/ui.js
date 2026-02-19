@@ -70,11 +70,11 @@ export function showConfirm(message, confirmText = '확인', cancelText = '취�
         overlay.appendChild(dialog);
         document.body.appendChild(overlay);
 
-        // ESC로 취소
+        // ESC로 취소 (once 옵션으로 자동 정리, 버튼 클릭 시에는 아래 cancelBtn/confirmBtn에서 overlay 제거)
         const onKey = (e) => {
-            if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', onKey); resolve(false); }
+            if (e.key === 'Escape') { overlay.remove(); resolve(false); }
         };
-        document.addEventListener('keydown', onKey);
+        document.addEventListener('keydown', onKey, { once: true });
     });
 }
 

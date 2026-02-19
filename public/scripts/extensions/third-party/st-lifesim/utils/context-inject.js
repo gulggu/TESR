@@ -32,7 +32,7 @@ export async function injectContext() {
     const sections = [];
 
     // 각 모듈의 컨텍스트 블록을 수집한다
-    for (const [, builder] of contextBuilders) {
+    for (const builder of contextBuilders.values()) {
         try {
             const section = await builder();
             if (section && section.trim()) {

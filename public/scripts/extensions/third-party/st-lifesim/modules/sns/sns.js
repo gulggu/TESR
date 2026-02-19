@@ -84,13 +84,23 @@ export async function triggerNpcPosting() {
         : `${pick.name}이 SNS에 게시물을 올렸다. 성격: ${pick.personality || '보통'}. 짧은 포스팅 텍스트와 해시태그를 작성하라. 이미지 묘사도 한 줄 추가하라.`;
 
     try {
-        // AI 생성 후 전송 (결과를 채팅에 삽입하지 않고 SNS 피드에만 저장)
-        // 생성 결과는 채팅에서 가져와야 하므로 sendas를 사용한다
+        // AI 생성 후 캐릭터 이름으로 채팅에 삽입
+        // 생성 전 채팅 메시지 수를 기록하여 새로 추가된 메시지를 특정한다
+        const freshCtx = getContext();
+        const chatLengthBefore = freshCtx?.chat?.length ?? 0;
+
         await slashGen(prompt, pick.name);
 
-        // 생성된 내용을 피드에 저장 (최신 메시지 가져오기)
-        const latestMsg = ctx?.chat?.[ctx.chat.length - 1];
-        const postContent = latestMsg?.mes || '(게시물)';
+        // 생성 후 채팅에서 새로 추가된 메시지를 가져온다
+        const afterCtx = getContext();
+        let postContent = '(게시물)';
+        if (afterCtx?.chat && afterCtx.chat.length > chatLengthBefore) {
+            // 새로 추가된 마지막 AI 메시지를 피드 내용으로 사용
+            const newMsg = afterCtx.chat[afterCtx.chat.length - 1];
+            if (newMsg && !newMsg.is_user) {
+                postContent = newMsg.mes || postContent;
+            }
+        }
 
         const feed = loadFeed();
         feed.push({
@@ -314,21 +324,29 @@ function renderComments(container, post, onUpdate) {
  * @param {Function} onUpdate
  */
 async function postComment(post, text, onUpdate) {
-    const ctx = getContext();
-
     // 1. 유저 댓글 채팅에 삽입
     await slashSend(text);
 
     // 2. NPC 답글 생성
     try {
+        // 생성 전 채팅 길이를 기록한다
+        const beforeCtx = getContext();
+        const chatLengthBefore = beforeCtx?.chat?.length ?? 0;
+
         await slashGen(
             `${post.authorName}의 SNS 게시물에 {{user}}가 댓글을 달았다: ${text}. ${post.authorName}이 짧게 답글을 달아라.`,
             post.authorName
         );
 
-        // 생성된 답글을 피드에 저장
-        const latestMsg = ctx?.chat?.[ctx.chat.length - 1];
-        const replyText = latestMsg?.mes || '(답글)';
+        // 생성 후 새로 추가된 AI 메시지를 답글로 사용한다
+        const afterCtx = getContext();
+        let replyText = '(답글)';
+        if (afterCtx?.chat && afterCtx.chat.length > chatLengthBefore) {
+            const newMsg = afterCtx.chat[afterCtx.chat.length - 1];
+            if (newMsg && !newMsg.is_user) {
+                replyText = newMsg.mes || replyText;
+            }
+        }
 
         const feed = loadFeed();
         const p = feed.find(p => p.id === post.id);
@@ -371,7 +389,6 @@ async function postComment(post, text, onUpdate) {
  * @param {Function} onSave
  */
 function openWritePostDialog(onSave) {
-    const ctx = getContext();
     const wrapper = document.createElement('div');
     wrapper.className = 'slm-form';
 
@@ -398,32 +415,41 @@ function openWritePostDialog(onSave) {
     wrapper.appendChild(imgLabel);
     wrapper.appendChild(imgInput);
 
-    const { close } = createPopup({
-        id: 'write-post',
-        title: '✏️ 게시물 작성',
-        content: wrapper,
-        className: 'slm-sub-panel',
-    });
-
+    // footer 버튼 생성 후 createPopup에 전달
     const footer = document.createElement('div');
     footer.className = 'slm-panel-footer';
 
     const cancelBtn = document.createElement('button');
     cancelBtn.className = 'slm-btn slm-btn-secondary';
     cancelBtn.textContent = '취소';
-    cancelBtn.onclick = () => close();
 
     const postBtn = document.createElement('button');
     postBtn.className = 'slm-btn slm-btn-primary';
     postBtn.textContent = '올리기';
+
+    footer.appendChild(cancelBtn);
+    footer.appendChild(postBtn);
+
+    const { close } = createPopup({
+        id: 'write-post',
+        title: '✏️ 게시물 작성',
+        content: wrapper,
+        footer,
+        className: 'slm-sub-panel',
+    });
+
+    cancelBtn.onclick = () => close();
+
     postBtn.onclick = async () => {
         const text = contentInput.value.trim();
         if (!text) { showToast('내용을 입력해주세요.', 'warn'); return; }
 
+        // 작성 시점에 신선한 컨텍스트를 가져온다
+        const freshCtx = getContext();
         const feed = loadFeed();
         feed.push({
             id: crypto.randomUUID(),
-            authorName: ctx?.name1 || 'user',
+            authorName: freshCtx?.name1 || 'user',
             authorIsUser: true,
             date: new Date().toISOString(),
             content: text,
@@ -440,15 +466,4 @@ function openWritePostDialog(onSave) {
         onSave();
         showToast('게시물 올리기 완료', 'success');
     };
-
-    footer.appendChild(cancelBtn);
-    footer.appendChild(postBtn);
-
-    setTimeout(() => {
-        const panel = document.getElementById('slm-panel-write-post');
-        if (panel) {
-            const body = panel.querySelector('.slm-panel-body');
-            if (body) body.appendChild(footer);
-        }
-    }, 0);
 }

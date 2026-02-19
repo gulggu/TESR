@@ -229,7 +229,9 @@ function openSettingsPanel() {
     enabledRow.appendChild(enabledLabel);
     wrapper.appendChild(enabledRow);
 
-    wrapper.appendChild(document.createElement('hr')).className = 'slm-hr';
+    const settingsHr = document.createElement('hr');
+    settingsHr.className = 'slm-hr';
+    wrapper.appendChild(settingsHr);
 
     // 모듈별 토글
     const moduleList = [
