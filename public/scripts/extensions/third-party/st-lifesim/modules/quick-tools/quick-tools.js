@@ -538,3 +538,4 @@ async function handleVoiceMemo(seconds, hint) {
     } catch (e) {
         showToast('음성메모 삽입 실패: ' + e.message, 'error');
     }
+}

@@ -625,3 +625,4 @@ function openWritePostDialog(onSave) {
         onSave();
         showToast('게시물 올리기 완료', 'success');
     };
+}
