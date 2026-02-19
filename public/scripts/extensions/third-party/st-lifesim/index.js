@@ -18,6 +18,7 @@ import { extension_settings } from '../../../extensions.js';
 import { injectContext, clearContext } from './utils/context-inject.js';
 import { createPopup } from './utils/popup.js';
 import { showToast } from './utils/ui.js';
+import { exportAllData, importAllData } from './utils/storage.js';
 import { injectQuickSendButton, renderTimeDividerUI, renderReadReceiptUI, renderNoContactUI, renderEventGeneratorUI, renderVoiceMemoUI } from './modules/quick-tools/quick-tools.js';
 import { initEmoticon, openEmoticonPopup } from './modules/emoticon/emoticon.js';
 import { initContacts, openContactsPopup } from './modules/contacts/contacts.js';
@@ -32,6 +33,7 @@ const SETTINGS_KEY = 'st-lifesim';
 // 기본 설정
 const DEFAULT_SETTINGS = {
     enabled: true,
+    defaultBinding: 'chat',
     modules: {
         quickTools: true,
         emoticon: true,
@@ -55,6 +57,9 @@ function getSettings() {
     // 신규 필드 기본값 보완
     if (extension_settings[SETTINGS_KEY].emoticonSize == null) {
         extension_settings[SETTINGS_KEY].emoticonSize = DEFAULT_SETTINGS.emoticonSize;
+    }
+    if (extension_settings[SETTINGS_KEY].defaultBinding == null) {
+        extension_settings[SETTINGS_KEY].defaultBinding = DEFAULT_SETTINGS.defaultBinding;
     }
     return extension_settings[SETTINGS_KEY];
 }
@@ -303,6 +308,51 @@ function openSettingsPanel() {
     settingsHr.className = 'slm-hr';
     wrapper.appendChild(settingsHr);
 
+    // 데이터 바인딩 방식 (채팅별 / 캐릭터별)
+    const bindingRow = document.createElement('div');
+    bindingRow.className = 'slm-settings-row';
+
+    const bindingTitle = document.createElement('span');
+    bindingTitle.className = 'slm-label';
+    bindingTitle.textContent = '데이터 연동 방식:';
+    bindingRow.appendChild(bindingTitle);
+
+    const bindingChatLabel = document.createElement('label');
+    bindingChatLabel.className = 'slm-toggle-label';
+    const bindingChatRadio = document.createElement('input');
+    bindingChatRadio.type = 'radio';
+    bindingChatRadio.name = 'slm-global-binding';
+    bindingChatRadio.value = 'chat';
+    bindingChatRadio.checked = (settings.defaultBinding || 'chat') === 'chat';
+    bindingChatLabel.appendChild(bindingChatRadio);
+    bindingChatLabel.appendChild(document.createTextNode(' 채팅별'));
+
+    const bindingCharLabel = document.createElement('label');
+    bindingCharLabel.className = 'slm-toggle-label';
+    const bindingCharRadio = document.createElement('input');
+    bindingCharRadio.type = 'radio';
+    bindingCharRadio.name = 'slm-global-binding';
+    bindingCharRadio.value = 'character';
+    bindingCharRadio.checked = settings.defaultBinding === 'character';
+    bindingCharLabel.appendChild(bindingCharRadio);
+    bindingCharLabel.appendChild(document.createTextNode(' 캐릭터별'));
+
+    const onBindingChange = () => {
+        settings.defaultBinding = bindingChatRadio.checked ? 'chat' : 'character';
+        saveSettings();
+        showToast(`데이터 연동: ${settings.defaultBinding === 'chat' ? '채팅별' : '캐릭터별'}`, 'success', 1500);
+    };
+    bindingChatRadio.onchange = onBindingChange;
+    bindingCharRadio.onchange = onBindingChange;
+
+    bindingRow.appendChild(bindingChatLabel);
+    bindingRow.appendChild(bindingCharLabel);
+    wrapper.appendChild(bindingRow);
+
+    const bindingHr = document.createElement('hr');
+    bindingHr.className = 'slm-hr';
+    wrapper.appendChild(bindingHr);
+
     // 이모티콘 출력 크기 설정
     const sizeRow = document.createElement('div');
     sizeRow.className = 'slm-input-row';
@@ -375,6 +425,71 @@ function openSettingsPanel() {
         row.appendChild(lbl);
         wrapper.appendChild(row);
     });
+
+    const dataHr = document.createElement('hr');
+    dataHr.className = 'slm-hr';
+    wrapper.appendChild(dataHr);
+
+    // 데이터 내보내기 / 가져오기
+    const dataTitle = document.createElement('div');
+    dataTitle.className = 'slm-label';
+    dataTitle.textContent = '💾 데이터 백업 / 복원';
+    dataTitle.style.fontWeight = '600';
+    dataTitle.style.marginBottom = '6px';
+    wrapper.appendChild(dataTitle);
+
+    const dataBtnRow = document.createElement('div');
+    dataBtnRow.className = 'slm-btn-row';
+
+    const exportBtn = document.createElement('button');
+    exportBtn.className = 'slm-btn slm-btn-secondary slm-btn-sm';
+    exportBtn.textContent = '📤 내보내기';
+    exportBtn.title = '모든 ST-LifeSim 데이터를 JSON 파일로 저장합니다';
+    exportBtn.onclick = () => {
+        try {
+            const json = exportAllData();
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `st-lifesim-backup-${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('데이터 내보내기 완료', 'success');
+        } catch (e) {
+            showToast('내보내기 실패: ' + e.message, 'error');
+        }
+    };
+
+    const importInput = document.createElement('input');
+    importInput.type = 'file';
+    importInput.accept = '.json';
+    importInput.style.display = 'none';
+    importInput.onchange = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+            const text = await file.text();
+            importAllData(text);
+            showToast('데이터 가져오기 완료. 페이지를 새로고침하세요.', 'success', 4000);
+        } catch (err) {
+            showToast('가져오기 실패: ' + err.message, 'error');
+        }
+        importInput.value = '';
+    };
+
+    const importBtn = document.createElement('button');
+    importBtn.className = 'slm-btn slm-btn-secondary slm-btn-sm';
+    importBtn.textContent = '📥 가져오기';
+    importBtn.title = 'JSON 백업 파일에서 데이터를 복원합니다';
+    importBtn.onclick = () => importInput.click();
+
+    dataBtnRow.appendChild(exportBtn);
+    dataBtnRow.appendChild(importBtn);
+    dataBtnRow.appendChild(importInput);
+    wrapper.appendChild(dataBtnRow);
 
     createPopup({
         id: 'settings',

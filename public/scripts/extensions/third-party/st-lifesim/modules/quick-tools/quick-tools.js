@@ -12,7 +12,7 @@
 import { getContext } from '../../../../../st-context.js';
 import { slashSend, slashGen, slashSendAs } from '../../utils/slash.js';
 import { showToast } from '../../utils/ui.js';
-import { loadData, saveData } from '../../utils/storage.js';
+import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
 
 // 사건 기록 아카이브 저장 키
 const ARCHIVE_KEY = 'event-archive';
@@ -153,7 +153,7 @@ export function renderTimeDividerUI() {
     cssHint.textContent = 'HTML로 구분선 서식을 직접 지정하세요. 저장하면 이후 모든 구분선에 적용됩니다. (첫 줄/마지막 줄에 ``` 없이 입력)';
     cssBody.appendChild(cssHint);
 
-    const savedStyle = loadData(DIVIDER_STYLE_KEY, '', 'chat');
+    const savedStyle = loadData(DIVIDER_STYLE_KEY, '', getDefaultBinding());
 
     const cssInput = document.createElement('textarea');
     cssInput.className = 'slm-textarea';
@@ -174,7 +174,7 @@ export function renderTimeDividerUI() {
     cssSaveBtn.className = 'slm-btn slm-btn-primary slm-btn-sm';
     cssSaveBtn.textContent = '스타일 저장';
     cssSaveBtn.onclick = () => {
-        saveData(DIVIDER_STYLE_KEY, cssInput.value.trim(), 'chat');
+        saveData(DIVIDER_STYLE_KEY, cssInput.value.trim(), getDefaultBinding());
         showToast('구분선 스타일 저장됨', 'success', 1500);
     };
 
@@ -183,7 +183,7 @@ export function renderTimeDividerUI() {
     cssResetBtn.textContent = '기본으로';
     cssResetBtn.onclick = () => {
         cssInput.value = '';
-        saveData(DIVIDER_STYLE_KEY, '', 'chat');
+        saveData(DIVIDER_STYLE_KEY, '', getDefaultBinding());
         showToast('기본 스타일로 복원', 'success', 1500);
     };
 
@@ -205,7 +205,7 @@ export function renderTimeDividerUI() {
  * @param {string} timeLabel - 시간 텍스트
  */
 async function insertTimeDivider(timeLabel) {
-    const customStyle = loadData(DIVIDER_STYLE_KEY, '', 'chat');
+    const customStyle = loadData(DIVIDER_STYLE_KEY, '', getDefaultBinding());
     let text;
     if (customStyle) {
         // 커스텀 HTML 스타일 적용 — {TIME}을 실제 시간으로 치환
@@ -388,14 +388,14 @@ async function generateEvent(category) {
         const prompt = `${category} 분류의 사건이 발생했다. 현재 상황에 어울리는 사건을 간결하게 묘사하라.`;
         await slashGen(prompt, charName);
 
-        const archive = loadData(ARCHIVE_KEY, [], 'chat');
+        const archive = loadData(ARCHIVE_KEY, [], getDefaultBinding());
         archive.push({
             id: crypto.randomUUID(),
             date: new Date().toISOString(),
             category,
             includeInContext: false,
         });
-        saveData(ARCHIVE_KEY, archive, 'chat');
+        saveData(ARCHIVE_KEY, archive, getDefaultBinding());
 
         showToast(`사건 생성: ${category}`, 'success', 1500);
     } catch (e) {
@@ -408,7 +408,7 @@ async function generateEvent(category) {
  * @param {HTMLElement} container - 렌더링할 컨테이너
  */
 function showEventArchive(container) {
-    const archive = loadData(ARCHIVE_KEY, [], 'chat');
+    const archive = loadData(ARCHIVE_KEY, [], getDefaultBinding());
 
     const existing = container.querySelector('.slm-archive');
     if (existing) { existing.remove(); return; }

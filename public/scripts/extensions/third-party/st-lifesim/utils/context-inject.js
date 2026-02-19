@@ -5,7 +5,6 @@
  */
 
 import { getContext } from '../../../../st-context.js';
-import { loadData } from './storage.js';
 
 // 확장 프롬프트 주입 태그
 const INJECT_TAG = 'st-lifesim-context';

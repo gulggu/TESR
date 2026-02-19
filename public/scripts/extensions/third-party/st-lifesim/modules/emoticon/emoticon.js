@@ -9,7 +9,7 @@
  */
 
 import { slashSend } from '../../utils/slash.js';
-import { loadData, saveData } from '../../utils/storage.js';
+import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
 import { showToast } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
@@ -40,7 +40,7 @@ const MODULE_KEY = 'emoticons';
  * @returns {Emoticon[]}
  */
 function loadEmoticons() {
-    return loadData(MODULE_KEY, [], 'chat');
+    return loadData(MODULE_KEY, [], getDefaultBinding());
 }
 
 /**
@@ -48,7 +48,7 @@ function loadEmoticons() {
  * @param {Emoticon[]} emoticons
  */
 function saveEmoticons(emoticons) {
-    saveData(MODULE_KEY, emoticons, 'chat');
+    saveData(MODULE_KEY, emoticons, getDefaultBinding());
 }
 
 /**

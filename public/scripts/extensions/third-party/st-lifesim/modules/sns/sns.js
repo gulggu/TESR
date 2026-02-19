@@ -9,8 +9,7 @@
  */
 
 import { getContext } from '../../../../../st-context.js';
-import { slashGen } from '../../utils/slash.js';
-import { loadData, saveData } from '../../utils/storage.js';
+import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
 import { showToast, escapeHtml } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
@@ -23,7 +22,7 @@ const MODULE_KEY = 'sns-feed';
  * @returns {Object[]}
  */
 function loadFeed() {
-    return loadData(MODULE_KEY, [], 'chat');
+    return loadData(MODULE_KEY, [], getDefaultBinding());
 }
 
 /**
@@ -31,7 +30,7 @@ function loadFeed() {
  * @param {Object[]} feed
  */
 function saveFeed(feed) {
-    saveData(MODULE_KEY, feed, 'chat');
+    saveData(MODULE_KEY, feed, getDefaultBinding());
 }
 
 /**
@@ -53,13 +52,13 @@ export function initSns() {
 
 /**
  * NPC 또는 {{char}} 랜덤 포스팅을 트리거한다
- * 채팅창에 노출되지 않도록 slashGen 후 결과를 피드에만 저장
+ * generateQuietPrompt를 사용하여 채팅창에 노출되지 않고 피드에만 저장한다
  */
 export async function triggerNpcPosting() {
     const ctx = getContext();
     const charName = ctx?.name2 || '{{char}}';
 
-    const contacts = getContacts('chat');
+    const contacts = getContacts(getDefaultBinding());
     const candidates = [
         { name: charName, personality: '', isChar: true },
         ...contacts.map(c => ({ name: c.name, personality: c.personality, isChar: false })),
@@ -68,25 +67,19 @@ export async function triggerNpcPosting() {
     if (candidates.length === 0) return;
 
     const pick = candidates[Math.floor(Math.random() * candidates.length)];
-    // 자연스럽고 해시태그 없는 프롬프트
     const prompt = pick.isChar
         ? `${charName}이 SNS에 일상적인 게시물을 올렸다. 현재 상황과 ${charName}의 성격에 맞게 자연스럽고 솔직한 짧은 글을 작성하라. 해시태그는 달지 않는다.`
         : `${pick.name}이 SNS에 게시물을 올렸다. 성격: ${pick.personality || '보통'}. 그 캐릭터답게 자연스러운 짧은 글을 작성하라. 해시태그는 달지 않는다.`;
 
     try {
-        // AI에게 텍스트 생성 요청 (채팅에 보이지 않도록 처리)
         const freshCtx = getContext();
-        const chatLengthBefore = freshCtx?.chat?.length ?? 0;
-
-        await slashGen(prompt, pick.name);
-
-        const afterCtx = getContext();
-        let postContent = '(게시물)';
-        if (afterCtx?.chat && afterCtx.chat.length > chatLengthBefore) {
-            const newMsg = afterCtx.chat[afterCtx.chat.length - 1];
-            if (newMsg && !newMsg.is_user) {
-                postContent = newMsg.mes || postContent;
-            }
+        let postContent;
+        try {
+            postContent = await freshCtx.generateQuietPrompt({ quietPrompt: prompt, quietName: pick.name }) || '(게시물)';
+        } catch (genErr) {
+            console.error('[ST-LifeSim] NPC 포스팅 텍스트 생성 오류:', genErr);
+            showToast('NPC 포스팅 생성 실패: ' + genErr.message, 'error');
+            return;
         }
 
         const feed = loadFeed();
@@ -507,22 +500,14 @@ function renderComments(container, post, onUpdate) {
  */
 async function postComment(post, text, onUpdate) {
     try {
-        const beforeCtx = getContext();
-        const chatLengthBefore = beforeCtx?.chat?.length ?? 0;
-
-        // 자연스러운 답글 요청
-        await slashGen(
-            `${post.authorName}의 SNS 게시물: "${post.content}". 이 게시물에 누군가 댓글을 달았다: "${text}". ${post.authorName}이 짧고 자연스럽게 답글을 달아라.`,
-            post.authorName
-        );
-
-        const afterCtx = getContext();
+        const ctx = getContext();
+        const replyPrompt = `${post.authorName}의 SNS 게시물: "${post.content}". 이 게시물에 누군가 댓글을 달았다: "${text}". ${post.authorName}이 짧고 자연스럽게 답글을 달아라.`;
         let replyText = '';
-        if (afterCtx?.chat && afterCtx.chat.length > chatLengthBefore) {
-            const newMsg = afterCtx.chat[afterCtx.chat.length - 1];
-            if (newMsg && !newMsg.is_user) {
-                replyText = newMsg.mes || '';
-            }
+        try {
+            replyText = await ctx.generateQuietPrompt({ quietPrompt: replyPrompt, quietName: post.authorName }) || '';
+        } catch (genErr) {
+            console.error('[ST-LifeSim] 댓글 답글 생성 오류:', genErr);
+            showToast('답글 생성 실패 (댓글만 저장됩니다)', 'warn', 2500);
         }
 
         const feed = loadFeed();
@@ -542,6 +527,7 @@ async function postComment(post, text, onUpdate) {
             saveFeed(feed);
         }
     } catch (e) {
+        console.error('[ST-LifeSim] 댓글 저장 오류:', e);
         const feed = loadFeed();
         const p = feed.find(p => p.id === post.id);
         if (p) {
