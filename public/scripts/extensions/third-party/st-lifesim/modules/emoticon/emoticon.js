@@ -13,7 +13,7 @@ import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
 import { showToast } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
-import { extension_settings } from '../../../../extensions.js';
+import { extension_settings } from '../../../../../extensions.js';
 
 /**
  * 이모티콘 출력 크기를 가져온다 (extension_settings에서)
