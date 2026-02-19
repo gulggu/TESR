@@ -1,0 +1,73 @@
+/**
+ * slash.js
+ * /send, /sendas, /echo, /gen 슬래시 커맨드 래퍼 함수 모음
+ * SillyTavern의 executeSlashCommandsWithOptions를 사용한다
+ */
+
+import { getContext } from '../../../../st-context.js';
+
+/**
+ * 슬래시 커맨드를 실행하는 내부 함수
+ * @param {string} command - 실행할 슬래시 커맨드 문자열
+ */
+async function run(command) {
+    const ctx = getContext();
+    try {
+        // SillyTavern의 executeSlashCommandsWithOptions 함수를 사용한다
+        await ctx.executeSlashCommandsWithOptions(command, { showOutput: false });
+    } catch (e) {
+        console.error('[ST-LifeSim] 슬래시 커맨드 실행 오류:', command, e);
+        throw e;
+    }
+}
+
+/**
+ * 유저 말풍선으로 텍스트를 전송한다 (AI 응답 없음)
+ * @param {string} text - 전송할 텍스트
+ */
+export async function slashSend(text) {
+    // 특수문자 처리: 파이프 문자는 이스케이프 필요
+    await run(`/send ${text}`);
+}
+
+/**
+ * 특정 캐릭터 이름으로 AI 응답 없이 말풍선을 삽입한다
+ * @param {string} name - 캐릭터 이름
+ * @param {string} text - 삽입할 텍스트
+ */
+export async function slashSendAs(name, text) {
+    await run(`/sendas name="${name}" ${text}`);
+}
+
+/**
+ * 시스템 알림 메시지를 표시한다 (캐릭터 말풍선 아님)
+ * @param {string} text - 표시할 텍스트
+ */
+export async function slashEcho(text) {
+    await run(`/echo ${text}`);
+}
+
+/**
+ * AI가 특정 지시로 텍스트를 생성한 뒤, 캐릭터 이름으로 전송한다
+ * @param {string} prompt - 생성 지시 프롬프트
+ * @param {string} name - 전송 대상 캐릭터 이름 (없으면 기본 {{char}})
+ */
+export async function slashGen(prompt, name = null) {
+    if (name) {
+        // /gen ... | /sendas name="..." 형태로 실행
+        await run(`/gen ${prompt} | /sendas name="${name}"`);
+    } else {
+        // /gen만 단독 사용 (기본 {{char}} 응답)
+        await run(`/gen ${prompt}`);
+    }
+}
+
+/**
+ * 여러 슬래시 커맨드를 순서대로 실행한다
+ * @param {string[]} commands - 실행할 커맨드 목록
+ */
+export async function runSequential(commands) {
+    for (const cmd of commands) {
+        await run(cmd);
+    }
+}
