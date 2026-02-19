@@ -24,6 +24,7 @@ export function getDefaultBinding() {
  */
 function getBindingKey(binding) {
     const ctx = getContext();
+    if (!ctx) return 'default';
     if (binding === 'character') {
         // 캐릭터별 저장: 캐릭터 ID를 키로 사용
         const charId = ctx.characterId ?? 'default';

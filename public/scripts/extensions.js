@@ -510,7 +510,8 @@ async function activateExtensions() {
                     .then(() => activeExtensions.add(name))
                     .catch(err => {
                         console.log('Could not activate extension', name, err);
-                        extensionLoadErrors.add(t`Extension "${displayName}" failed to load: ${err}`);
+                        const errMsg = err instanceof Error ? err.message : String(err);
+                        extensionLoadErrors.add(t`Extension "${displayName}" failed to load: ${errMsg}`);
                     });
                 promises.push(promise);
             } catch (error) {
@@ -700,7 +701,7 @@ function addExtensionScript(name, manifest) {
             script.src = url;
             script.async = true;
             script.onerror = function (err) {
-                reject(err);
+                reject(new Error(`Failed to load script: ${url} (${err?.type ?? 'unknown'})`));
             };
             script.onload = function () {
                 if (!ready) {
@@ -709,6 +710,8 @@ function addExtensionScript(name, manifest) {
                 }
             };
             document.body.appendChild(script);
+        } else {
+            resolve();
         }
     });
 }

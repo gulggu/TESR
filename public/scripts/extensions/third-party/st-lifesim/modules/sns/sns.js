@@ -99,9 +99,14 @@ export async function triggerNpcPosting() {
 
     try {
         const freshCtx = getContext();
+        if (!freshCtx) return;
         let postContent;
         try {
-            postContent = await freshCtx.generateQuietPrompt({ quietPrompt: prompt, quietName: pick.name }) || '(게시물)';
+            if (typeof freshCtx.generateQuietPrompt === 'function') {
+                postContent = await freshCtx.generateQuietPrompt({ quietPrompt: prompt, quietName: pick.name }) || '(게시물)';
+            } else {
+                postContent = '(게시물)';
+            }
         } catch (genErr) {
             console.error('[ST-LifeSim] NPC 포스팅 텍스트 생성 오류:', genErr);
             showToast('NPC 포스팅 생성 실패: ' + genErr.message, 'error');
@@ -589,7 +594,9 @@ async function postComment(post, text, onUpdate) {
         const replyPrompt = `${post.authorName}'s social media post: "${post.content}". Someone commented on this post: "${text}". Write a short, natural reply from ${post.authorName}.`;
         let replyText = '';
         try {
-            replyText = await ctx.generateQuietPrompt({ quietPrompt: replyPrompt, quietName: post.authorName }) || '';
+            if (ctx && typeof ctx.generateQuietPrompt === 'function') {
+                replyText = await ctx.generateQuietPrompt({ quietPrompt: replyPrompt, quietName: post.authorName }) || '';
+            }
         } catch (genErr) {
             console.error('[ST-LifeSim] 댓글 답글 생성 오류:', genErr);
             showToast('답글 생성 실패 (댓글만 저장됩니다)', 'warn', 2500);

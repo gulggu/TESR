@@ -631,44 +631,57 @@ async function init() {
         });
     }
 
-    // 각 모듈 초기화 (활성화된 경우만)
-    if (isModuleEnabled('emoticon')) initEmoticon();
-    if (isModuleEnabled('contacts')) initContacts();
-    if (isModuleEnabled('call')) initCall();
-    if (isModuleEnabled('wallet')) initWallet();
-    if (isModuleEnabled('sns')) initSns();
-    if (isModuleEnabled('calendar')) initCalendar();
-    if (isModuleEnabled('gifticon')) initGifticon();
+    // 각 모듈 초기화 (활성화된 경우만, 오류 발생 시 개별 모듈만 스킵)
+    const moduleInits = [
+        { key: 'emoticon', fn: initEmoticon },
+        { key: 'contacts', fn: initContacts },
+        { key: 'call', fn: initCall },
+        { key: 'wallet', fn: initWallet },
+        { key: 'sns', fn: initSns },
+        { key: 'calendar', fn: initCalendar },
+        { key: 'gifticon', fn: initGifticon },
+    ];
+    for (const { key, fn } of moduleInits) {
+        if (isModuleEnabled(key)) {
+            try { fn(); } catch (e) { console.error(`[ST-LifeSim] 모듈 초기화 오류 (${key}):`, e); }
+        }
+    }
 
     // 퀵 센드 버튼 삽입 (sendform 전송 버튼 옆)
     if (isModuleEnabled('quickTools')) {
-        injectQuickSendButton();
+        try { injectQuickSendButton(); } catch (e) { console.error('[ST-LifeSim] 퀵 센드 버튼 오류:', e); }
     }
 
     // ST-LifeSim 메뉴 버튼 삽입 (sendform 옆)
-    injectLifeSimMenuButton();
+    try { injectLifeSimMenuButton(); } catch (e) { console.error('[ST-LifeSim] 메뉴 버튼 오류:', e); }
 
     // 선톡 타이머 시작 (활성화된 경우)
-    startFirstMsgTimer(settings.firstMsg);
+    try { startFirstMsgTimer(settings.firstMsg); } catch (e) { console.error('[ST-LifeSim] 선톡 타이머 오류:', e); }
 
     // AI 응답 후 컨텍스트 주입
-    if (ctx.eventSource && ctx.event_types) {
-        ctx.eventSource.on(ctx.event_types.CHARACTER_MESSAGE_RENDERED, async () => {
-            if (isEnabled()) {
-                await injectContext();
-            }
-        });
+    const eventSource = ctx.eventSource;
+    const eventTypes = ctx.event_types || ctx.eventTypes;
+    if (eventSource && eventTypes) {
+        if (eventTypes.CHARACTER_MESSAGE_RENDERED) {
+            eventSource.on(eventTypes.CHARACTER_MESSAGE_RENDERED, async () => {
+                if (isEnabled()) {
+                    await injectContext().catch(e => console.error('[ST-LifeSim] 컨텍스트 주입 오류:', e));
+                }
+            });
+        }
 
         // 채팅 로드 시 컨텍스트 주입
-        ctx.eventSource.on(ctx.event_types.CHAT_CHANGED, async () => {
-            if (isEnabled()) {
-                await injectContext();
-            }
-        });
+        if (eventTypes.CHAT_CHANGED) {
+            eventSource.on(eventTypes.CHAT_CHANGED, async () => {
+                if (isEnabled()) {
+                    await injectContext().catch(e => console.error('[ST-LifeSim] 컨텍스트 주입 오류:', e));
+                }
+            });
+        }
 
         // 유저 메시지 전송 시 10% 확률로 SNS 포스팅 트리거
-        if (isModuleEnabled('sns') && ctx.event_types.MESSAGE_SENT) {
-            ctx.eventSource.on(ctx.event_types.MESSAGE_SENT, () => {
+        if (isModuleEnabled('sns') && eventTypes.MESSAGE_SENT) {
+            eventSource.on(eventTypes.MESSAGE_SENT, () => {
                 if (isEnabled() && Math.random() < 0.10) {
                     triggerNpcPosting().catch(e => console.error('[ST-LifeSim] SNS 자동 포스팅 오류:', e));
                 }
@@ -680,6 +693,13 @@ async function init() {
 }
 
 // SillyTavern이 준비되면 초기화 실행
-jQuery(async () => {
-    await init();
-});
+// jQuery가 없는 환경에서도 동작하도록 대응
+if (typeof jQuery !== 'undefined') {
+    jQuery(async () => {
+        try { await init(); } catch (e) { console.error('[ST-LifeSim] 초기화 오류:', e); }
+    });
+} else {
+    document.addEventListener('DOMContentLoaded', async () => {
+        try { await init(); } catch (e) { console.error('[ST-LifeSim] 초기화 오류:', e); }
+    });
+}

@@ -61,8 +61,11 @@ export function initCall() {
     const ctx = getContext();
     if (!ctx || !ctx.eventSource) return;
 
+    const eventTypes = ctx.event_types || ctx.eventTypes;
+    if (!eventTypes?.CHARACTER_MESSAGE_RENDERED) return;
+
     // AI 응답 완료 시 통화 키워드 감지
-    ctx.eventSource.on(ctx.event_types.CHARACTER_MESSAGE_RENDERED, (data) => {
+    ctx.eventSource.on(eventTypes.CHARACTER_MESSAGE_RENDERED, (data) => {
         detectCallKeywords(data);
     });
 }
@@ -215,10 +218,10 @@ async function endCall() {
     let summary = '';
     try {
         const ctx = getContext();
-        const chatLen = ctx.chat?.length ?? 0;
+        const chatLen = ctx?.chat?.length ?? 0;
         const startFrom = Math.max(0, startIdx);
-        const callMsgs = ctx.chat?.slice(startFrom, chatLen) ?? [];
-        if (callMsgs.length > 0) {
+        const callMsgs = ctx?.chat?.slice(startFrom, chatLen) ?? [];
+        if (callMsgs.length > 0 && typeof ctx?.generateQuietPrompt === 'function') {
             const msgText = callMsgs.map(m => `${m.is_user ? '{{user}}' : m.name}: ${m.mes}`).join('\n');
             const summaryPrompt = `The following is the conversation transcript from a call with ${endedContact}. Write a concise 2-3 sentence summary of what was discussed during the call:\n${msgText}`;
             summary = await ctx.generateQuietPrompt({ quietPrompt: summaryPrompt, quietName: endedContact }) || '';
