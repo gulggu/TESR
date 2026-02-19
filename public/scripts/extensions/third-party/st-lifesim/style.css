@@ -68,7 +68,7 @@ body[data-theme="dark"],
    오버레이 & 팝업 패널
 ────────────────────────────────────────── */
 .slm-overlay {
-  position: fixed;
+  position: absolute;
   inset: 0;
   background: var(--slm-overlay-bg);
   z-index: var(--slm-z);
