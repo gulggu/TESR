@@ -110,12 +110,16 @@ export function initCall() {
             if (!lastMsg || lastMsg.is_user || lastMsg.name === '전화') return;
 
             const content = lastMsg.mes;
-            const msgIdx = (freshCtx.chat?.length ?? 1) - 1;
+            const beforeSendLen = freshCtx.chat?.length ?? 0;
 
             isReinjectingCallMessage = true;
             try {
-                await freshCtx.executeSlashCommandsWithOptions(`/hide ${msgIdx}`, { showOutput: false });
                 await slashSendAs('전화', content);
+                const latestIdx = (getContext()?.chat?.length ?? 1) - 1;
+                const cutIdx = beforeSendLen > 0 ? Math.min(latestIdx - 1, beforeSendLen - 1) : -1;
+                if (cutIdx >= 0) {
+                    await freshCtx.executeSlashCommandsWithOptions(`/cut ${cutIdx}`, { showOutput: false });
+                }
             } catch (e) {
                 console.error('[ST-LifeSim] 통화 메시지 재주입 오류:', e);
             } finally {
@@ -572,14 +576,21 @@ function buildCallLogsContent() {
                 && log.startMessageIdx >= 0 && log.endMessageIdx >= log.startMessageIdx) {
                 const hideBtn = document.createElement('button');
                 hideBtn.className = 'slm-btn slm-btn-ghost slm-btn-sm';
-                hideBtn.textContent = '🙈 컨텍스트 제외';
+                hideBtn.textContent = log.includeInContext ? '🙈 컨텍스트 제외' : '🙉 컨텍스트 포함';
                 hideBtn.onclick = async () => {
                     try {
                         const ctx = getContext();
-                        await ctx.executeSlashCommandsWithOptions(`/hide ${log.startMessageIdx}-${log.endMessageIdx}`, { showOutput: false });
-                        showToast('통화 구간을 컨텍스트에서 제외했습니다.', 'success', 1600);
+                        const shouldInclude = !!log.includeInContext;
+                        await ctx.executeSlashCommandsWithOptions(`/${shouldInclude ? 'unhide' : 'hide'} ${log.startMessageIdx}-${log.endMessageIdx}`, { showOutput: false });
+                        const all = loadCallLogs();
+                        const hit = all.find(x => x.id === log.id);
+                        if (hit) hit.includeInContext = !shouldInclude;
+                        saveCallLogs(all);
+                        log.includeInContext = !shouldInclude;
+                        hideBtn.textContent = log.includeInContext ? '🙈 컨텍스트 제외' : '🙉 컨텍스트 포함';
+                        showToast(log.includeInContext ? '통화 구간을 컨텍스트에 포함했습니다.' : '통화 구간을 컨텍스트에서 제외했습니다.', 'success', 1600);
                     } catch (e) {
-                        showToast('컨텍스트 제외 실패', 'error', 2000);
+                        showToast('컨텍스트 설정 실패', 'error', 2000);
                     }
                 };
                 actionRow.appendChild(hideBtn);

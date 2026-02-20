@@ -295,10 +295,10 @@ body[data-theme="dark"],
 .slm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .slm-btn-primary {
-  background: var(--slm-accent);
+  background: var(--slm-primary);
   color: #ffffff !important;
 }
-.slm-btn-primary:hover:not(:disabled) { background: var(--slm-accent-hover); }
+.slm-btn-primary:hover:not(:disabled) { background: var(--slm-primary); filter: brightness(0.92); }
 
 .slm-btn-secondary {
   background: var(--slm-bg-secondary);
@@ -1600,9 +1600,9 @@ body[data-theme="dark"],
 .slm-img-tooltip {
   display: none;
   position: absolute;
-  bottom: 8px;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   background: rgba(0,0,0,0.78);
   color: #fff;
   font-size: 12px;
@@ -1614,15 +1614,7 @@ body[data-theme="dark"],
   pointer-events: none;
   z-index: 10;
 }
-.slm-img-tooltip::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border: 5px solid transparent;
-  border-top-color: rgba(0,0,0,0.78);
-}
+.slm-img-tooltip::after { display: none; }
 .slm-post-img-wrap:hover .slm-img-tooltip { display: block; }
 
 /* ──────────────────────────────────────────
@@ -1697,35 +1689,40 @@ body[data-theme="dark"],
 ────────────────────────────────────────── */
 .slm-voice-msg {
   position: relative;
-  display: inline-block;
+  display: block;
   padding: 4px 10px;
   background: var(--slm-bg-secondary, #f2f2f7);
   border-radius: 10px;
   font-size: 14px;
-  cursor: default;
+  cursor: pointer;
   user-select: none;
 }
+.slm-voice-msg summary { list-style: none; }
+.slm-voice-msg summary::-webkit-details-marker { display: none; }
 .slm-voice-hint {
-  display: none;
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.78);
-  color: #fff;
+  display: block;
+  margin-top: 6px;
   font-size: 12px;
-  padding: 5px 10px;
-  border-radius: 8px;
+  color: var(--slm-text-secondary, #6d6d72);
   white-space: pre-wrap;
   word-break: break-word;
-  max-width: 220px;
-  text-align: center;
-  pointer-events: none;
-  z-index: 10;
 }
-.slm-voice-msg:hover .slm-voice-hint {
-  display: block;
+
+.slm-quick-image { max-width: 100%; border-radius: 10px; }
+
+.slm-sns-profile-item { border: 1px solid var(--slm-border); border-radius: 10px; padding: 8px; }
+.slm-sns-profile-summary { display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; }
+.slm-sns-profile-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--slm-bg-secondary);
 }
+.slm-sns-profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
 /* ──────────────────────────────────────────
    시간 구분선 (채팅 내 삽입)
@@ -1825,14 +1822,29 @@ body[data-theme="dark"],
     min-width: 120px;
   }
   .slm-input-row {
-    flex-direction: column;
-    align-items: stretch;
+    align-items: center;
     gap: 6px;
+    flex-wrap: wrap;
   }
   .slm-input-row .slm-btn {
-    width: 100%;
+    width: auto;
+  }
+  .slm-quick-panel .slm-tab-bar {
+    overflow-x: visible;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    border-bottom: none;
+  }
+  .slm-quick-panel .slm-tab-btn {
+    border: 1px solid var(--slm-border);
+    border-radius: 8px;
+    border-bottom-width: 1px;
+  }
+  .slm-quick-panel .slm-tab-btn.active {
+    border-color: var(--slm-accent);
   }
   .slm-gifticon-inbox {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
