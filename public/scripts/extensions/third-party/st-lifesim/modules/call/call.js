@@ -224,7 +224,7 @@ async function endCall() {
         const callMsgs = ctx?.chat?.slice(startFrom, chatLen) ?? [];
         if (callMsgs.length > 0 && typeof ctx?.generateQuietPrompt === 'function') {
             const msgText = callMsgs.map(m => `${m.is_user ? '{{user}}' : m.name}: ${m.mes}`).join('\n');
-            const summaryPrompt = `The following is the conversation transcript from a call with ${endedContact}. Write a concise 2-3 sentence summary of what was discussed during the call:\n${msgText}`;
+            const summaryPrompt = `The following is the conversation transcript from a call with ${endedContact}. Write a concise 2-3 sentence summary IN KOREAN of what was discussed during the call. The summary must be written in Korean regardless of the conversation language. Character names may be kept as-is:\n${msgText}`;
             summary = await ctx.generateQuietPrompt({ quietPrompt: summaryPrompt, quietName: endedContact }) || '';
         }
     } catch (e) {
@@ -397,8 +397,6 @@ function buildCallLogsContent() {
             const row = document.createElement('div');
             row.className = 'slm-call-row';
 
-            const d = new Date(log.date);
-            const dateStr = d.toLocaleDateString('ko-KR');
             const mMin = Math.floor(log.durationSeconds / 60);
             const sSec = log.durationSeconds % 60;
             const durStr = `${mMin}분 ${String(sSec).padStart(2, '0')}초`;
@@ -408,7 +406,6 @@ function buildCallLogsContent() {
             infoDiv.innerHTML = `
                 <span class="slm-call-icon">📞</span>
                 <span class="slm-call-name">${escapeHtml(log.contactName)}</span>
-                <span class="slm-call-date">${escapeHtml(dateStr)}</span>
                 <span class="slm-call-dur">${escapeHtml(durStr)}</span>
             `;
             row.appendChild(infoDiv);

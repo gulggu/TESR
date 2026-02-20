@@ -958,7 +958,7 @@ body[data-theme="dark"],
 .slm-call-info { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--slm-text); flex-wrap: wrap; }
 .slm-call-icon { font-size: 18px; }
 .slm-call-name { font-weight: 600; }
-.slm-call-date, .slm-call-dur { color: var(--slm-text-secondary); font-size: 12px; }
+.slm-call-dur { color: var(--slm-text-secondary); font-size: 12px; }
 
 .slm-missed-row { display: flex; align-items: center; gap: 8px; padding-top: 8px; border-top: 1px solid var(--slm-border); }
 .slm-missed-row .slm-input { flex: 1; }
@@ -1011,7 +1011,6 @@ body[data-theme="dark"],
 .slm-hist-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .slm-hist-amount.pos { color: var(--slm-success); font-weight: 600; }
 .slm-hist-amount.neg { color: var(--slm-danger); font-weight: 600; }
-.slm-hist-date { color: var(--slm-text-secondary); font-size: 11px; }
 
 .slm-settings-section { display: flex; flex-direction: column; gap: 6px; }
 .slm-settings-section h4 { margin: 0 0 4px; font-size: 13px; font-weight: 600; color: var(--slm-text-secondary); }

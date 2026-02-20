@@ -334,14 +334,12 @@ function buildWalletContent() {
         w.history.slice().reverse().slice(0, 20).forEach(h => {
             const row = document.createElement('div');
             row.className = 'slm-history-row';
-            const d = new Date(h.date);
             const sign = h.amount > 0 ? '+' : '';
             const icon = h.type === 'send' ? '📤' : '📥';
             row.innerHTML = `
                 <span class="slm-hist-icon">${icon}</span>
                 <span class="slm-hist-name">${escapeHtml(h.counterpart || '직접')}</span>
                 <span class="slm-hist-amount ${h.amount < 0 ? 'neg' : 'pos'}">${sign}${escapeHtml(formatCurrency(h.amount, w.currencySymbol))}</span>
-                <span class="slm-hist-date">${d.toLocaleDateString('ko-KR')}</span>
             `;
             histList.appendChild(row);
         });
