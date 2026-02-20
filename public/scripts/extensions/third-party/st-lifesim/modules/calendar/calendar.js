@@ -7,6 +7,7 @@
  * - 컨텍스트에 오늘/예정 일정 주입
  */
 
+import { getContext } from '../../utils/st-context.js';
 import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
 import { showToast, escapeHtml, generateId } from '../../utils/ui.js';
@@ -75,7 +76,8 @@ export function initCalendar() {
             const label = e.diff === 0
                 ? `Today (Day ${today})`
                 : `D+${e.diff} (Day ${e.day})`;
-            return `${label}: ${e.title}${e.time ? ` (${e.time})` : ''}${e.description ? `, ${e.description}` : ''}`;
+            const aiFlag = e.addedByAi ? ' [scheduled by char]' : '';
+            return `${label}: ${e.title}${e.time ? ` (${e.time})` : ''}${e.description ? `, ${e.description}` : ''}${aiFlag}`;
         });
 
         return `=== Schedule ===\n${lines.join('\n')}`;
@@ -149,6 +151,19 @@ function buildCalendarContent() {
     addBtn.textContent = '+ 일정 추가';
     addBtn.onclick = () => openEventDialog(null, renderAll);
 
+    const aiScheduleBtn = document.createElement('button');
+    aiScheduleBtn.className = 'slm-btn slm-btn-secondary slm-btn-sm';
+    aiScheduleBtn.textContent = '🤖 AI 일정 등록';
+    aiScheduleBtn.title = 'AI(캐릭터)가 원하는 일정을 자동으로 등록합니다';
+    aiScheduleBtn.onclick = async () => {
+        aiScheduleBtn.disabled = true;
+        try {
+            await triggerAiSchedule(renderAll);
+        } finally {
+            aiScheduleBtn.disabled = false;
+        }
+    };
+
     const clearAllBtn = document.createElement('button');
     clearAllBtn.className = 'slm-btn slm-btn-danger slm-btn-sm';
     clearAllBtn.textContent = '🗑️ 전체 삭제';
@@ -164,6 +179,7 @@ function buildCalendarContent() {
     const btnRow = document.createElement('div');
     btnRow.className = 'slm-btn-row';
     btnRow.appendChild(addBtn);
+    btnRow.appendChild(aiScheduleBtn);
     btnRow.appendChild(clearAllBtn);
     wrapper.appendChild(btnRow);
 
@@ -232,7 +248,8 @@ function buildCalendarContent() {
             row.innerHTML = `
                 <span class="slm-event-label">${escapeHtml(label)}(${ev.day}일)</span>
                 <span class="slm-event-time">${escapeHtml(ev.time || '')}</span>
-                <span class="slm-event-title">${escapeHtml(ev.title)}</span>
+                <span class="slm-event-title">${escapeHtml(ev.title)}${ev.addedByAi ? ' 🤖' : ''}</span>
+                ${ev.description ? `<span class="slm-event-desc">${escapeHtml(ev.description)}</span>` : ''}
             `;
 
             const btnRow = document.createElement('div');
@@ -416,4 +433,51 @@ function createFormField(container, label, type, value) {
     container.appendChild(lbl);
     container.appendChild(input);
     return input;
+}
+
+/**
+ * AI(캐릭터)가 원하는 일정을 자동으로 캘린더에 등록한다.
+ * generateQuietPrompt로 JSON 형식 일정 데이터를 생성 후 파싱한다.
+ * @param {Function} onSave - 저장 후 콜백
+ */
+export async function triggerAiSchedule(onSave) {
+    const ctx = getContext();
+    const charName = ctx?.name2 || '{{char}}';
+    const cal = loadCalendar();
+
+    const prompt = `You are ${charName}. Based on the current conversation and your personality, suggest one upcoming event you want to schedule with {{user}}. Reply in JSON format only, no extra text:
+{"title": "Event title", "day": <number 1-30>, "time": "HH:MM or empty", "description": "short description"}
+Current day: ${cal.today}. Choose a day within the next 14 days (wrap around 30 if needed).`;
+
+    try {
+        if (!ctx || typeof ctx.generateQuietPrompt !== 'function') {
+            showToast('AI 생성 기능을 사용할 수 없습니다.', 'error'); return;
+        }
+        const raw = await ctx.generateQuietPrompt({ quietPrompt: prompt, quietName: charName }) || '';
+        // 첫 번째 { ... } 블록을 비탐욕적으로 추출한다
+        const match = raw.match(/\{[\s\S]*?\}/);
+        if (!match) { showToast('AI가 일정을 만들지 못했습니다.', 'warn'); return; }
+        const data = JSON.parse(match[0]);
+        const title = (data.title || '').trim();
+        if (!title) { showToast('AI 일정 제목이 비어 있습니다.', 'warn'); return; }
+        const parsedDay = parseInt(data.day);
+        const day = normalizeDay(Number.isFinite(parsedDay) ? parsedDay : cal.today + 3);
+        const c = loadCalendar();
+        c.events.push({
+            id: generateId(),
+            day,
+            time: data.time || '',
+            title,
+            description: (data.description || '').trim(),
+            relatedContactId: '',
+            done: false,
+            addedByAi: true,
+        });
+        saveCalendar(c);
+        if (typeof onSave === 'function') onSave();
+        showToast(`📅 ${charName}이(가) 일정을 등록했습니다: ${title}`, 'success', 2500);
+    } catch (e) {
+        console.error('[ST-LifeSim] AI 일정 등록 오류:', e);
+        showToast('AI 일정 등록 실패: ' + e.message, 'error');
+    }
 }

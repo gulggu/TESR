@@ -26,11 +26,14 @@ import { initContacts, openContactsPopup } from './modules/contacts/contacts.js'
 import { initCall, openCallLogsPopup } from './modules/call/call.js';
 import { initWallet, openWalletPopup } from './modules/wallet/wallet.js';
 import { initSns, openSnsPopup, triggerNpcPosting } from './modules/sns/sns.js';
-import { initCalendar, openCalendarPopup } from './modules/calendar/calendar.js';
+import { initCalendar, openCalendarPopup, triggerAiSchedule } from './modules/calendar/calendar.js';
 import { initGifticon, openGifticonPopup } from './modules/gifticon/gifticon.js';
 
 // 설정 키
 const SETTINGS_KEY = 'st-lifesim';
+
+// 주간/야간 테마 저장 키 (localStorage)
+const THEME_STORAGE_KEY = 'st-lifesim:forced-theme';
 
 // 기본 설정
 const DEFAULT_SETTINGS = {
@@ -55,6 +58,7 @@ const DEFAULT_SETTINGS = {
         intervalSec: 10,
         probability: 8,
     },
+    snsPostingProbability: 10, // % (0~100)
 };
 
 /**
@@ -89,6 +93,9 @@ function getSettings() {
     if (ext[SETTINGS_KEY].modules?.gifticon == null) {
         if (!ext[SETTINGS_KEY].modules) ext[SETTINGS_KEY].modules = {};
         ext[SETTINGS_KEY].modules.gifticon = true;
+    }
+    if (ext[SETTINGS_KEY].snsPostingProbability == null) {
+        ext[SETTINGS_KEY].snsPostingProbability = DEFAULT_SETTINGS.snsPostingProbability;
     }
     return ext[SETTINGS_KEY];
 }
@@ -155,6 +162,42 @@ function injectLifeSimMenuButton() {
 function openMainMenuPopup() {
     const wrapper = document.createElement('div');
     wrapper.className = 'slm-main-menu';
+
+    // 주간/야간 토글 (상단 우측)
+    const themeRow = document.createElement('div');
+    themeRow.className = 'slm-theme-toggle-row';
+
+    const themeBtn = document.createElement('button');
+    themeBtn.className = 'slm-theme-toggle-btn';
+
+    function updateThemeBtn() {
+        const t = getForcedTheme();
+        if (t === 'light') {
+            themeBtn.innerHTML = '<span class="slm-theme-toggle-icon">☀️</span><span class="slm-theme-toggle-label">주간</span>';
+            themeBtn.title = '야간 모드로 전환';
+        } else if (t === 'dark') {
+            themeBtn.innerHTML = '<span class="slm-theme-toggle-icon">🌙</span><span class="slm-theme-toggle-label">야간</span>';
+            themeBtn.title = '자동(시스템) 모드로 전환';
+        } else {
+            themeBtn.innerHTML = '<span class="slm-theme-toggle-icon">🔄</span><span class="slm-theme-toggle-label">자동</span>';
+            themeBtn.title = '주간 모드로 전환';
+        }
+    }
+    updateThemeBtn();
+
+    themeBtn.onclick = (e) => {
+        e.stopPropagation();
+        const newTheme = cycleTheme();
+        updateThemeBtn();
+        let label;
+        if (newTheme === 'light') label = '주간 모드';
+        else if (newTheme === 'dark') label = '야간 모드';
+        else label = '자동(시스템) 모드';
+        showToast(`테마: ${label}`, 'success', 1200);
+    };
+
+    themeRow.appendChild(themeBtn);
+    wrapper.appendChild(themeRow);
 
     const grid = document.createElement('div');
     grid.className = 'slm-menu-grid';
@@ -477,6 +520,29 @@ function openSettingsPanel(onBack) {
 
         wrapper.appendChild(Object.assign(document.createElement('hr'), { className: 'slm-hr' }));
 
+        // SNS 자동 포스팅 확률
+        const snsProbRow = document.createElement('div');
+        snsProbRow.className = 'slm-input-row';
+        const snsProbLbl = Object.assign(document.createElement('label'), { className: 'slm-label', textContent: 'SNS 자동 포스팅 확률:' });
+        const snsProbInput = Object.assign(document.createElement('input'), {
+            className: 'slm-input slm-input-sm', type: 'number', min: '0', max: '100',
+            value: String(settings.snsPostingProbability ?? 10),
+        });
+        snsProbInput.style.width = '70px';
+        const snsProbPctLbl = Object.assign(document.createElement('span'), { className: 'slm-label', textContent: '%' });
+        const snsProbApplyBtn = document.createElement('button');
+        snsProbApplyBtn.className = 'slm-btn slm-btn-primary slm-btn-sm';
+        snsProbApplyBtn.textContent = '적용';
+        snsProbApplyBtn.onclick = () => {
+            const val = parseInt(snsProbInput.value);
+            settings.snsPostingProbability = Math.max(0, Math.min(100, isNaN(val) ? 10 : val));
+            snsProbInput.value = String(settings.snsPostingProbability);
+            saveSettings();
+            showToast(`SNS 포스팅 확률: ${settings.snsPostingProbability}%`, 'success', 1500);
+        };
+        snsProbRow.append(snsProbLbl, snsProbInput, snsProbPctLbl, snsProbApplyBtn);
+        wrapper.appendChild(snsProbRow);
+
         // SNS 기본 이미지 URL
         const snsImgLbl = Object.assign(document.createElement('label'), { className: 'slm-label', textContent: 'SNS 기본 이미지 URL:' });
         const snsImgInput = Object.assign(document.createElement('input'), {
@@ -609,6 +675,48 @@ function saveSettings() {
     if (ctx?.saveSettingsDebounced) ctx.saveSettingsDebounced();
 }
 
+// ── 주간/야간 테마 토글 ──────────────────────────────────────────
+/**
+ * 현재 강제 테마를 읽는다 ('light' | 'dark' | null)
+ * @returns {'light'|'dark'|null}
+ */
+function getForcedTheme() {
+    return localStorage.getItem(THEME_STORAGE_KEY) || null;
+}
+
+/**
+ * 강제 테마를 적용한다
+ * @param {'light'|'dark'|null} theme
+ */
+function applyForcedTheme(theme) {
+    if (theme === 'light' || theme === 'dark') {
+        document.documentElement.setAttribute('data-slm-theme', theme);
+        localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } else {
+        document.documentElement.removeAttribute('data-slm-theme');
+        localStorage.removeItem(THEME_STORAGE_KEY);
+    }
+}
+
+/**
+ * 자동 → 주간 → 야간 → 자동 순으로 테마를 순환한다
+ * (null=자동, 'light'=주간, 'dark'=야간)
+ * @returns {'light'|'dark'|null} 새 테마 값
+ */
+function cycleTheme() {
+    const current = getForcedTheme();
+    let next;
+    if (current === null) {
+        next = 'light';      // 자동 → 주간
+    } else if (current === 'light') {
+        next = 'dark';       // 주간 → 야간
+    } else {
+        next = null;         // 야간 → 자동
+    }
+    applyForcedTheme(next);
+    return next;
+}
+
 /**
  * 확장 초기화 - SillyTavern이 준비된 후 실행된다
  */
@@ -625,6 +733,9 @@ async function init() {
 
     // 이모티콘 모서리 반경 CSS 변수 적용
     document.documentElement.style.setProperty('--slm-emoticon-radius', (settings.emoticonRadius ?? 10) + 'px');
+
+    // 저장된 강제 테마 적용 (주간/야간 토글)
+    applyForcedTheme(getForcedTheme());
 
     // 저장된 테마 색상 적용
     if (settings.themeColors) {
@@ -681,11 +792,21 @@ async function init() {
         });
     }
 
-    // 유저 메시지 전송 시 10% 확률로 SNS 포스팅 트리거
+    // 유저 메시지 전송 시 설정된 확률로 SNS 포스팅 트리거
     if (isModuleEnabled('sns') && evSrc && eventTypes?.MESSAGE_SENT) {
         evSrc.on(eventTypes.MESSAGE_SENT, () => {
-            if (isEnabled() && Math.random() < 0.10) {
+            const prob = (getSettings().snsPostingProbability ?? 10) / 100;
+            if (isEnabled() && Math.random() < prob) {
                 triggerNpcPosting().catch(e => console.error('[ST-LifeSim] SNS 자동 포스팅 오류:', e));
+            }
+        });
+    }
+
+    // AI 응답 수신 시 5% 확률로 char가 일정 자동 등록 시도
+    if (isModuleEnabled('calendar') && evSrc && eventTypes?.MESSAGE_RECEIVED) {
+        evSrc.on(eventTypes.MESSAGE_RECEIVED, () => {
+            if (isEnabled() && Math.random() < 0.05) {
+                triggerAiSchedule(null).catch(e => console.error('[ST-LifeSim] AI 일정 등록 오류:', e));
             }
         });
     }
