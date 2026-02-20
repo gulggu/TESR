@@ -11,7 +11,7 @@
 
 import { getContext } from '../../../../../st-context.js';
 import { slashSend, slashGen } from '../../utils/slash.js';
-import { showToast } from '../../utils/ui.js';
+import { showToast, escapeHtml } from '../../utils/ui.js';
 import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
 
 // 사건 기록 아카이브 저장 키
@@ -455,8 +455,11 @@ async function handleVoiceMemo(seconds, hint) {
     const timeStr = `${m}:${String(s).padStart(2, '0')}`;
 
     try {
-        // details/summary 토글 방식으로 출력
-        const voiceHtml = `<details><summary>🎤 음성메시지 (${timeStr})</summary><em>(음성메시지 내용)</em></details>`;
+        // 호버 시 내용 힌트 노출 방식으로 출력
+        const hintHtml = hint
+            ? `<span class="slm-voice-hint">${escapeHtml(hint)}</span>`
+            : '';
+        const voiceHtml = `<span class="slm-voice-msg">🎤 음성메시지 (${timeStr})${hintHtml}</span>`;
         await slashSend(voiceHtml);
 
         if (hint) {
