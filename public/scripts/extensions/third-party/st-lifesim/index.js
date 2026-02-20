@@ -9,7 +9,7 @@
  *    - 서브 아이콘 클릭 시 해당 기능 패널 팝업
  *    - 드래그로 위치 변경 가능
  * 4. AI 응답마다 컨텍스트를 주입한다
- * 5. 유저 메시지 전송 시 10% 확률로 SNS 포스팅 트리거
+ * 5. 유저 메시지 전송 시 설정 확률로 SNS 포스팅/반응 트리거
  * 6. 확장 전체 ON/OFF 및 각 모듈별 개별 활성화 관리
  */
 
@@ -25,7 +25,7 @@ import { initEmoticon, openEmoticonPopup } from './modules/emoticon/emoticon.js'
 import { initContacts, openContactsPopup } from './modules/contacts/contacts.js';
 import { initCall, onCharacterMessageRenderedForProactiveCall, openCallLogsPopup, triggerProactiveIncomingCall } from './modules/call/call.js';
 import { initWallet, openWalletPopup } from './modules/wallet/wallet.js';
-import { initSns, openSnsPopup, triggerNpcPosting } from './modules/sns/sns.js';
+import { initSns, openSnsPopup, triggerNpcPosting, triggerPendingCommentReaction } from './modules/sns/sns.js';
 import { initCalendar, openCalendarPopup } from './modules/calendar/calendar.js';
 import { initGifticon, openGifticonPopup } from './modules/gifticon/gifticon.js';
 
@@ -555,7 +555,7 @@ function openSettingsPanel(onBack) {
 
         const snsProbRow = document.createElement('div');
         snsProbRow.className = 'slm-input-row';
-        const snsProbLbl = Object.assign(document.createElement('label'), { className: 'slm-label', textContent: 'SNS 자동 포스팅 확률:' });
+        const snsProbLbl = Object.assign(document.createElement('label'), { className: 'slm-label', textContent: 'SNS 자동 생성 확률:' });
         const snsProbInput = Object.assign(document.createElement('input'), {
             className: 'slm-input slm-input-sm', type: 'number', min: '0', max: '100',
             value: String(settings.snsPostingProbability ?? 10),
@@ -570,7 +570,7 @@ function openSettingsPanel(onBack) {
             settings.snsPostingProbability = Math.max(0, Math.min(100, isNaN(val) ? 10 : val));
             snsProbInput.value = String(settings.snsPostingProbability);
             saveSettings();
-            showToast(`SNS 포스팅 확률: ${settings.snsPostingProbability}%`, 'success', 1500);
+            showToast(`SNS 자동 생성 확률: ${settings.snsPostingProbability}%`, 'success', 1500);
         };
         snsProbRow.append(snsProbLbl, snsProbInput, snsProbPctLbl, snsProbApplyBtn);
         wrapper.appendChild(snsProbRow);
@@ -904,6 +904,7 @@ async function init() {
     // 유저 메시지 전송 시 설정된 확률로 SNS 포스팅 트리거
     if (evSrc && eventTypes?.MESSAGE_SENT) {
         let snsTriggerInFlight = false;
+        let snsReactionInFlight = false;
         evSrc.on(eventTypes.MESSAGE_SENT, () => {
             if (isModuleEnabled('sns')) {
                 const prob = (getSettings().snsPostingProbability ?? 10) / 100;
@@ -912,6 +913,12 @@ async function init() {
                     triggerNpcPosting()
                         .catch(e => console.error('[ST-LifeSim] SNS 자동 포스팅 오류:', e))
                         .finally(() => { snsTriggerInFlight = false; });
+                }
+                if (!snsReactionInFlight && Math.random() < prob) {
+                    snsReactionInFlight = true;
+                    triggerPendingCommentReaction()
+                        .catch(e => console.error('[ST-LifeSim] SNS 댓글 반응 생성 오류:', e))
+                        .finally(() => { snsReactionInFlight = false; });
                 }
             }
             if (!isModuleEnabled('call')) return;

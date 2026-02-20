@@ -2,7 +2,7 @@
  * sns.js
  * SNS 피드 모듈 (인스타그램 스타일)
  * - 유저 직접 게시물 올리기 + 편집
- * - AI가 {{char}} 또는 NPC 이름으로 랜덤 포스팅 (유저 메시지 시 10% — index.js에서 트리거)
+ * - AI가 {{char}} 또는 NPC 이름으로 랜덤 포스팅 (유저 메시지 시 설정 확률 — index.js에서 트리거)
  * - 댓글/답글 기능
  * - SNS 활동은 채팅창에 노출되지 않음
  * - 컨텍스트에 최근 피드 주입
@@ -24,10 +24,9 @@ const IMAGE_PRESETS_KEY = 'sns-image-presets'; // {id,name,url}[]
 const POSTING_ENABLED_KEY = 'sns-posting-enabled'; // { authorName: boolean }
 const SNS_REPLY_PROBABILITY = 0.7;
 const SNS_EXTRA_COMMENT_PROBABILITY = 0.35;
-const SNS_REACTION_DELAY_MIN_MS = 1200;
-const SNS_REACTION_DELAY_MAX_MS = 7000;
 const SNS_POST_TEXT_MAX = 280;
 const SNS_IMAGE_DESC_MAX = 220;
+const PENDING_COMMENT_REACTIONS = [];
 
 /**
  * 관리형 이미지 프리셋 목록을 불러온다
@@ -759,35 +758,26 @@ function openEditPostDialog(post, onUpdate) {
 function renderComments(container, post, onUpdate) {
     container.innerHTML = '';
 
-    post.comments.forEach(c => {
+    const renderCommentNode = (parent, node, isReply = false) => {
         const commentDiv = document.createElement('div');
-        commentDiv.className = 'slm-comment';
+        commentDiv.className = isReply ? 'slm-reply' : 'slm-comment';
         const authorSpan = document.createElement('span');
         authorSpan.className = 'slm-comment-author';
-        authorSpan.textContent = c.author;
+        authorSpan.textContent = isReply ? `└ ${node.author}` : node.author;
         const textSpan = document.createElement('span');
         textSpan.className = 'slm-comment-text';
-        textSpan.textContent = c.text;
+        textSpan.textContent = isReply ? ` ${node.text}` : node.text;
         commentDiv.appendChild(authorSpan);
         commentDiv.appendChild(textSpan);
+        parent.appendChild(commentDiv);
 
-        if (c.replies && c.replies.length > 0) {
-            c.replies.forEach(r => {
-                const replyDiv = document.createElement('div');
-                replyDiv.className = 'slm-reply';
-                const replyAuthor = document.createElement('span');
-                replyAuthor.className = 'slm-comment-author';
-                replyAuthor.textContent = `└ ${r.author}`;
-                const replyText = document.createElement('span');
-                replyText.className = 'slm-comment-text';
-                replyText.textContent = ` ${r.text}`;
-                replyDiv.appendChild(replyAuthor);
-                replyDiv.appendChild(replyText);
-                commentDiv.appendChild(replyDiv);
-            });
+        if (Array.isArray(node.replies) && node.replies.length > 0) {
+            node.replies.forEach(reply => renderCommentNode(commentDiv, reply, true));
         }
+    };
 
-        container.appendChild(commentDiv);
+    post.comments.forEach(c => {
+        renderCommentNode(container, c, false);
     });
 
     const inputRow = document.createElement('div');
@@ -840,16 +830,19 @@ async function postComment(post, text, onUpdate) {
     saveFeed(feed);
     onUpdate();
 
-    const reactionDelay = SNS_REACTION_DELAY_MIN_MS + Math.floor(Math.random() * (SNS_REACTION_DELAY_MAX_MS - SNS_REACTION_DELAY_MIN_MS));
-    setTimeout(async () => {
-        await runDeferredCommentGeneration({
-            postId: post.id,
-            commentId,
-            text,
-            userName,
-            onUpdate,
-        });
-    }, reactionDelay);
+    PENDING_COMMENT_REACTIONS.push({
+        postId: post.id,
+        commentId,
+        text,
+        userName,
+        onUpdate,
+    });
+}
+
+export async function triggerPendingCommentReaction() {
+    const pending = PENDING_COMMENT_REACTIONS.shift();
+    if (!pending) return;
+    await runDeferredCommentGeneration(pending);
 }
 
 async function runDeferredCommentGeneration({ postId, commentId, text, userName, onUpdate }) {
@@ -886,13 +879,15 @@ async function runDeferredCommentGeneration({ postId, commentId, text, userName,
 
         if (shouldReply && replyAuthorCandidates.length > 0) {
             const replyAuthor = replyAuthorCandidates[Math.floor(Math.random() * replyAuthorCandidates.length)];
-            const replyPrompt = `${p.authorName}'s social media post: "${safePostContent}". ${userName} commented: "${safeComment}". Reply as ${replyAuthor.name} only, in one short Korean SNS comment. Keep the tone consistent with ${replyAuthor.name}'s personality.`;
+            const replyPrompt = `${p.authorName}'s social media post: "${safePostContent}". ${userName} commented: "${safeComment}". Reply as ${replyAuthor.name} only, in one short Korean SNS comment. Mention with @id when needed. Keep the tone consistent with ${replyAuthor.name}'s personality.`;
             replyText = (await ctx.generateQuietPrompt({ quietPrompt: replyPrompt, quietName: replyAuthor.name }) || '').trim();
             if (replyText) {
                 comment.replies.push({
+                    id: generateId(),
                     author: replyAuthor.name,
                     text: replyText,
                     date: new Date().toISOString(),
+                    replies: [],
                 });
             }
         }
@@ -901,7 +896,7 @@ async function runDeferredCommentGeneration({ postId, commentId, text, userName,
             const candidates = contacts.filter(c => c?.name && c.name !== userName && c.name !== p.authorName);
             if (candidates.length > 0) {
                 const picker = candidates[Math.floor(Math.random() * candidates.length)];
-                const contactPrompt = `${picker.name} is leaving a short comment on ${p.authorName}'s SNS post "${safePostContent}". Personality: ${picker.personality || 'ordinary'}. Write one short Korean SNS comment as ${picker.name} only.`;
+                const contactPrompt = `${picker.name} is leaving a short comment on ${p.authorName}'s SNS post "${safePostContent}". Personality: ${picker.personality || 'ordinary'}. Write one short Korean SNS comment as ${picker.name} only. Mention with @id when needed.`;
                 const generated = (await ctx.generateQuietPrompt({ quietPrompt: contactPrompt, quietName: picker.name }) || '').trim();
                 if (generated) {
                     extraContactComment = {
