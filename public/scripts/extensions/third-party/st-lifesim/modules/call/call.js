@@ -29,6 +29,8 @@ const CALL_POLICY_TAG = 'st-lifesim-call-policy';
 const INCOMING_CALL_CONFIDENCE_THRESHOLD = 0.5;
 const PROACTIVE_CALL_COOLDOWN_MS = 30000;
 const PROACTIVE_CALL_DELAY_MS = 1600;
+const PROACTIVE_CALL_AFTER_AI_DELAY_MS = 3000;
+const PROACTIVE_CALL_DEFER_MAX_WAIT_MS = 45000;
 
 /**
  * 음성메세지 포맷: 텍스트 내 첫 번째 `<br>` 이후의 내용을 `**...**`로 감싸 이탤릭체 처리한다.
@@ -66,6 +68,8 @@ let lastIncomingCallCheckedIdx = -1;
 let incomingCallUiOpen = false;
 let lastProactiveCallAt = 0;
 let proactiveCallPending = false;
+let deferredProactiveCaller = '';
+let deferredProactiveTimeoutId = 0;
 
 function isCallModuleEnabled() {
     const ext = getExtensionSettings();
@@ -171,8 +175,9 @@ export function initCall() {
 /**
  * 유저 메시지 전송 시 확률적으로 수신전화를 트리거한다
  * @param {number} probabilityPercent - 0~100
+ * @param {{ deferUntilAiResponse?: boolean }} [options] - AI 응답 완료 후 실행할지 여부
  */
-export async function triggerProactiveIncomingCall(probabilityPercent) {
+export async function triggerProactiveIncomingCall(probabilityPercent, options = {}) {
     if (callActive || incomingCallUiOpen || proactiveCallPending) return;
     const chance = Math.max(0, Math.min(100, Number(probabilityPercent) || 0)) / 100;
     if (chance <= 0 || Math.random() >= chance) return;
@@ -182,13 +187,45 @@ export async function triggerProactiveIncomingCall(probabilityPercent) {
     proactiveCallPending = true;
     lastProactiveCallAt = Date.now();
     try {
+        if (options.deferUntilAiResponse) {
+            deferredProactiveCaller = charName;
+            if (deferredProactiveTimeoutId) {
+                clearTimeout(deferredProactiveTimeoutId);
+                deferredProactiveTimeoutId = 0;
+            }
+            deferredProactiveTimeoutId = window.setTimeout(() => {
+                deferredProactiveCaller = '';
+                proactiveCallPending = false;
+                deferredProactiveTimeoutId = 0;
+            }, PROACTIVE_CALL_DEFER_MAX_WAIT_MS);
+            return;
+        }
         await new Promise(resolve => setTimeout(resolve, PROACTIVE_CALL_DELAY_MS));
         if (!isCallModuleEnabled()) return;
         if (callActive || incomingCallUiOpen) return;
         await showIncomingCallDialog(charName);
     } finally {
-        proactiveCallPending = false;
+        if (!deferredProactiveCaller) proactiveCallPending = false;
     }
+}
+
+export function onCharacterMessageRenderedForProactiveCall() {
+    if (!deferredProactiveCaller) return;
+    const charName = deferredProactiveCaller;
+    deferredProactiveCaller = '';
+    if (deferredProactiveTimeoutId) {
+        clearTimeout(deferredProactiveTimeoutId);
+        deferredProactiveTimeoutId = 0;
+    }
+    setTimeout(async () => {
+        try {
+            if (!isCallModuleEnabled()) return;
+            if (callActive || incomingCallUiOpen) return;
+            await showIncomingCallDialog(charName);
+        } finally {
+            proactiveCallPending = false;
+        }
+    }, PROACTIVE_CALL_AFTER_AI_DELAY_MS);
 }
 
 function injectCallPolicyPrompt() {

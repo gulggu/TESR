@@ -22,6 +22,10 @@ const CONTACT_LINK_KEY = 'sns-contact-link'; // boolean: link avatars to contact
 const AUTHOR_DEFAULT_IMAGE_KEY = 'sns-author-default-images'; // { authorName: imageUrl }
 const IMAGE_PRESETS_KEY = 'sns-image-presets'; // {id,name,url}[]
 const POSTING_ENABLED_KEY = 'sns-posting-enabled'; // { authorName: boolean }
+const SNS_REPLY_PROBABILITY = 0.7;
+const SNS_EXTRA_COMMENT_PROBABILITY = 0.35;
+const SNS_REACTION_DELAY_MIN_MS = 1200;
+const SNS_REACTION_DELAY_MAX_MS = 7000;
 
 /**
  * 관리형 이미지 프리셋 목록을 불러온다
@@ -282,17 +286,6 @@ function buildSnsContent() {
     const wrapper = document.createElement('div');
     wrapper.className = 'slm-sns-wrapper';
 
-    // 인스타그램 스타일 상단 로고 헤더
-    const header = document.createElement('div');
-    header.className = 'slm-sns-header';
-
-    const logo = document.createElement('span');
-    logo.className = 'slm-sns-logo';
-    logo.textContent = 'SNS';
-
-    header.appendChild(logo);
-    wrapper.appendChild(header);
-
     // 작성자 필터
     let currentAuthor = '전체';
     const filterRow = document.createElement('div');
@@ -336,7 +329,6 @@ function buildSnsContent() {
     // 피드 목록
     const feedList = document.createElement('div');
     feedList.className = 'slm-feed-list';
-    wrapper.appendChild(feedList);
 
     function renderFeed() {
         feedList.innerHTML = '';
@@ -389,6 +381,7 @@ function buildSnsContent() {
     actionBar.appendChild(npcPostBtn);
     actionBar.appendChild(avatarBtn);
     wrapper.appendChild(actionBar);
+    wrapper.appendChild(feedList);
 
     renderFeed();
     return wrapper;
@@ -771,75 +764,107 @@ function renderComments(container, post, onUpdate) {
  * 댓글을 달고 NPC가 답글을 생성한다 (채팅창에 노출 안 됨)
  */
 async function postComment(post, text, onUpdate) {
+    const ctx = getContext();
+    const userProfileName = loadFeed().slice().reverse().find(item => item?.authorIsUser && item?.authorName)?.authorName;
+    const userName = ctx?.name1 || userProfileName || 'user';
+    const feed = loadFeed();
+    const p = feed.find(p => p.id === post.id);
+    if (!p) return;
+    const commentId = generateId();
+    p.comments.push({
+        id: commentId,
+        author: userName,
+        text,
+        date: new Date().toISOString(),
+        replies: [],
+    });
+    saveFeed(feed);
+    onUpdate();
+
+    const reactionDelay = SNS_REACTION_DELAY_MIN_MS + Math.floor(Math.random() * (SNS_REACTION_DELAY_MAX_MS - SNS_REACTION_DELAY_MIN_MS));
+    setTimeout(async () => {
+        await runDeferredCommentGeneration({
+            postId: post.id,
+            commentId,
+            text,
+            userName,
+            onUpdate,
+        });
+    }, reactionDelay);
+}
+
+async function runDeferredCommentGeneration({ postId, commentId, text, userName, onUpdate }) {
     try {
         const ctx = getContext();
-        const safePostContent = String(post.content || '').replace(/[{}\n\r]/g, ' ').slice(0, 300);
+        if (!ctx || typeof ctx.generateQuietPrompt !== 'function') return;
+        const feed = loadFeed();
+        const p = feed.find(item => item.id === postId);
+        const comment = p?.comments?.find(c => c.id === commentId);
+        if (!p || !comment) return;
+
+        const safePostContent = String(p.content || '').replace(/[{}\n\r]/g, ' ').slice(0, 300);
         const safeComment = String(text || '').replace(/[{}\n\r]/g, ' ').slice(0, 200);
-        const replyPrompt = `${post.authorName}'s social media post: "${safePostContent}". Someone commented: "${safeComment}". Reply as ${post.authorName} only, in one short Korean SNS comment. Do not speak as {{user}} or narrator.`;
+        const charName = ctx?.name2 || '';
+        const contacts = getContacts('chat');
+        const postAuthorContact = contacts.find(c => c?.name === p.authorName);
+        const replyAuthorCandidates = [];
+        if (p.authorName && p.authorName !== userName) {
+            replyAuthorCandidates.push({ name: p.authorName, personality: postAuthorContact?.personality || '' });
+        }
+        if (charName && charName !== userName && charName !== p.authorName) {
+            replyAuthorCandidates.push({ name: charName, personality: '' });
+        }
+        contacts.forEach(c => {
+            if (!c?.name || c.name === userName || c.name === p.authorName) return;
+            if (!replyAuthorCandidates.find(existing => existing.name === c.name)) {
+                replyAuthorCandidates.push({ name: c.name, personality: c.personality || '' });
+            }
+        });
+
+        const shouldReply = Math.random() < SNS_REPLY_PROBABILITY;
         let replyText = '';
         let extraContactComment = null;
-        try {
-            if (ctx && typeof ctx.generateQuietPrompt === 'function') {
-                replyText = await ctx.generateQuietPrompt({ quietPrompt: replyPrompt, quietName: post.authorName }) || '';
-                const charName = ctx?.name2 || '';
-                if (charName && post.authorName === charName) {
-                    const contactCandidates = getContacts('chat').filter(c => c.name && c.name !== charName);
-                    if (contactCandidates.length > 0) {
-                        const picker = contactCandidates[Math.floor(Math.random() * contactCandidates.length)];
-                        const contactPrompt = `${picker.name} is leaving a short comment on ${charName}'s SNS post "${safePostContent}". Personality: ${picker.personality || 'ordinary'}. Write one short Korean SNS comment as ${picker.name} only.`;
-                        const generated = await ctx.generateQuietPrompt({ quietPrompt: contactPrompt, quietName: picker.name }) || '';
-                        if (generated.trim()) {
-                            extraContactComment = {
-                                id: generateId(),
-                                author: picker.name,
-                                text: generated.trim(),
-                                date: new Date().toISOString(),
-                                replies: [],
-                            };
-                        }
-                    }
-                }
-            }
-        } catch (genErr) {
-            console.error('[ST-LifeSim] 댓글 답글 생성 오류:', genErr);
-            showToast('답글 생성 실패 (댓글만 저장됩니다)', 'warn', 2500);
-        }
 
-        const feed = loadFeed();
-        const p = feed.find(p => p.id === post.id);
-        if (p) {
-            p.comments.push({
-                id: generateId(),
-                author: 'user',
-                text,
-                date: new Date().toISOString(),
-                replies: replyText ? [{
-                    author: post.authorName,
+        if (shouldReply && replyAuthorCandidates.length > 0) {
+            const replyAuthor = replyAuthorCandidates[Math.floor(Math.random() * replyAuthorCandidates.length)];
+            const replyPrompt = `${p.authorName}'s social media post: "${safePostContent}". ${userName} commented: "${safeComment}". Reply as ${replyAuthor.name} only, in one short Korean SNS comment. Keep the tone consistent with ${replyAuthor.name}'s personality.`;
+            replyText = (await ctx.generateQuietPrompt({ quietPrompt: replyPrompt, quietName: replyAuthor.name }) || '').trim();
+            if (replyText) {
+                comment.replies.push({
+                    author: replyAuthor.name,
                     text: replyText,
                     date: new Date().toISOString(),
-                }] : [],
-            });
-            if (extraContactComment) p.comments.push(extraContactComment);
-            saveFeed(feed);
+                });
+            }
         }
-    } catch (e) {
-        console.error('[ST-LifeSim] 댓글 저장 오류:', e);
-        const feed = loadFeed();
-        const p = feed.find(p => p.id === post.id);
-        if (p) {
-            p.comments.push({
-                id: generateId(),
-                author: 'user',
-                text,
-                date: new Date().toISOString(),
-                replies: [],
-            });
-            saveFeed(feed);
-        }
-    }
 
-    onUpdate();
+        if (Math.random() < SNS_EXTRA_COMMENT_PROBABILITY && contacts.length > 0) {
+            const candidates = contacts.filter(c => c?.name && c.name !== userName && c.name !== p.authorName);
+            if (candidates.length > 0) {
+                const picker = candidates[Math.floor(Math.random() * candidates.length)];
+                const contactPrompt = `${picker.name} is leaving a short comment on ${p.authorName}'s SNS post "${safePostContent}". Personality: ${picker.personality || 'ordinary'}. Write one short Korean SNS comment as ${picker.name} only.`;
+                const generated = (await ctx.generateQuietPrompt({ quietPrompt: contactPrompt, quietName: picker.name }) || '').trim();
+                if (generated) {
+                    extraContactComment = {
+                        id: generateId(),
+                        author: picker.name,
+                        text: generated,
+                        date: new Date().toISOString(),
+                        replies: [],
+                    };
+                }
+            }
+        }
+
+        if (extraContactComment) p.comments.push(extraContactComment);
+        saveFeed(feed);
+        onUpdate();
+    } catch (genErr) {
+        console.error('[ST-LifeSim] 댓글 답글 생성 오류:', genErr);
+        showToast('답글 생성 실패 (댓글은 저장됨)', 'warn', 2000);
+    }
 }
+
 
 /**
  * 직접 게시물 작성 다이얼로그를 연다
