@@ -23,7 +23,7 @@ import { injectQuickSendButton, renderTimeDividerUI, renderReadReceiptUI, render
 import { startFirstMsgTimer, renderFirstMsgSettingsUI } from './modules/firstmsg/firstmsg.js';
 import { initEmoticon, openEmoticonPopup } from './modules/emoticon/emoticon.js';
 import { initContacts, openContactsPopup } from './modules/contacts/contacts.js';
-import { initCall, openCallLogsPopup, triggerProactiveIncomingCall } from './modules/call/call.js';
+import { initCall, onCharacterMessageRenderedForProactiveCall, openCallLogsPopup, triggerProactiveIncomingCall } from './modules/call/call.js';
 import { initWallet, openWalletPopup } from './modules/wallet/wallet.js';
 import { initSns, openSnsPopup, triggerNpcPosting } from './modules/sns/sns.js';
 import { initCalendar, openCalendarPopup } from './modules/calendar/calendar.js';
@@ -905,24 +905,27 @@ async function init() {
     if (evSrc && eventTypes?.MESSAGE_SENT) {
         let snsTriggerInFlight = false;
         evSrc.on(eventTypes.MESSAGE_SENT, () => {
-            if (!isModuleEnabled('sns')) return;
-            const prob = (getSettings().snsPostingProbability ?? 10) / 100;
-            if (!snsTriggerInFlight && Math.random() < prob) {
-                snsTriggerInFlight = true;
-                triggerNpcPosting()
-                    .catch(e => console.error('[ST-LifeSim] SNS 자동 포스팅 오류:', e))
-                    .finally(() => { snsTriggerInFlight = false; });
+            if (isModuleEnabled('sns')) {
+                const prob = (getSettings().snsPostingProbability ?? 10) / 100;
+                if (!snsTriggerInFlight && Math.random() < prob) {
+                    snsTriggerInFlight = true;
+                    triggerNpcPosting()
+                        .catch(e => console.error('[ST-LifeSim] SNS 자동 포스팅 오류:', e))
+                        .finally(() => { snsTriggerInFlight = false; });
+                }
+            }
+            if (!isModuleEnabled('call')) return;
+            const callProb = getSettings().proactiveCallProbability ?? 0;
+            if (callProb > 0) {
+                triggerProactiveIncomingCall(callProb, { deferUntilAiResponse: true })
+                    .catch(e => console.error('[ST-LifeSim] 선전화 트리거 오류:', e));
             }
         });
     }
 
     if (evSrc && eventTypes?.CHARACTER_MESSAGE_RENDERED) {
         evSrc.on(eventTypes.CHARACTER_MESSAGE_RENDERED, () => {
-            if (!isModuleEnabled('call')) return;
-            const callProb = getSettings().proactiveCallProbability ?? 0;
-            if (callProb > 0) {
-                triggerProactiveIncomingCall(callProb).catch(e => console.error('[ST-LifeSim] 선전화 트리거 오류:', e));
-            }
+            onCharacterMessageRenderedForProactiveCall();
         });
     }
 

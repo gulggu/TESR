@@ -794,12 +794,12 @@ body[data-theme="dark"],
 
 /* 이모티콘 패널 탭 버튼: 8px 소형 폰트 */
 .slm-emoticon-tabs .slm-tab-btn {
-  font-size: 8px;
+  font-size: 11px;
   padding: 3px 7px;
   border-radius: 8px;
 }
 .slm-emoticon-tabs .slm-tab-btn.active {
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .slm-emoticon-grid {
@@ -827,7 +827,7 @@ body[data-theme="dark"],
 
 .slm-emoticon-img { width: 56px; height: 56px; object-fit: cover; margin: 4px auto 0; border-radius: calc(var(--slm-emoticon-radius) - 2px); }
 .slm-emoticon-caption {
-  font-size: 8px;
+  font-size: 5px;
   line-height: 1.3;
   padding: 3px 4px 2px;
   color: var(--slm-text-secondary);
@@ -1378,6 +1378,7 @@ body[data-theme="dark"],
 
 /* 상단 헤더 */
 .slm-sns-header {
+  display: none;
   background: linear-gradient(135deg, var(--slm-accent), #c77dff);
   border-radius: 14px;
   padding: 12px 16px;
@@ -1553,7 +1554,10 @@ body[data-theme="dark"],
   padding: 8px 0 4px;
   border-top: 1px solid var(--slm-border);
   background: var(--slm-bg);
-  border-radius: 0 0 14px 14px;
+  border-radius: 12px;
+  position: sticky;
+  top: 0;
+  z-index: calc(var(--slm-z) + 300);
 }
 .slm-sns-action-btn {
   display: flex;
