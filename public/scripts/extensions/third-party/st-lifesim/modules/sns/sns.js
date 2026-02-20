@@ -211,8 +211,8 @@ export async function triggerNpcPosting() {
 
     const pick = candidates[Math.floor(Math.random() * candidates.length)];
     const prompt = pick.isChar
-        ? `${charName} is posting on social media. Write a short, natural, and authentic post that fits the current situation and ${charName}'s personality. Do not include hashtags.`
-        : `${pick.name} is posting on social media. Personality: ${pick.personality || 'ordinary'}. Write a short, natural post that fits this character's personality. Do not include hashtags.`;
+        ? `${charName} is posting on social media. Write only one short, natural post text in everyday SNS style that fits the current situation and ${charName}'s personality. Do not include hashtags. Do not use image tags. Never include comments/reactions or other characters' posts. This must be only ${charName}'s own post, not a message to {{user}}.`
+        : `${pick.name} is posting on social media. Personality: ${pick.personality || 'ordinary'}. Write only one short, natural post text in everyday SNS style. Do not include hashtags. Do not use image tags. Never include comments/reactions or other characters' posts. This must be only ${pick.name}'s own post, not a message to {{user}}.`;
 
     try {
         const freshCtx = getContext();

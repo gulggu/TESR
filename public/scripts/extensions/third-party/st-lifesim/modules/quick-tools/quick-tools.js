@@ -16,8 +16,8 @@ import { loadData, saveData, getDefaultBinding, getExtensionSettings } from '../
 
 // 사건 기록 아카이브 저장 키
 const ARCHIVE_KEY = 'event-archive';
-const DEFAULT_EMOTICON_RADIUS = 10;
-const MAX_EMOTICON_RADIUS = 50;
+const DEFAULT_IMAGE_RADIUS = 10;
+const MAX_IMAGE_RADIUS = 50;
 
 /**
  * 퀵 센드 버튼을 sendform의 전송 버튼(#send_but) 바로 앞에 삽입한다
@@ -52,13 +52,13 @@ export function injectQuickSendButton() {
     });
     sendBtn.parentNode.insertBefore(btn, sendBtn);
 
-    // 삭제된 메세지 버튼
+    // 삭제된 메시지 버튼
     const delBtn = document.createElement('div');
     delBtn.id = 'slm-deleted-msg-btn';
     delBtn.className = 'slm-quick-send-btn interactable';
-    delBtn.title = '삭제된 메세지 전송';
+    delBtn.title = '삭제된 메시지 전송';
     delBtn.innerHTML = '🚫';
-    delBtn.setAttribute('aria-label', '삭제된 메세지');
+    delBtn.setAttribute('aria-label', '삭제된 메시지');
     delBtn.setAttribute('tabindex', '0');
     delBtn.addEventListener('click', async (e) => {
         e.preventDefault();
@@ -91,12 +91,12 @@ async function handleQuickSend() {
 }
 
 /**
- * 삭제된 메세지 전송: 유저가 삭제된 메세지를 보낸 것처럼 연출한다
+ * 삭제된 메시지 전송: 유저가 삭제된 메시지를 보낸 것처럼 연출한다
  */
 async function handleDeletedMessage() {
     try {
-        await slashSend('🚫 삭제된 메세지입니다');
-        showToast('삭제된 메세지 전송', 'success', 1200);
+        await slashSend('*삭제된메세지입니다*');
+        showToast('삭제된 메시지 전송', 'success', 1200);
     } catch (e) {
         showToast('전송 실패: ' + e.message, 'error');
     }
@@ -348,7 +348,10 @@ async function generateEvent(category) {
             const titleResult = await ctx.generateQuietPrompt({ quietPrompt: titlePrompt, quietName: '이벤트' });
             if (titleResult) eventTitle = titleResult.trim();
 
-            const contentPrompt = `An unexpected event has just occurred: "${eventTitle}" (category: ${category}). Clearly and naturally describe what happened in 2-4 Korean sentences that fit the current situation.`;
+            const contentPrompt = `사건 카테고리: "${category}", 사건 제목: "${eventTitle}". 현재 상황에 맞는 사건 내용을 한국어 2~4문장으로 작성하세요.
+- 반드시 한국어만 사용하세요.
+- 출력은 사건 설명 본문만 작성하세요.
+- 제3자/전지적 작가 시점의 시스템 안내문 톤으로 작성하고, 절대 ${ctx?.name2 || '{{char}}'}로 롤플레잉하지 마세요.`;
             const contentResult = await ctx.generateQuietPrompt({ quietPrompt: contentPrompt, quietName: '이벤트' });
             if (contentResult) eventContent = contentResult.trim();
         }
@@ -375,31 +378,7 @@ async function generateEvent(category) {
 function buildEventCssMessage(title, content) {
     const safeTitle = escapeHtml(title);
     const safeContent = escapeHtml(content).replace(/\n/g, '<br>');
-    return `\`\`\`
-<style>
-  .notif-wrapper{width:100%;animation:slideDown .4s cubic-bezier(.34,1.3,.64,1) both}
-  @keyframes slideDown{from{opacity:0;transform:translateY(-16px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
-  .notif-card{background:rgba(242,242,247,.8);backdrop-filter:blur(20px);border-radius:14px;overflow:hidden}
-  .notif-header{display:flex;align-items:center;gap:8px;padding:14px 18px 9px;border-bottom:1px solid rgba(0,0,0,.06)}
-  .notif-app-name{flex:1;font-size:12px;font-weight:900;color:#6c6c70;letter-spacing:.06em;text-transform:uppercase}
-  .notif-time{font-size:12px;color:#6c6c70}
-  .notif-body{padding:14px 18px 20px}
-  .notif-sender{font-size:14px;font-weight:700;color:#1c1c1e;margin-bottom:7px}
-  .notif-text{font-size:12px;font-weight:600;color:#1c1c1e;line-height:1.6rem}
-</style>
-<div class="notif-wrapper">
-  <div class="notif-card">
-    <div class="notif-header">
-      <div class="notif-app-name">Messages</div>
-      <div class="notif-time">지금</div>
-    </div>
-    <div class="notif-body">
-      <div class="notif-sender">${safeTitle}</div>
-      <div class="notif-text">${safeContent}</div>
-    </div>
-  </div>
-</div>
-\`\`\``;
+    return `<div class="slm-event-card"><strong>${safeTitle}</strong><br>${safeContent}</div>`;
 }
 
 /**
@@ -489,12 +468,12 @@ export function renderVoiceMemoUI() {
     };
     container.appendChild(btn);
 
-    // AI(캐릭터)가 보내는 음성메세지 버튼
+    // AI(캐릭터)가 보내는 음성메시지 버튼
     const aiVoiceBtn = document.createElement('button');
     aiVoiceBtn.className = 'slm-btn slm-btn-secondary';
     aiVoiceBtn.style.marginTop = '6px';
-    aiVoiceBtn.textContent = '🤖 AI 음성메세지 (캐릭터)';
-    aiVoiceBtn.title = 'AI(캐릭터)가 음성메세지를 보내는 상황을 연출합니다';
+    aiVoiceBtn.textContent = '🤖 AI 음성메시지 (캐릭터)';
+    aiVoiceBtn.title = 'AI(캐릭터)가 음성메시지를 보내는 상황을 연출합니다';
     aiVoiceBtn.onclick = async () => {
         aiVoiceBtn.disabled = true;
         try {
@@ -531,7 +510,7 @@ export function renderVoiceMemoUI() {
     imageBtn.onclick = async () => {
         const url = imageInput.value.trim();
         if (!url) return;
-        const radius = Math.max(0, Math.min(MAX_EMOTICON_RADIUS, Number(getExtensionSettings()?.['st-lifesim']?.emoticonRadius ?? DEFAULT_EMOTICON_RADIUS)));
+        const radius = Math.max(0, Math.min(MAX_IMAGE_RADIUS, Number(getExtensionSettings()?.['st-lifesim']?.imageRadius ?? DEFAULT_IMAGE_RADIUS)));
         const desc = imageDescInput.value.trim();
         const descHtml = desc ? `<br><em class="slm-quick-image-desc">${escapeHtml(desc)}</em>` : '';
         await slashSend(`<img src="${escapeHtml(url)}" alt="이미지" class="slm-quick-image" style="border-radius:${radius}px">${descHtml}`);
@@ -565,15 +544,15 @@ async function handleVoiceMemo(seconds, hint, aiMode = false) {
             await slashGen(
                 `As ${charName}, send exactly one voice message in Korean. You must choose suitable duration and content yourself based on current context.
 Output only this HTML format:
-<div class="slm-voice-msg">🎤 음성메시지 (M:SS)<br><em class="slm-voice-hint">[actual voice message content]</em></div>`,
+🎤 음성메시지 (M:SS)<br>[actual voice message content]`,
                 charName,
             );
-            showToast(`${charName}의 음성메세지 생성 완료`, 'success', 1500);
+            showToast(`${charName}의 음성메시지 생성 완료`, 'success', 1500);
         } else {
             const hintText = hint ? escapeHtml(hint) : '(내용 없음)';
-            const voiceHtml = `<div class="slm-voice-msg">🎤 음성메시지 (${timeStr})<br><em class="slm-voice-hint">${hintText}</em></div>`;
+            const voiceHtml = `🎤 음성메시지 (${timeStr})<br>${hintText}`;
             await slashSend(voiceHtml);
-            showToast('음성메모 삽입 완료', 'success', 1500);
+            showToast('음성메시지 삽입 완료', 'success', 1500);
         }
     } catch (e) {
         showToast('음성메모 삽입 실패: ' + e.message, 'error');

@@ -51,6 +51,7 @@ const DEFAULT_SETTINGS = {
     },
     emoticonSize: 80,   // px
     emoticonRadius: 10, // px
+    imageRadius: 10, // px
     defaultSnsImageUrl: '', // SNS 기본 이미지 URL
     themeColors: {}, // CSS 커스텀 색상
     firstMsg: {
@@ -78,6 +79,9 @@ function getSettings() {
     }
     if (ext[SETTINGS_KEY].emoticonRadius == null) {
         ext[SETTINGS_KEY].emoticonRadius = DEFAULT_SETTINGS.emoticonRadius;
+    }
+    if (ext[SETTINGS_KEY].imageRadius == null) {
+        ext[SETTINGS_KEY].imageRadius = DEFAULT_SETTINGS.imageRadius;
     }
     if (ext[SETTINGS_KEY].defaultBinding == null) {
         ext[SETTINGS_KEY].defaultBinding = DEFAULT_SETTINGS.defaultBinding;
@@ -298,53 +302,12 @@ function openSettingsPanel(onBack) {
             } else {
                 showToast('ST-LifeSim 활성화됨', 'success');
             }
+            syncQuickSendButtons();
         };
         enabledLabel.appendChild(enabledCheck);
-        enabledLabel.appendChild(document.createTextNode(' ST-LifeSim 전체 활성화'));
+        enabledLabel.appendChild(document.createTextNode(' 라이프심 활성화'));
         enabledRow.appendChild(enabledLabel);
         wrapper.appendChild(enabledRow);
-
-        wrapper.appendChild(Object.assign(document.createElement('hr'), { className: 'slm-hr' }));
-
-        // 데이터 바인딩 방식
-        const bindingRow = document.createElement('div');
-        bindingRow.className = 'slm-settings-row';
-        const bindingTitle = document.createElement('span');
-        bindingTitle.className = 'slm-label';
-        bindingTitle.textContent = '데이터 연동 방식:';
-        bindingRow.appendChild(bindingTitle);
-
-        const bindingChatLabel = document.createElement('label');
-        bindingChatLabel.className = 'slm-toggle-label';
-        const bindingChatRadio = document.createElement('input');
-        bindingChatRadio.type = 'radio';
-        bindingChatRadio.name = 'slm-global-binding';
-        bindingChatRadio.value = 'chat';
-        bindingChatRadio.checked = (settings.defaultBinding || 'chat') === 'chat';
-        bindingChatLabel.appendChild(bindingChatRadio);
-        bindingChatLabel.appendChild(document.createTextNode(' 채팅별'));
-
-        const bindingCharLabel = document.createElement('label');
-        bindingCharLabel.className = 'slm-toggle-label';
-        const bindingCharRadio = document.createElement('input');
-        bindingCharRadio.type = 'radio';
-        bindingCharRadio.name = 'slm-global-binding';
-        bindingCharRadio.value = 'character';
-        bindingCharRadio.checked = settings.defaultBinding === 'character';
-        bindingCharLabel.appendChild(bindingCharRadio);
-        bindingCharLabel.appendChild(document.createTextNode(' 캐릭터별'));
-
-        const onBindingChange = () => {
-            settings.defaultBinding = bindingChatRadio.checked ? 'chat' : 'character';
-            saveSettings();
-            showToast(`데이터 연동: ${settings.defaultBinding === 'chat' ? '채팅별' : '캐릭터별'}`, 'success', 1500);
-        };
-        bindingChatRadio.onchange = onBindingChange;
-        bindingCharRadio.onchange = onBindingChange;
-
-        bindingRow.appendChild(bindingChatLabel);
-        bindingRow.appendChild(bindingCharLabel);
-        wrapper.appendChild(bindingRow);
 
         wrapper.appendChild(Object.assign(document.createElement('hr'), { className: 'slm-hr' }));
 
@@ -525,6 +488,30 @@ function openSettingsPanel(onBack) {
         radiusRow.append(radiusLbl, radiusInput, radiusPxLbl, radiusApplyBtn);
         wrapper.appendChild(radiusRow);
 
+        const imageRadiusRow = document.createElement('div');
+        imageRadiusRow.className = 'slm-input-row';
+        imageRadiusRow.style.marginTop = '8px';
+        const imageRadiusLbl = Object.assign(document.createElement('label'), { className: 'slm-label', textContent: '이미지 모서리:' });
+        const imageRadiusInput = Object.assign(document.createElement('input'), {
+            className: 'slm-input slm-input-sm', type: 'number', min: '0', max: '50',
+            value: String(settings.imageRadius ?? 10),
+        });
+        imageRadiusInput.style.width = '70px';
+        const imageRadiusPxLbl = Object.assign(document.createElement('span'), { className: 'slm-label', textContent: 'px' });
+        const imageRadiusApplyBtn = document.createElement('button');
+        imageRadiusApplyBtn.className = 'slm-btn slm-btn-primary slm-btn-sm';
+        imageRadiusApplyBtn.textContent = '적용';
+        imageRadiusApplyBtn.onclick = () => {
+            const val = parseInt(imageRadiusInput.value);
+            settings.imageRadius = Math.max(0, Math.min(50, isNaN(val) ? 10 : val));
+            imageRadiusInput.value = String(settings.imageRadius);
+            document.documentElement.style.setProperty('--slm-image-radius', settings.imageRadius + 'px');
+            saveSettings();
+            showToast(`이미지 모서리: ${settings.imageRadius}px`, 'success', 1500);
+        };
+        imageRadiusRow.append(imageRadiusLbl, imageRadiusInput, imageRadiusPxLbl, imageRadiusApplyBtn);
+        wrapper.appendChild(imageRadiusRow);
+
         return wrapper;
     }
 
@@ -670,7 +657,7 @@ function openSettingsPanel(onBack) {
     const tabs = createTabs([
         { key: 'general', label: '⚙️ 일반', content: buildGeneralTab() },
         { key: 'modules', label: '🧩 모듈', content: buildModulesTab() },
-        { key: 'media', label: '😊 이모티콘·SNS', content: buildMediaTab() },
+        { key: 'media', label: '🖼️ 이미지 관련', content: buildMediaTab() },
         { key: 'probability', label: '🎲 확률', content: buildProbabilityTab() },
         { key: 'theme', label: '🎨 테마', content: buildThemeTab() },
     ], 'general');
@@ -690,6 +677,19 @@ function openSettingsPanel(onBack) {
 function saveSettings() {
     const ctx = getContext();
     if (ctx?.saveSettingsDebounced) ctx.saveSettingsDebounced();
+}
+
+function syncQuickSendButtons() {
+    const quickBtn = document.getElementById('slm-quick-send-btn');
+    const deletedBtn = document.getElementById('slm-deleted-msg-btn');
+    if (!isEnabled()) {
+        quickBtn?.remove();
+        deletedBtn?.remove();
+        return;
+    }
+    if (isModuleEnabled('quickTools')) {
+        injectQuickSendButton();
+    }
 }
 
 // ── 주간/야간 테마 토글 ──────────────────────────────────────────
@@ -750,6 +750,7 @@ async function init() {
 
     // 이모티콘 모서리 반경 CSS 변수 적용
     document.documentElement.style.setProperty('--slm-emoticon-radius', (settings.emoticonRadius ?? 10) + 'px');
+    document.documentElement.style.setProperty('--slm-image-radius', (settings.imageRadius ?? 10) + 'px');
 
     // 저장된 강제 테마 적용 (주간/야간 토글)
     applyForcedTheme(getForcedTheme());
@@ -778,7 +779,7 @@ async function init() {
     }
 
     // 퀵 센드 버튼 삽입 (sendform 전송 버튼 옆)
-    if (isModuleEnabled('quickTools')) {
+    if (isEnabled() && isModuleEnabled('quickTools')) {
         try { injectQuickSendButton(); } catch (e) { console.error('[ST-LifeSim] 퀵 센드 버튼 오류:', e); }
     }
 

@@ -1221,6 +1221,7 @@ body[data-theme="dark"],
   font-weight: 600;
   box-shadow: 0 2px 8px rgba(0,0,0,0.2);
   animation: slm-banner-in 0.3s ease;
+  pointer-events: none;
 }
 @keyframes slm-banner-in {
   from { transform: translateY(-100%); }
@@ -1238,10 +1239,11 @@ body[data-theme="dark"],
   font-weight: 600;
   cursor: pointer;
   flex-shrink: 0;
+  pointer-events: auto;
 }
 
 .slm-incoming-call-overlay {
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: calc(var(--slm-z) + 250);
   background: rgba(0, 0, 0, 0.45);
@@ -1279,7 +1281,7 @@ body[data-theme="dark"],
 .slm-incoming-call-actions {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 /* ──────────────────────────────────────────

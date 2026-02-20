@@ -449,7 +449,7 @@ function openAiContactDialog(binding, onSave) {
         }
         createBtn.disabled = true;
         try {
-            const prompt = `Create one realistic contact profile in JSON only (no markdown). Keyword: "${safeKeyword}".\n{"name":"", "description":"", "relationToUser":"", "relationToChar":"", "personality":"", "avatar":""}`;
+            const prompt = `Create one realistic contact profile in JSON only (no markdown). Keyword: "${safeKeyword}". Write every text field in English only.\n{"name":"", "description":"", "relationToUser":"", "relationToChar":"", "personality":"", "avatar":""}`;
             const raw = await ctx.generateQuietPrompt({ quietPrompt: prompt, quietName: ctx?.name2 || '{{char}}' }) || '';
             const match = raw.match(/\{[\s\S]*?\}/);
             if (!match) throw new Error('JSON 응답이 없습니다.');
