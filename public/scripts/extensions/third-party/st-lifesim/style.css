@@ -1240,6 +1240,48 @@ body[data-theme="dark"],
   flex-shrink: 0;
 }
 
+.slm-incoming-call-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--slm-z) + 250);
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.slm-incoming-call-card {
+  width: min(420px, 96vw);
+  background: var(--slm-bg);
+  border: 1px solid var(--slm-border);
+  border-radius: 16px;
+  box-shadow: var(--slm-shadow);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: center;
+}
+
+.slm-incoming-call-title {
+  font-size: 14px;
+  color: var(--slm-text-secondary);
+  font-weight: 600;
+}
+
+.slm-incoming-call-caller {
+  font-size: 22px;
+  color: var(--slm-text);
+  font-weight: 700;
+}
+
+.slm-incoming-call-actions {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 /* ──────────────────────────────────────────
    통화 - 발신 다이얼 팝업
 ────────────────────────────────────────── */
