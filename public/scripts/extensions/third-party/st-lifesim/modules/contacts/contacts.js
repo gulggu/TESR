@@ -204,24 +204,33 @@ function buildContactsContent() {
             const info = document.createElement('div');
             info.className = 'slm-contact-info';
 
+            const nameRow = document.createElement('div');
+            nameRow.className = 'slm-contact-name-row';
+
             const name = document.createElement('span');
             name.className = 'slm-contact-name';
             name.textContent = contact.name;
+
+            nameRow.appendChild(name);
+
+            // 캐릭터 자동 추가가 아닌 경우에만 scope 태그 표시 (이름 오른쪽)
+            if (!contact.isCharAuto) {
+                const scope = document.createElement('span');
+                scope.className = 'slm-contact-scope';
+                scope.textContent = contact.binding === 'character' ? '캐릭터' : '이 채팅';
+                nameRow.appendChild(scope);
+            }
 
             const rel = document.createElement('span');
             rel.className = 'slm-contact-rel';
             rel.textContent = contact.relationToUser || contact.description || '';
 
-            info.appendChild(name);
+            info.appendChild(nameRow);
             info.appendChild(rel);
 
             const avatarWrap = document.createElement('div');
             avatarWrap.className = 'slm-contact-avatar-wrap';
-            const scope = document.createElement('span');
-            scope.className = 'slm-contact-scope';
-            scope.textContent = contact.binding === 'character' ? '캐릭터' : '이 채팅';
             avatarWrap.appendChild(avatar);
-            avatarWrap.appendChild(scope);
 
             // 클릭 시 상세 팝업
             const clickArea = document.createElement('div');

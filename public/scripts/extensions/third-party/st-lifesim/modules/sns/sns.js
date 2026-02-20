@@ -147,7 +147,7 @@ function resolveAvatar(authorName, avatars) {
  * @returns {Object[]}
  */
 function loadFeed() {
-    return loadData(MODULE_KEY, [], getDefaultBinding());
+    return loadData(MODULE_KEY, [], 'character');
 }
 
 /**
@@ -155,7 +155,7 @@ function loadFeed() {
  * @param {Object[]} feed
  */
 function saveFeed(feed) {
-    saveData(MODULE_KEY, feed, getDefaultBinding());
+    saveData(MODULE_KEY, feed, 'character');
 }
 
 /**
@@ -282,7 +282,7 @@ function buildSnsContent() {
     const wrapper = document.createElement('div');
     wrapper.className = 'slm-sns-wrapper';
 
-    // 인스타그램 스타일 헤더
+    // 인스타그램 스타일 상단 로고 헤더
     const header = document.createElement('div');
     header.className = 'slm-sns-header';
 
@@ -290,19 +290,85 @@ function buildSnsContent() {
     logo.className = 'slm-sns-logo';
     logo.textContent = 'SNS';
 
-    const headerBtns = document.createElement('div');
-    headerBtns.style.cssText = 'display:flex;gap:6px';
+    header.appendChild(logo);
+    wrapper.appendChild(header);
+
+    // 작성자 필터
+    let currentAuthor = '전체';
+    const filterRow = document.createElement('div');
+    filterRow.className = 'slm-sns-filter-row';
+
+    const filterLabel = document.createElement('span');
+    filterLabel.className = 'slm-sns-filter-label';
+    filterLabel.textContent = '작성자:';
+
+    const filterSelect = document.createElement('select');
+    filterSelect.className = 'slm-select slm-sns-filter-select';
+
+    function updateFilterOptions(feedData) {
+        const prevVal = filterSelect.value;
+        filterSelect.innerHTML = '';
+        const allOpt = document.createElement('option');
+        allOpt.value = '전체';
+        allOpt.textContent = '전체';
+        filterSelect.appendChild(allOpt);
+        const feed = feedData || loadFeed();
+        const authors = [...new Set(feed.map(p => p.authorName).filter(Boolean))];
+        authors.forEach(a => {
+            const opt = document.createElement('option');
+            opt.value = a;
+            opt.textContent = `@${a}`;
+            filterSelect.appendChild(opt);
+        });
+        filterSelect.value = authors.includes(prevVal) ? prevVal : '전체';
+        currentAuthor = filterSelect.value;
+    }
+    updateFilterOptions();
+    filterSelect.onchange = () => {
+        currentAuthor = filterSelect.value;
+        renderFeed();
+    };
+
+    filterRow.appendChild(filterLabel);
+    filterRow.appendChild(filterSelect);
+    wrapper.appendChild(filterRow);
+
+    // 피드 목록
+    const feedList = document.createElement('div');
+    feedList.className = 'slm-feed-list';
+    wrapper.appendChild(feedList);
+
+    function renderFeed() {
+        feedList.innerHTML = '';
+        const feed = loadFeed();
+        updateFilterOptions(feed);
+        const filtered = currentAuthor === '전체' ? feed : feed.filter(p => p.authorName === currentAuthor);
+
+        if (filtered.length === 0) {
+            feedList.innerHTML = '<div class="slm-empty">게시물이 없습니다.</div>';
+            return;
+        }
+
+        filtered.slice().reverse().forEach(post => {
+            const card = buildPostCard(post, renderFeed);
+            feedList.appendChild(card);
+        });
+    }
+
+    // 하단 액션 바 (인스타그램 네비바 스타일)
+    const actionBar = document.createElement('div');
+    actionBar.className = 'slm-sns-action-bar';
 
     const writeBtn = document.createElement('button');
-    writeBtn.className = 'slm-btn slm-btn-sm';
-    writeBtn.style.cssText = 'background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:8px';
-    writeBtn.textContent = '✏️ 작성';
+    writeBtn.className = 'slm-sns-action-btn';
+    writeBtn.title = '게시물 작성';
+    writeBtn.innerHTML = '<span class="slm-sns-action-icon">✏️</span><span class="slm-sns-action-label">작성</span>';
     writeBtn.onclick = () => openWritePostDialog(renderFeed);
 
     const npcPostBtn = document.createElement('button');
-    npcPostBtn.className = 'slm-btn slm-btn-sm';
-    npcPostBtn.style.cssText = 'background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:8px';
-    npcPostBtn.textContent = '🎲 NPC';
+    npcPostBtn.className = 'slm-sns-action-btn';
+    npcPostBtn.title = 'NPC 포스팅';
+    npcPostBtn.innerHTML = '<span class="slm-sns-action-icon">🎲</span><span class="slm-sns-action-label">NPC</span>';
     npcPostBtn.onclick = async () => {
         npcPostBtn.disabled = true;
         try {
@@ -314,37 +380,15 @@ function buildSnsContent() {
     };
 
     const avatarBtn = document.createElement('button');
-    avatarBtn.className = 'slm-btn slm-btn-sm';
-    avatarBtn.style.cssText = 'background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);border-radius:8px';
-    avatarBtn.textContent = '⚙️ 프로필 설정';
+    avatarBtn.className = 'slm-sns-action-btn';
+    avatarBtn.title = '프로필 설정';
+    avatarBtn.innerHTML = '<span class="slm-sns-action-icon">⚙️</span><span class="slm-sns-action-label">설정</span>';
     avatarBtn.onclick = () => openAvatarSettingsDialog(renderFeed);
 
-    headerBtns.appendChild(writeBtn);
-    headerBtns.appendChild(npcPostBtn);
-    headerBtns.appendChild(avatarBtn);
-    header.appendChild(logo);
-    header.appendChild(headerBtns);
-    wrapper.appendChild(header);
-
-    // 피드 목록
-    const feedList = document.createElement('div');
-    feedList.className = 'slm-feed-list';
-    wrapper.appendChild(feedList);
-
-    function renderFeed() {
-        feedList.innerHTML = '';
-        const feed = loadFeed();
-
-        if (feed.length === 0) {
-            feedList.innerHTML = '<div class="slm-empty">게시물이 없습니다.</div>';
-            return;
-        }
-
-        feed.slice().reverse().forEach(post => {
-            const card = buildPostCard(post, renderFeed);
-            feedList.appendChild(card);
-        });
-    }
+    actionBar.appendChild(writeBtn);
+    actionBar.appendChild(npcPostBtn);
+    actionBar.appendChild(avatarBtn);
+    wrapper.appendChild(actionBar);
 
     renderFeed();
     return wrapper;

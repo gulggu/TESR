@@ -172,6 +172,7 @@ function buildWalletContent() {
     // 충전/차감 버튼
     const adjustRow = document.createElement('div');
     adjustRow.className = 'slm-btn-row';
+    adjustRow.style.justifyContent = 'center';
 
     const chargeInput = document.createElement('input');
     chargeInput.className = 'slm-input slm-input-sm';

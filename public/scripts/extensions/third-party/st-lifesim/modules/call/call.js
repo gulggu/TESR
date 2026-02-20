@@ -28,7 +28,21 @@ const CALL_INJECT_TAG = 'st-lifesim-call';
 const CALL_POLICY_TAG = 'st-lifesim-call-policy';
 const INCOMING_CALL_CONFIDENCE_THRESHOLD = 0.5;
 const PROACTIVE_CALL_COOLDOWN_MS = 30000;
-const PROACTIVE_CALL_DELAY_MS = 3000;
+const PROACTIVE_CALL_DELAY_MS = 1600;
+
+/**
+ * 음성메세지 포맷: 텍스트 내 첫 번째 `<br>` 이후의 내용을 `**...**`로 감싸 이탤릭체 처리한다.
+ * `<br>` 태그가 없으면 원본 텍스트를 그대로 반환한다.
+ * @param {string} text - 포맷할 텍스트
+ * @returns {string} `<br>` 뒤 내용이 `**`로 감싸진 텍스트
+ */
+function formatVoiceMsg(text) {
+    if (!text.includes('<br>')) return text;
+    const idx = text.indexOf('<br>');
+    const before = text.slice(0, idx);
+    const after = text.slice(idx + 4).trim();
+    return after ? `${before}<br>**${after}**` : text;
+}
 
 // 통화 감지 키워드 (설정에서 변경 가능)
 const DEFAULT_KEYWORDS = ['전화할게', '전화 걸게', '전화해도 돼', '전화 줄게', 'call', 'phone'];
@@ -275,9 +289,13 @@ async function showIncomingCallDialog(charName) {
     const rejectBtn = document.createElement('button');
     rejectBtn.className = 'slm-btn slm-btn-danger';
     rejectBtn.textContent = '❌ 거절';
+    const missedBtn = document.createElement('button');
+    missedBtn.className = 'slm-btn slm-btn-ghost slm-btn-sm slm-missed-call-btn';
+    missedBtn.textContent = '📵 부재중';
+    missedBtn.title = '부재중 처리 후 AI 반응 유도';
     row.append(acceptBtn, rejectBtn);
 
-    card.append(title, caller, row);
+    card.append(title, caller, row, missedBtn);
     overlay.appendChild(card);
     document.body.appendChild(overlay);
 
@@ -302,6 +320,16 @@ async function showIncomingCallDialog(charName) {
         appendMissedCallLog(charName, '수신 거절');
         await slashGen(
             `${charName}'s call was rejected by {{user}}. Generate one short follow-up reaction as a normal chat message.`,
+            charName,
+        );
+    };
+
+    missedBtn.onclick = async () => {
+        cleanup();
+        await slashSend(`📵 부재중 전화 — ${charName}`);
+        appendMissedCallLog(charName, '부재중');
+        await slashGen(
+            `${charName} called {{user}} but {{user}} didn't answer. ${charName} noticed the missed call. Generate one short natural follow-up reaction (e.g. a text message or leaving a voicemail comment) as ${charName}.`,
             charName,
         );
     };
@@ -394,9 +422,9 @@ async function startCall(charName, matchedContact = null) {
 
     try {
         if (isMainChar) {
-            await slashSend(`📞 통화 시작 — ${charName}`);
+            await slashSend(formatVoiceMsg(`📞 통화 시작 — ${charName}`));
         } else {
-            await slashSendAs('전화', `📞 통화 시작 — ${charName}와(과) 연결되었습니다.`);
+            await slashSendAs('전화', formatVoiceMsg(`📞 통화 시작 — ${charName}와(과) 연결되었습니다.`));
         }
     } catch (e) {
         console.error('[ST-LifeSim] 통화 시작 오류:', e);
@@ -441,9 +469,9 @@ async function endCall() {
 
     try {
         if (wasMainChar) {
-            await slashSend(`📵 통화 종료 (통화시간: ${timeStr})`);
+            await slashSend(formatVoiceMsg(`📵 통화 종료 (통화시간: ${timeStr})`));
         } else {
-            await slashSendAs('전화', `📵 통화 종료 (통화시간: ${timeStr})`);
+            await slashSendAs('전화', formatVoiceMsg(`📵 통화 종료 (통화시간: ${timeStr})`));
         }
     } catch (e) {
         console.error('[ST-LifeSim] 통화 종료 오류:', e);
