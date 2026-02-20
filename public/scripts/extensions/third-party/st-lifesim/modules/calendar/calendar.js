@@ -15,6 +15,7 @@ import { createPopup } from '../../utils/popup.js';
 import { getContacts } from '../contacts/contacts.js';
 
 const MODULE_KEY = 'calendar';
+let lastAutoScheduleSignature = '';
 
 /**
  * 기본 캘린더 데이터
@@ -82,6 +83,85 @@ export function initCalendar() {
 
         return `=== Schedule ===\n${lines.join('\n')}`;
     });
+
+    const ctx = getContext();
+    if (!ctx?.eventSource) return;
+    const eventTypes = ctx.event_types || ctx.eventTypes;
+    if (!eventTypes?.CHARACTER_MESSAGE_RENDERED) return;
+    ctx.eventSource.on(eventTypes.CHARACTER_MESSAGE_RENDERED, () => {
+        autoRegisterScheduleFromCharacterMessage().catch(e => {
+            console.error('[ST-LifeSim] 일정 자동 판별 오류:', e);
+        });
+    });
+}
+
+async function autoRegisterScheduleFromCharacterMessage() {
+    const ctx = getContext();
+    if (!ctx || typeof ctx.generateQuietPrompt !== 'function') return;
+
+    const chat = ctx.chat || [];
+    const lastIdx = chat.length - 1;
+    if (lastIdx < 0) return;
+    const lastMsg = chat[lastIdx];
+    if (!lastMsg || lastMsg.is_user) return;
+
+    const text = String(lastMsg.mes || '')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (!text) return;
+    if (!isLikelyScheduleCandidate(text)) return;
+
+    const signature = `${lastIdx}:${text.slice(0, 180)}`;
+    if (signature === lastAutoScheduleSignature) return;
+    lastAutoScheduleSignature = signature;
+
+    const cal = loadCalendar();
+    const prompt = `You are a schedule classifier for roleplay chat.
+Determine whether the latest character message contains a concrete plan/appointment worth adding to calendar.
+Ignore trivial greetings or light reminders (e.g. "좋은 아침", "밥 챙겨먹어") as not schedulable.
+If schedulable, produce an event between D+1 and D+5 for {{user}}.
+Reply in JSON only:
+{"shouldSchedule":true,"title":"short title","dayOffset":1,"description":"short note"}
+or
+{"shouldSchedule":false}
+Current day: ${cal.today}
+Character message: "${text}"`;
+
+    const raw = await ctx.generateQuietPrompt({ quietPrompt: prompt, quietName: ctx.name2 || '{{char}}' }) || '';
+    const match = raw.match(/\{[\s\S]*?\}/);
+    if (!match) return;
+    const data = JSON.parse(match[0]);
+    if (!data?.shouldSchedule) return;
+
+    const title = String(data.title || '').trim();
+    if (!title) return;
+    const offset = Math.max(1, Math.min(5, parseInt(data.dayOffset) || 1));
+    const day = normalizeDay(cal.today + offset);
+    const description = String(data.description || '').trim();
+
+    const nextCal = loadCalendar();
+    const duplicate = nextCal.events.some(e => !e.done && e.title === title && e.day === day);
+    if (duplicate) return;
+
+    nextCal.events.push({
+        id: generateId(),
+        day,
+        time: '',
+        title,
+        description,
+        relatedContactId: '',
+        done: false,
+        addedByAi: true,
+    });
+    saveCalendar(nextCal);
+}
+
+function isLikelyScheduleCandidate(text) {
+    const lowered = text.toLowerCase();
+    const hasAction = /(만나|보자|보기로|약속|예약|갈게|가자|보기야|보는거야|보기로해)/.test(lowered);
+    const hasTime = /(오늘|내일|모레|이번\s*주|다음\s*주|월요일|화요일|수요일|목요일|금요일|토요일|일요일|\d+\s*시)/.test(lowered);
+    return hasAction && hasTime;
 }
 
 /**
