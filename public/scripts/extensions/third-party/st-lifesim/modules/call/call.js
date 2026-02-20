@@ -49,6 +49,7 @@ let isReinjectingCallMessage = false; // 비-char 통화 메시지 재주입 중
 let lastIncomingCallCheckedIdx = -1;
 let incomingCallUiOpen = false;
 let lastProactiveCallAt = 0;
+let proactiveCallPending = false;
 
 function isCallModuleEnabled() {
     const ext = getExtensionSettings();
@@ -148,16 +149,22 @@ export function initCall() {
  * @param {number} probabilityPercent - 0~100
  */
 export async function triggerProactiveIncomingCall(probabilityPercent) {
-    if (callActive || incomingCallUiOpen) return;
+    if (callActive || incomingCallUiOpen || proactiveCallPending) return;
     const chance = Math.max(0, Math.min(100, Number(probabilityPercent) || 0)) / 100;
     if (chance <= 0 || Math.random() >= chance) return;
     if (Date.now() - lastProactiveCallAt < PROACTIVE_CALL_COOLDOWN_MS) return;
     const charName = getContext()?.name2;
     if (!charName) return;
+    proactiveCallPending = true;
     lastProactiveCallAt = Date.now();
-    await new Promise(resolve => setTimeout(resolve, 12000));
-    if (callActive || incomingCallUiOpen) return;
-    await showIncomingCallDialog(charName);
+    try {
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        if (!isCallModuleEnabled()) return;
+        if (callActive || incomingCallUiOpen) return;
+        await showIncomingCallDialog(charName);
+    } finally {
+        proactiveCallPending = false;
+    }
 }
 
 function injectCallPolicyPrompt() {
@@ -665,21 +672,18 @@ function buildCallLogsContent() {
         filtered.slice().reverse().forEach(log => {
             const row = document.createElement('div');
             row.className = 'slm-call-row';
+            row.classList.remove('slm-call-collapsed');
 
-            const quickDeleteBtn = document.createElement('button');
-            quickDeleteBtn.className = 'slm-call-row-close';
-            quickDeleteBtn.type = 'button';
-            quickDeleteBtn.title = '로그만 삭제';
-            quickDeleteBtn.textContent = '✕';
-            quickDeleteBtn.onclick = () => {
-                const all = loadCallLogs().filter(x => x.id !== log.id);
-                saveCallLogs(all);
-                const idx = logs.findIndex(x => x.id === log.id);
-                if (idx !== -1) logs.splice(idx, 1);
-                renderLogs();
-                showToast('통화 기록 삭제됨', 'success', 1400);
+            const toggleBtn = document.createElement('button');
+            toggleBtn.className = 'slm-call-row-close';
+            toggleBtn.type = 'button';
+            toggleBtn.title = '접기';
+            toggleBtn.textContent = '✕';
+            toggleBtn.onclick = () => {
+                const collapsed = row.classList.toggle('slm-call-collapsed');
+                toggleBtn.title = collapsed ? '펼치기' : '접기';
             };
-            row.appendChild(quickDeleteBtn);
+            row.appendChild(toggleBtn);
 
             const mMin = Math.floor(log.durationSeconds / 60);
             const sSec = log.durationSeconds % 60;
@@ -694,11 +698,14 @@ function buildCallLogsContent() {
             `;
             row.appendChild(infoDiv);
 
+            const detailWrap = document.createElement('div');
+            detailWrap.className = 'slm-call-detail';
+
             // 요약 표시 (인라인 수정 가능)
             const sumDiv = document.createElement('div');
             sumDiv.className = 'slm-call-summary';
             sumDiv.textContent = log.summary ? `📝 ${log.summary}` : '';
-            row.appendChild(sumDiv);
+            detailWrap.appendChild(sumDiv);
 
             // 통화 시작 위치로 점프 버튼
             if (typeof log.startMessageIdx === 'number' && log.startMessageIdx >= 0) {
@@ -713,7 +720,7 @@ function buildCallLogsContent() {
                         showToast('이동 실패', 'error', 2000);
                     }
                 };
-                row.appendChild(jumpBtn);
+                detailWrap.appendChild(jumpBtn);
             }
 
             const actionRow = document.createElement('div');
@@ -752,6 +759,19 @@ function buildCallLogsContent() {
             };
             actionRow.appendChild(editBtn);
 
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'slm-btn slm-btn-danger slm-btn-sm';
+            deleteBtn.textContent = '🗑️ 로그 삭제';
+            deleteBtn.onclick = () => {
+                const all = loadCallLogs().filter(x => x.id !== log.id);
+                saveCallLogs(all);
+                const idx = logs.findIndex(x => x.id === log.id);
+                if (idx !== -1) logs.splice(idx, 1);
+                renderLogs();
+                showToast('통화 기록 삭제됨', 'success', 1400);
+            };
+            actionRow.appendChild(deleteBtn);
+
             if (typeof log.startMessageIdx === 'number' && typeof log.endMessageIdx === 'number'
                 && log.startMessageIdx >= 0 && log.endMessageIdx >= log.startMessageIdx) {
                 const hardDeleteBtn = document.createElement('button');
@@ -781,7 +801,8 @@ function buildCallLogsContent() {
                 };
                 actionRow.appendChild(hardDeleteBtn);
             }
-            row.appendChild(actionRow);
+            detailWrap.appendChild(actionRow);
+            row.appendChild(detailWrap);
 
             logList.appendChild(row);
         });

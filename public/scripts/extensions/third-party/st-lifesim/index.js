@@ -54,6 +54,15 @@ const DEFAULT_SETTINGS = {
     imageRadius: 10, // px
     defaultSnsImageUrl: '', // SNS 기본 이미지 URL
     themeColors: {}, // CSS 커스텀 색상
+    toast: {
+        offsetY: 16,
+        colors: {
+            info: '#1c1c1e',
+            success: '#34c759',
+            warn: '#ffd60a',
+            error: '#ff3b30',
+        },
+    },
     firstMsg: {
         enabled: false,
         intervalSec: 10,
@@ -92,6 +101,20 @@ function getSettings() {
     if (ext[SETTINGS_KEY].themeColors == null) {
         ext[SETTINGS_KEY].themeColors = {};
     }
+    if (ext[SETTINGS_KEY].toast == null) {
+        ext[SETTINGS_KEY].toast = { ...DEFAULT_SETTINGS.toast, colors: { ...DEFAULT_SETTINGS.toast.colors } };
+    }
+    if (ext[SETTINGS_KEY].toast.offsetY == null) {
+        ext[SETTINGS_KEY].toast.offsetY = DEFAULT_SETTINGS.toast.offsetY;
+    }
+    if (ext[SETTINGS_KEY].toast.colors == null) {
+        ext[SETTINGS_KEY].toast.colors = { ...DEFAULT_SETTINGS.toast.colors };
+    }
+    ['info', 'success', 'warn', 'error'].forEach((key) => {
+        if (!ext[SETTINGS_KEY].toast.colors[key]) {
+            ext[SETTINGS_KEY].toast.colors[key] = DEFAULT_SETTINGS.toast.colors[key];
+        }
+    });
     if (ext[SETTINGS_KEY].firstMsg == null) {
         ext[SETTINGS_KEY].firstMsg = { ...DEFAULT_SETTINGS.firstMsg };
     }
@@ -652,6 +675,61 @@ function openSettingsPanel(onBack) {
         };
         wrapper.appendChild(resetAllBtn);
 
+        wrapper.appendChild(Object.assign(document.createElement('hr'), { className: 'slm-hr' }));
+        const toastTitle = Object.assign(document.createElement('div'), {
+            className: 'slm-label',
+            textContent: '🔔 팝업 알림(토스트)',
+        });
+        toastTitle.style.fontWeight = '700';
+        wrapper.appendChild(toastTitle);
+
+        const toastOffsetRow = document.createElement('div');
+        toastOffsetRow.className = 'slm-input-row';
+        const toastOffsetLbl = Object.assign(document.createElement('label'), { className: 'slm-label', textContent: '세로 위치:' });
+        const toastOffsetInput = Object.assign(document.createElement('input'), {
+            className: 'slm-input slm-input-sm', type: 'number', min: '0', max: '300',
+            value: String(settings.toast?.offsetY ?? 16),
+        });
+        toastOffsetInput.style.width = '80px';
+        const toastOffsetUnit = Object.assign(document.createElement('span'), { className: 'slm-label', textContent: 'px' });
+        const toastOffsetApply = document.createElement('button');
+        toastOffsetApply.className = 'slm-btn slm-btn-primary slm-btn-sm';
+        toastOffsetApply.textContent = '적용';
+        toastOffsetApply.onclick = () => {
+            settings.toast.offsetY = Math.max(0, Math.min(300, parseInt(toastOffsetInput.value) || 16));
+            toastOffsetInput.value = String(settings.toast.offsetY);
+            document.documentElement.style.setProperty('--slm-toast-top', `${settings.toast.offsetY}px`);
+            saveSettings();
+            showToast(`토스트 위치: ${settings.toast.offsetY}px`, 'success', 1200);
+        };
+        toastOffsetRow.append(toastOffsetLbl, toastOffsetInput, toastOffsetUnit, toastOffsetApply);
+        wrapper.appendChild(toastOffsetRow);
+
+        const toastColorDefs = [
+            { key: 'info', label: '기본' },
+            { key: 'success', label: '성공' },
+            { key: 'warn', label: '경고' },
+            { key: 'error', label: '오류' },
+        ];
+        toastColorDefs.forEach(({ key, label }) => {
+            const row = document.createElement('div');
+            row.className = 'slm-input-row';
+            const lbl = Object.assign(document.createElement('label'), { className: 'slm-label', textContent: `토스트 ${label}:` });
+            lbl.style.flex = '1';
+            const picker = document.createElement('input');
+            picker.type = 'color';
+            picker.className = 'slm-color-picker';
+            const fallback = DEFAULT_SETTINGS.toast.colors[key];
+            picker.value = normalizeColorValue(settings.toast?.colors?.[key], fallback);
+            picker.oninput = () => {
+                settings.toast.colors[key] = picker.value;
+                document.documentElement.style.setProperty(`--slm-toast-${key}`, picker.value);
+                saveSettings();
+            };
+            row.append(lbl, picker);
+            wrapper.appendChild(row);
+        });
+
         return wrapper;
     }
 
@@ -762,6 +840,11 @@ async function init() {
             if (key && val) document.documentElement.style.setProperty(key, val);
         });
     }
+    document.documentElement.style.setProperty('--slm-toast-top', `${settings.toast?.offsetY ?? 16}px`);
+    ['info', 'success', 'warn', 'error'].forEach((key) => {
+        const val = settings.toast?.colors?.[key];
+        if (val) document.documentElement.style.setProperty(`--slm-toast-${key}`, val);
+    });
 
     // 각 모듈 초기화 (활성화된 경우만, 오류 발생 시 개별 모듈만 스킵)
     const moduleInits = [
@@ -826,8 +909,8 @@ async function init() {
         });
     }
 
-    if (evSrc && eventTypes?.MESSAGE_SENT) {
-        evSrc.on(eventTypes.MESSAGE_SENT, () => {
+    if (evSrc && eventTypes?.CHARACTER_MESSAGE_RENDERED) {
+        evSrc.on(eventTypes.CHARACTER_MESSAGE_RENDERED, () => {
             if (!isModuleEnabled('call')) return;
             const callProb = getSettings().proactiveCallProbability ?? 0;
             if (callProb > 0) {

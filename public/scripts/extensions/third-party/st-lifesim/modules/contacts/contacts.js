@@ -210,7 +210,7 @@ function buildContactsContent() {
 
             const scope = document.createElement('span');
             scope.className = 'slm-contact-scope';
-            scope.textContent = contact.binding === 'character' ? '채팅 유지' : '이 채팅';
+            scope.textContent = contact.binding === 'character' ? '캐릭터' : '이 채팅';
 
             const rel = document.createElement('span');
             rel.className = 'slm-contact-rel';
