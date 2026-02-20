@@ -423,14 +423,18 @@ export function renderVoiceMemoUI() {
     title.textContent = '🎤 음성메모 연출';
     container.appendChild(title);
 
+    const voiceGrid = document.createElement('div');
+    voiceGrid.className = 'slm-voice-memo-grid';
+    const voiceLeft = document.createElement('div');
+    const voiceRight = document.createElement('div');
+    voiceRight.className = 'slm-voice-memo-actions';
+
     // 길이 입력
     const durationRow = document.createElement('div');
     durationRow.className = 'slm-input-row';
-
     const durationLabel = document.createElement('label');
     durationLabel.className = 'slm-label';
     durationLabel.textContent = '길이(초):';
-
     const durationInput = document.createElement('input');
     durationInput.className = 'slm-input slm-input-sm';
     durationInput.type = 'number';
@@ -438,10 +442,9 @@ export function renderVoiceMemoUI() {
     durationInput.max = '3600';
     durationInput.value = '';
     durationInput.placeholder = '직접 입력';
-
     durationRow.appendChild(durationLabel);
     durationRow.appendChild(durationInput);
-    container.appendChild(durationRow);
+    voiceLeft.appendChild(durationRow);
 
     const hintBody = document.createElement('div');
     hintBody.style.marginTop = '6px';
@@ -450,12 +453,11 @@ export function renderVoiceMemoUI() {
     hintInput.type = 'text';
     hintInput.placeholder = '예: 오늘 늦겠다고';
     hintBody.appendChild(hintInput);
-    container.appendChild(hintBody);
+    voiceLeft.appendChild(hintBody);
 
     // 실행 버튼 (user → 유저가 보내는 음성메모)
     const btn = document.createElement('button');
     btn.className = 'slm-btn slm-btn-primary';
-    btn.style.marginTop = '8px';
     btn.textContent = '🎤 음성메모 삽입 (유저)';
     btn.onclick = async () => {
         btn.disabled = true;
@@ -468,12 +470,11 @@ export function renderVoiceMemoUI() {
             btn.disabled = false;
         }
     };
-    container.appendChild(btn);
+    voiceRight.appendChild(btn);
 
     // AI(캐릭터)가 보내는 음성메시지 버튼
     const aiVoiceBtn = document.createElement('button');
     aiVoiceBtn.className = 'slm-btn slm-btn-secondary';
-    aiVoiceBtn.style.marginTop = '6px';
     aiVoiceBtn.textContent = '🤖 AI 음성메시지 (캐릭터)';
     aiVoiceBtn.title = 'AI(캐릭터)가 음성메시지를 보내는 상황을 연출합니다';
     aiVoiceBtn.onclick = async () => {
@@ -487,7 +488,10 @@ export function renderVoiceMemoUI() {
             aiVoiceBtn.disabled = false;
         }
     };
-    container.appendChild(aiVoiceBtn);
+    voiceRight.appendChild(aiVoiceBtn);
+    voiceGrid.appendChild(voiceLeft);
+    voiceGrid.appendChild(voiceRight);
+    container.appendChild(voiceGrid);
 
     const imageTitle = document.createElement('h4');
     imageTitle.style.marginTop = '14px';

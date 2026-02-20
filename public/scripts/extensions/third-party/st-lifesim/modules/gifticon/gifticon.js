@@ -223,9 +223,6 @@ function renderSendForm() {
     });
     container.appendChild(quickEmojiRow);
     const nameInput = createField(container, '기프티콘 이름 *', 'text', '');
-    const brandInput = createField(container, '브랜드', 'text', '');
-    const valueInput = createField(container, '금액/가치', 'text', '');
-    const memoInput = createField(container, '메모 (선택)', 'text', '');
 
     const recipLabel = document.createElement('label');
     recipLabel.className = 'slm-label';
@@ -267,6 +264,20 @@ function renderSendForm() {
     recipWrap.appendChild(recipSelect);
     recipWrap.appendChild(recipInput);
     container.appendChild(recipWrap);
+
+    const memoInput = createField(container, '메모 (선택)', 'text', '');
+
+    const advanced = document.createElement('details');
+    advanced.className = 'slm-gifticon-advanced';
+    const advancedSummary = document.createElement('summary');
+    advancedSummary.textContent = '추가 항목';
+    advanced.appendChild(advancedSummary);
+    const advancedBody = document.createElement('div');
+    advancedBody.className = 'slm-form';
+    const brandInput = createField(advancedBody, '브랜드', 'text', '');
+    const valueInput = createField(advancedBody, '금액/가치', 'text', '');
+    advanced.appendChild(advancedBody);
+    container.appendChild(advanced);
 
     const sendBtn = document.createElement('button');
     sendBtn.className = 'slm-btn slm-btn-primary';

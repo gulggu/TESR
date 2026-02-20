@@ -34,6 +34,7 @@ const SETTINGS_KEY = 'st-lifesim';
 
 // 주간/야간 테마 저장 키 (localStorage)
 const THEME_STORAGE_KEY = 'st-lifesim:forced-theme';
+const ALWAYS_ON_MODULES = new Set(['quickTools', 'contacts']);
 
 // 기본 설정
 const DEFAULT_SETTINGS = {
@@ -122,6 +123,10 @@ function getSettings() {
         if (!ext[SETTINGS_KEY].modules) ext[SETTINGS_KEY].modules = {};
         ext[SETTINGS_KEY].modules.gifticon = true;
     }
+    ALWAYS_ON_MODULES.forEach((moduleKey) => {
+        if (!ext[SETTINGS_KEY].modules) ext[SETTINGS_KEY].modules = {};
+        ext[SETTINGS_KEY].modules[moduleKey] = true;
+    });
     if (ext[SETTINGS_KEY].snsPostingProbability == null) {
         ext[SETTINGS_KEY].snsPostingProbability = DEFAULT_SETTINGS.snsPostingProbability;
     }
@@ -145,6 +150,7 @@ function isEnabled() {
  * @returns {boolean}
  */
 function isModuleEnabled(moduleKey) {
+    if (ALWAYS_ON_MODULES.has(moduleKey)) return isEnabled();
     return isEnabled() && getSettings().modules?.[moduleKey] !== false;
 }
 
@@ -443,6 +449,7 @@ function openSettingsPanel(onBack) {
             const chk = document.createElement('input');
             chk.type = 'checkbox';
             chk.checked = settings.modules?.[m.key] !== false;
+            if (ALWAYS_ON_MODULES.has(m.key)) chk.disabled = true;
             chk.onchange = () => {
                 if (!settings.modules) settings.modules = {};
                 settings.modules[m.key] = chk.checked;
@@ -451,7 +458,7 @@ function openSettingsPanel(onBack) {
             };
 
             lbl.appendChild(chk);
-            lbl.appendChild(document.createTextNode(` ${m.label}`));
+            lbl.appendChild(document.createTextNode(` ${m.label}${ALWAYS_ON_MODULES.has(m.key) ? ' (항상 활성화)' : ''}`));
             row.appendChild(lbl);
             wrapper.appendChild(row);
         });
