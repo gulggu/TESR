@@ -9,11 +9,10 @@
  */
 
 import { slashSend } from '../../utils/slash.js';
-import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
+import { loadData, saveData, getDefaultBinding, getExtensionSettings } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
 import { showToast } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
-import { extension_settings } from '../../../../../extensions.js';
 import { isCallActive } from '../call/call.js';
 
 /**
@@ -21,7 +20,8 @@ import { isCallActive } from '../call/call.js';
  * @returns {number}
  */
 function getEmoticonSize() {
-    return extension_settings?.['st-lifesim']?.emoticonSize || 80;
+    const ext = getExtensionSettings();
+    return ext?.['st-lifesim']?.emoticonSize || 80;
 }
 
 /**
@@ -29,7 +29,8 @@ function getEmoticonSize() {
  * @returns {number}
  */
 function getEmoticonRadius() {
-    return extension_settings?.['st-lifesim']?.emoticonRadius ?? 10;
+    const ext = getExtensionSettings();
+    return ext?.['st-lifesim']?.emoticonRadius ?? 10;
 }
 
 const MODULE_KEY = 'emoticons';

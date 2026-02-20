@@ -14,8 +14,7 @@
  */
 
 import { getContext } from './utils/st-context.js';
-import { extension_settings } from '../../../extensions.js';
-import { eventSource, event_types } from '../../../../script.js';
+import { getExtensionSettings } from './utils/storage.js';
 import { injectContext, clearContext } from './utils/context-inject.js';
 import { createPopup, createTabs, closePopup } from './utils/popup.js';
 import { showToast } from './utils/ui.js';
@@ -63,33 +62,35 @@ const DEFAULT_SETTINGS = {
  * @returns {Object}
  */
 function getSettings() {
-    if (!extension_settings[SETTINGS_KEY]) {
-        extension_settings[SETTINGS_KEY] = { ...DEFAULT_SETTINGS };
+    const ext = getExtensionSettings();
+    if (!ext) return { ...DEFAULT_SETTINGS };
+    if (!ext[SETTINGS_KEY]) {
+        ext[SETTINGS_KEY] = { ...DEFAULT_SETTINGS };
     }
     // 신규 필드 기본값 보완
-    if (extension_settings[SETTINGS_KEY].emoticonSize == null) {
-        extension_settings[SETTINGS_KEY].emoticonSize = DEFAULT_SETTINGS.emoticonSize;
+    if (ext[SETTINGS_KEY].emoticonSize == null) {
+        ext[SETTINGS_KEY].emoticonSize = DEFAULT_SETTINGS.emoticonSize;
     }
-    if (extension_settings[SETTINGS_KEY].emoticonRadius == null) {
-        extension_settings[SETTINGS_KEY].emoticonRadius = DEFAULT_SETTINGS.emoticonRadius;
+    if (ext[SETTINGS_KEY].emoticonRadius == null) {
+        ext[SETTINGS_KEY].emoticonRadius = DEFAULT_SETTINGS.emoticonRadius;
     }
-    if (extension_settings[SETTINGS_KEY].defaultBinding == null) {
-        extension_settings[SETTINGS_KEY].defaultBinding = DEFAULT_SETTINGS.defaultBinding;
+    if (ext[SETTINGS_KEY].defaultBinding == null) {
+        ext[SETTINGS_KEY].defaultBinding = DEFAULT_SETTINGS.defaultBinding;
     }
-    if (extension_settings[SETTINGS_KEY].defaultSnsImageUrl == null) {
-        extension_settings[SETTINGS_KEY].defaultSnsImageUrl = '';
+    if (ext[SETTINGS_KEY].defaultSnsImageUrl == null) {
+        ext[SETTINGS_KEY].defaultSnsImageUrl = '';
     }
-    if (extension_settings[SETTINGS_KEY].themeColors == null) {
-        extension_settings[SETTINGS_KEY].themeColors = {};
+    if (ext[SETTINGS_KEY].themeColors == null) {
+        ext[SETTINGS_KEY].themeColors = {};
     }
-    if (extension_settings[SETTINGS_KEY].firstMsg == null) {
-        extension_settings[SETTINGS_KEY].firstMsg = { ...DEFAULT_SETTINGS.firstMsg };
+    if (ext[SETTINGS_KEY].firstMsg == null) {
+        ext[SETTINGS_KEY].firstMsg = { ...DEFAULT_SETTINGS.firstMsg };
     }
-    if (extension_settings[SETTINGS_KEY].modules?.gifticon == null) {
-        if (!extension_settings[SETTINGS_KEY].modules) extension_settings[SETTINGS_KEY].modules = {};
-        extension_settings[SETTINGS_KEY].modules.gifticon = true;
+    if (ext[SETTINGS_KEY].modules?.gifticon == null) {
+        if (!ext[SETTINGS_KEY].modules) ext[SETTINGS_KEY].modules = {};
+        ext[SETTINGS_KEY].modules.gifticon = true;
     }
-    return extension_settings[SETTINGS_KEY];
+    return ext[SETTINGS_KEY];
 }
 
 /**
@@ -660,8 +661,11 @@ async function init() {
     try { startFirstMsgTimer(settings.firstMsg); } catch (e) { console.error('[ST-LifeSim] 선톡 타이머 오류:', e); }
 
     // AI 응답 후 컨텍스트 주입
-    if (event_types.CHARACTER_MESSAGE_RENDERED) {
-        eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, async () => {
+    const eventTypes = ctx.eventTypes || ctx.event_types;
+    const evSrc = ctx.eventSource;
+
+    if (evSrc && eventTypes?.CHARACTER_MESSAGE_RENDERED) {
+        evSrc.on(eventTypes.CHARACTER_MESSAGE_RENDERED, async () => {
             if (isEnabled()) {
                 await injectContext().catch(e => console.error('[ST-LifeSim] 컨텍스트 주입 오류:', e));
             }
@@ -669,8 +673,8 @@ async function init() {
     }
 
     // 채팅 로드 시 컨텍스트 주입
-    if (event_types.CHAT_CHANGED) {
-        eventSource.on(event_types.CHAT_CHANGED, async () => {
+    if (evSrc && eventTypes?.CHAT_CHANGED) {
+        evSrc.on(eventTypes.CHAT_CHANGED, async () => {
             if (isEnabled()) {
                 await injectContext().catch(e => console.error('[ST-LifeSim] 컨텍스트 주입 오류:', e));
             }
@@ -678,8 +682,8 @@ async function init() {
     }
 
     // 유저 메시지 전송 시 10% 확률로 SNS 포스팅 트리거
-    if (isModuleEnabled('sns') && event_types.MESSAGE_SENT) {
-        eventSource.on(event_types.MESSAGE_SENT, () => {
+    if (isModuleEnabled('sns') && evSrc && eventTypes?.MESSAGE_SENT) {
+        evSrc.on(eventTypes.MESSAGE_SENT, () => {
             if (isEnabled() && Math.random() < 0.10) {
                 triggerNpcPosting().catch(e => console.error('[ST-LifeSim] SNS 자동 포스팅 오류:', e));
             }
@@ -699,7 +703,14 @@ async function initIfNeeded() {
 }
 
 // SillyTavern APP_READY 이벤트에서 초기화 실행 (호환성 위해 즉시 시도도 함께 수행)
-if (eventSource?.on && event_types?.APP_READY) {
-    eventSource.on(event_types.APP_READY, initIfNeeded);
+try {
+    const ctx = getContext();
+    const evSrc = ctx?.eventSource;
+    const eventTypes = ctx?.eventTypes || ctx?.event_types;
+    if (evSrc?.on && eventTypes?.APP_READY) {
+        evSrc.on(eventTypes.APP_READY, initIfNeeded);
+    }
+} catch (e) {
+    console.error('[ST-LifeSim] 이벤트 등록 오류:', e);
 }
 void initIfNeeded();
