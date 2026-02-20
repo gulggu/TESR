@@ -26,7 +26,7 @@ import { initContacts, openContactsPopup } from './modules/contacts/contacts.js'
 import { initCall, openCallLogsPopup } from './modules/call/call.js';
 import { initWallet, openWalletPopup } from './modules/wallet/wallet.js';
 import { initSns, openSnsPopup, triggerNpcPosting } from './modules/sns/sns.js';
-import { initCalendar, openCalendarPopup, triggerAiSchedule } from './modules/calendar/calendar.js';
+import { initCalendar, openCalendarPopup } from './modules/calendar/calendar.js';
 import { initGifticon, openGifticonPopup } from './modules/gifticon/gifticon.js';
 
 // 설정 키
@@ -175,11 +175,8 @@ function openMainMenuPopup() {
         if (t === 'light') {
             themeBtn.innerHTML = '<span class="slm-theme-toggle-icon">☀️</span><span class="slm-theme-toggle-label">주간</span>';
             themeBtn.title = '야간 모드로 전환';
-        } else if (t === 'dark') {
-            themeBtn.innerHTML = '<span class="slm-theme-toggle-icon">🌙</span><span class="slm-theme-toggle-label">야간</span>';
-            themeBtn.title = '자동(시스템) 모드로 전환';
         } else {
-            themeBtn.innerHTML = '<span class="slm-theme-toggle-icon">🔄</span><span class="slm-theme-toggle-label">자동</span>';
+            themeBtn.innerHTML = '<span class="slm-theme-toggle-icon">🌙</span><span class="slm-theme-toggle-label">야간</span>';
             themeBtn.title = '주간 모드로 전환';
         }
     }
@@ -189,10 +186,7 @@ function openMainMenuPopup() {
         e.stopPropagation();
         const newTheme = cycleTheme();
         updateThemeBtn();
-        let label;
-        if (newTheme === 'light') label = '주간 모드';
-        else if (newTheme === 'dark') label = '야간 모드';
-        else label = '자동(시스템) 모드';
+        const label = newTheme === 'light' ? '주간 모드' : '야간 모드';
         showToast(`테마: ${label}`, 'success', 1200);
     };
 
@@ -606,7 +600,7 @@ function openSettingsPanel(onBack) {
             // 저장된 색상 또는 현재 CSS 변수값 또는 기본값
             const savedColor = settings.themeColors[def.key];
             const currentCssVal = getComputedStyle(document.documentElement).getPropertyValue(def.key).trim();
-            picker.value = savedColor || (currentCssVal ? currentCssVal : def.defaultVal);
+            picker.value = normalizeColorValue(savedColor || currentCssVal, def.defaultVal);
 
             picker.oninput = () => {
                 document.documentElement.style.setProperty(def.key, picker.value);
@@ -677,44 +671,44 @@ function saveSettings() {
 
 // ── 주간/야간 테마 토글 ──────────────────────────────────────────
 /**
- * 현재 강제 테마를 읽는다 ('light' | 'dark' | null)
- * @returns {'light'|'dark'|null}
+ * 현재 강제 테마를 읽는다 ('light' | 'dark')
+ * @returns {'light'|'dark'}
  */
 function getForcedTheme() {
-    return localStorage.getItem(THEME_STORAGE_KEY) || null;
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    return stored === 'dark' ? 'dark' : 'light';
 }
 
 /**
  * 강제 테마를 적용한다
- * @param {'light'|'dark'|null} theme
+ * @param {'light'|'dark'} theme
  */
 function applyForcedTheme(theme) {
-    if (theme === 'light' || theme === 'dark') {
-        document.documentElement.setAttribute('data-slm-theme', theme);
-        localStorage.setItem(THEME_STORAGE_KEY, theme);
-    } else {
-        document.documentElement.removeAttribute('data-slm-theme');
-        localStorage.removeItem(THEME_STORAGE_KEY);
-    }
+    const resolved = theme === 'dark' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-slm-theme', resolved);
+    localStorage.setItem(THEME_STORAGE_KEY, resolved);
 }
 
 /**
- * 자동 → 주간 → 야간 → 자동 순으로 테마를 순환한다
- * (null=자동, 'light'=주간, 'dark'=야간)
- * @returns {'light'|'dark'|null} 새 테마 값
+ * 주간 ↔ 야간 테마를 순환한다
+ * @returns {'light'|'dark'} 새 테마 값
  */
 function cycleTheme() {
     const current = getForcedTheme();
-    let next;
-    if (current === null) {
-        next = 'light';      // 자동 → 주간
-    } else if (current === 'light') {
-        next = 'dark';       // 주간 → 야간
-    } else {
-        next = null;         // 야간 → 자동
-    }
+    const next = current === 'light' ? 'dark' : 'light';
     applyForcedTheme(next);
     return next;
+}
+
+/**
+ * 컬러피커에서 처리 가능한 HEX 색상값으로 정규화한다
+ * @param {string} value
+ * @param {string} fallback
+ * @returns {string}
+ */
+function normalizeColorValue(value, fallback) {
+    const hex = (value || '').trim();
+    return /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(hex) ? hex : fallback;
 }
 
 /**
@@ -798,15 +792,6 @@ async function init() {
             const prob = (getSettings().snsPostingProbability ?? 10) / 100;
             if (isEnabled() && Math.random() < prob) {
                 triggerNpcPosting().catch(e => console.error('[ST-LifeSim] SNS 자동 포스팅 오류:', e));
-            }
-        });
-    }
-
-    // AI 응답 수신 시 5% 확률로 char가 일정 자동 등록 시도
-    if (isModuleEnabled('calendar') && evSrc && eventTypes?.MESSAGE_RECEIVED) {
-        evSrc.on(eventTypes.MESSAGE_RECEIVED, () => {
-            if (isEnabled() && Math.random() < 0.05) {
-                triggerAiSchedule(null).catch(e => console.error('[ST-LifeSim] AI 일정 등록 오류:', e));
             }
         });
     }

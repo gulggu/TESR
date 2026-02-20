@@ -3,12 +3,11 @@
  * 기프티콘(상품권) 주고받기 모듈
  * - 기프티콘 보관함: 받은/보낸 기프티콘 목록
  * - 보내기(user→contact): 이모지 아이콘, 이미지 URL 없음
- * - 받기(contact→user): 연락처 인물이 AI로 기프티콘을 보내는 연출 (수동 입력 삭제)
  * - 컨텍스트에 보관함 정보 주입
  */
 
 import { getContext } from '../../utils/st-context.js';
-import { slashSend, slashSendAs } from '../../utils/slash.js';
+import { slashSend } from '../../utils/slash.js';
 import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
 import { showToast, escapeHtml, generateId } from '../../utils/ui.js';
@@ -80,7 +79,6 @@ function buildGifticonContent() {
     const tabs = [
         { key: 'inbox', label: '📦 보관함', render: renderInbox },
         { key: 'send', label: '📤 보내기', render: renderSendForm },
-        { key: 'request', label: '🎁 받기(AI)', render: renderReceiveAiForm },
     ];
 
     let activeKey = 'inbox';
@@ -211,7 +209,7 @@ function renderInbox() {
 /** user → contact 보내기 */
 function renderSendForm() {
     const container = document.createElement('div');
-    container.className = 'slm-form';
+    container.className = 'slm-form slm-gifticon-send-form';
 
     const emojiInput = createField(container, '이모지 아이콘 *', 'text', '🎁');
     emojiInput.style.fontSize = '22px';
@@ -308,115 +306,6 @@ function renderSendForm() {
     };
 
     container.appendChild(sendBtn);
-    return container;
-}
-
-/**
- * contact → user AI 받기
- * 연락처에 등록된 인물(or char)이 user에게 기프티콘/송금을 보내는 연출
- */
-function renderReceiveAiForm() {
-    const container = document.createElement('div');
-    container.className = 'slm-form';
-
-    const desc = document.createElement('p');
-    desc.className = 'slm-desc';
-    desc.textContent = '연락처에 등록된 인물(또는 캐릭터)이 user에게 기프티콘/송금을 보내는 상황을 AI가 연출하고 자동으로 보관함에 등록합니다.';
-    container.appendChild(desc);
-
-    const ctx = getContext();
-    const charName = ctx?.name2;
-
-    // 보내는 사람 선택
-    const senderLabel = document.createElement('label');
-    senderLabel.className = 'slm-label';
-    senderLabel.textContent = '보내는 사람 *';
-    const senderSelect = document.createElement('select');
-    senderSelect.className = 'slm-select';
-    senderSelect.innerHTML = '';
-    if (charName) {
-        const opt = document.createElement('option');
-        opt.value = charName;
-        opt.textContent = charName;
-        senderSelect.appendChild(opt);
-    }
-    getContacts('chat').forEach(c => {
-        if (c.name !== charName) {
-            const opt = document.createElement('option');
-            opt.value = c.name;
-            opt.textContent = c.name;
-            senderSelect.appendChild(opt);
-        }
-    });
-    container.appendChild(senderLabel);
-    container.appendChild(senderSelect);
-
-    const emojiInput = createField(container, '이모지 아이콘', 'text', '🎁');
-    emojiInput.style.fontSize = '22px';
-    emojiInput.style.width = '60px';
-    const nameInput = createField(container, '기프티콘/선물 이름 *', 'text', '');
-    const brandInput = createField(container, '브랜드', 'text', '');
-    const valueInput = createField(container, '금액/가치', 'text', '');
-    const expiryInput = createField(container, '만료일 (선택)', 'date', '');
-    const memoInput = createField(container, '메모/힌트 (선택)', 'text', '');
-
-    const receiveBtn = document.createElement('button');
-    receiveBtn.className = 'slm-btn slm-btn-primary';
-    receiveBtn.style.marginTop = '12px';
-    receiveBtn.textContent = '🎁 받기 연출 (AI)';
-    receiveBtn.onclick = async () => {
-        const sender = senderSelect.value;
-        const name = nameInput.value.trim();
-        const emoji = emojiInput.value.trim() || '🎁';
-        if (!name) { showToast('기프티콘 이름을 입력해주세요.', 'warn'); return; }
-        if (!sender) { showToast('보내는 사람을 선택해주세요.', 'warn'); return; }
-
-        receiveBtn.disabled = true;
-        try {
-            // 보관함에 등록
-            const g = {
-                id: generateId(),
-                name,
-                emoji,
-                brand: brandInput.value.trim(),
-                value: valueInput.value.trim(),
-                expiryDate: expiryInput.value || '',
-                status: 'received',
-                counterpart: sender,
-                date: new Date().toISOString(),
-                memo: memoInput.value.trim(),
-            };
-            const list = loadGifticons();
-            list.push(g);
-            saveGifticons(list);
-
-            // AI가 기프티콘 보내는 메시지 생성 (sendas로 해당 캐릭터 이름으로)
-            const hint = memoInput.value.trim();
-            const prompt = `You are ${sender}. You are sending a gift/gifticon to {{user}}. The item is: "${name}"${g.value ? ` worth ${g.value}` : ''}${hint ? `. Hint: ${hint}` : ''}. Write a short, natural message to accompany the gift, in character.`;
-            const freshCtx = getContext();
-            let aiMsg = '';
-            if (freshCtx && typeof freshCtx.generateQuietPrompt === 'function') {
-                aiMsg = await freshCtx.generateQuietPrompt({ quietPrompt: prompt, quietName: sender }) || '';
-            }
-
-            const msgHtml = `${escapeHtml(emoji)} <b>${escapeHtml(name)}</b>${g.value ? ` (${escapeHtml(g.value)})` : ''}\n${aiMsg ? `<em>${escapeHtml(aiMsg)}</em>` : ''}`;
-            await slashSendAs(sender, msgHtml);
-
-            showToast(`${sender}에게 기프티콘 받음`, 'success');
-            nameInput.value = '';
-            emojiInput.value = '🎁';
-            brandInput.value = '';
-            valueInput.value = '';
-            expiryInput.value = '';
-            memoInput.value = '';
-        } catch (e) {
-            showToast('연출 실패: ' + e.message, 'error');
-        } finally {
-            receiveBtn.disabled = false;
-        }
-    };
-
-    container.appendChild(receiveBtn);
     return container;
 }
 
