@@ -118,6 +118,14 @@ function getAuthorDefaultImageUrl(authorName) {
     return map[authorName] || getDefaultImageUrl();
 }
 
+function getBuiltinUserAvatarUrl() {
+    const fromPersona = document.querySelector('#user_avatar_block .avatar.selected img')?.getAttribute('src');
+    if (fromPersona) return fromPersona;
+    const fromProfile = document.querySelector('#user-profile .avatar img, .user_profile .avatar img')?.getAttribute('src');
+    if (fromProfile) return fromProfile;
+    return '/img/user-default.png';
+}
+
 /**
  * 저자 이름에 대한 아바타 URL을 해결한다 (연락처 연동 고려)
  * @param {string} authorName
@@ -222,8 +230,14 @@ export async function triggerNpcPosting() {
             return;
         }
 
-        const feed = loadFeed();
         const defaultImg = getAuthorDefaultImageUrl(pick.name);
+        let imageDescription = '';
+        if (defaultImg && typeof freshCtx.generateQuietPrompt === 'function') {
+            const descPrompt = `${pick.name} uploaded a social media photo with this post: "${postContent}". Write one short Korean sentence describing the photo content (not URL, no hashtags, no quotes).`;
+            imageDescription = (await freshCtx.generateQuietPrompt({ quietPrompt: descPrompt, quietName: `${pick.name}-image-desc` }) || '').trim();
+        }
+
+        const feed = loadFeed();
         feed.push({
             id: generateId(),
             authorName: pick.name,
@@ -231,7 +245,7 @@ export async function triggerNpcPosting() {
             date: new Date().toISOString(),
             content: postContent,
             imageUrl: defaultImg,
-            imageDescription: '',
+            imageDescription,
             likes: Math.floor(Math.random() * 30),
             likedByUser: false,
             comments: [],
@@ -1025,7 +1039,7 @@ function openAvatarSettingsDialog(onUpdate) {
     const postingEnabled = loadPostingEnabledMap();
     const contacts = getContacts('chat');
     const userName = getContext()?.name1 || 'user';
-    const allProfiles = [{ name: userName, avatar: avatars[userName] || '', personality: 'user' }, ...contacts]
+    const allProfiles = [{ name: userName, avatar: avatars[userName] || getBuiltinUserAvatarUrl(), personality: 'user' }, ...contacts]
         .filter((c, i, arr) => arr.findIndex(x => x.name === c.name) === i);
 
     allProfiles.forEach(c => {

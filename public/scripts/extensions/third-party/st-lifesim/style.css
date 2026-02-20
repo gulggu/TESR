@@ -1730,27 +1730,31 @@ body[data-theme="dark"],
    음성메모 - 채팅 내 출력 (호버 시 내용 힌트 노출)
 ────────────────────────────────────────── */
 .slm-voice-msg {
-  position: relative;
   display: block;
-  padding: 4px 10px;
+  padding: 6px 10px;
   background: var(--slm-bg-secondary, #f2f2f7);
   border-radius: 10px;
   font-size: 14px;
-  cursor: pointer;
-  user-select: none;
+  line-height: 1.5;
 }
-.slm-voice-msg summary { list-style: none; }
-.slm-voice-msg summary::-webkit-details-marker { display: none; }
 .slm-voice-hint {
-  display: block;
-  margin-top: 6px;
+  display: inline-block;
+  margin-top: 2px;
   font-size: 12px;
   color: var(--slm-text-secondary, #6d6d72);
+  font-style: italic;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
-.slm-quick-image { max-width: 100%; border-radius: 10px; }
+.slm-quick-image { max-width: 100%; display: block; }
+.slm-quick-image-desc {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--slm-text-secondary, #6d6d72);
+  font-style: italic;
+}
 
 .slm-sns-profile-item { border: 1px solid var(--slm-border); border-radius: 10px; padding: 8px; }
 .slm-sns-profile-summary { display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; }
@@ -1816,6 +1820,12 @@ body[data-theme="dark"],
 .slm-gifticon-send-form .slm-select {
   margin-bottom: 2px;
 }
+.slm-gifticon-recipient-row {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) minmax(120px, 1fr);
+  gap: 6px;
+}
+.slm-gifticon-send-btn { width: 100%; }
 
 .slm-call-row .slm-btn-row {
   margin-top: 6px;
@@ -1886,7 +1896,27 @@ body[data-theme="dark"],
   .slm-quick-panel .slm-tab-btn.active {
     border-color: var(--slm-accent);
   }
+  .slm-settings-panel .slm-tab-bar {
+    overflow-x: visible;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+    border-bottom: none;
+  }
+  .slm-settings-panel .slm-tab-btn {
+    border: 1px solid var(--slm-border);
+    border-radius: 8px;
+    border-bottom-width: 1px;
+    white-space: normal;
+    line-height: 1.2;
+  }
+  .slm-settings-panel .slm-tab-btn.active {
+    border-color: var(--slm-accent);
+  }
   .slm-gifticon-inbox {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .slm-gifticon-recipient-row {
+    grid-template-columns: 1fr;
   }
 }

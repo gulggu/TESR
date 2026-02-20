@@ -26,6 +26,7 @@ const KEYWORDS_KEY = 'call-keywords';
 const CALL_INJECT_TAG = 'st-lifesim-call';
 const CALL_POLICY_TAG = 'st-lifesim-call-policy';
 const INCOMING_CALL_CONFIDENCE_THRESHOLD = 0.5;
+const PROACTIVE_CALL_COOLDOWN_MS = 30000;
 
 // 통화 감지 키워드 (설정에서 변경 가능)
 const DEFAULT_KEYWORDS = ['전화할게', '전화 걸게', '전화해도 돼', '전화 줄게', 'call', 'phone'];
@@ -47,6 +48,7 @@ let callIsMainChar = true;   // 통화 상대가 {{char}}인지 여부
 let isReinjectingCallMessage = false; // 비-char 통화 메시지 재주입 중복 방지
 let lastIncomingCallCheckedIdx = -1;
 let incomingCallUiOpen = false;
+let lastProactiveCallAt = 0;
 
 /**
  * 통화 로그 데이터 불러오기
@@ -132,6 +134,21 @@ export function initCall() {
             }
         }
     });
+}
+
+/**
+ * 유저 메시지 전송 시 확률적으로 수신전화를 트리거한다
+ * @param {number} probabilityPercent - 0~100
+ */
+export async function triggerProactiveIncomingCall(probabilityPercent) {
+    if (callActive || incomingCallUiOpen) return;
+    const chance = Math.max(0, Math.min(100, Number(probabilityPercent) || 0)) / 100;
+    if (chance <= 0 || Math.random() >= chance) return;
+    if (Date.now() - lastProactiveCallAt < PROACTIVE_CALL_COOLDOWN_MS) return;
+    const charName = getContext()?.name2;
+    if (!charName) return;
+    lastProactiveCallAt = Date.now();
+    await showIncomingCallDialog(charName);
 }
 
 function injectCallPolicyPrompt() {
