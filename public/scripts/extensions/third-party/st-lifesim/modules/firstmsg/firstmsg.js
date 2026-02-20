@@ -5,7 +5,7 @@
  * - 설정에서 활성화/비활성화, 간격(초), 확률(%) 조정 가능
  */
 
-import { getContext } from '../../../../../st-context.js';
+import { getContext } from '../../utils/st-context.js';
 import { slashGen } from '../../utils/slash.js';
 
 // 최소 허용 간격 (초)
