@@ -8,7 +8,7 @@
  * - 채팅별 또는 캐릭터별 바인딩
  */
 
-import { getContext } from '../../../../../st-context.js';
+import { getContext } from '../../utils/st-context.js';
 import { loadData, saveData } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
 import { showToast, escapeHtml } from '../../utils/ui.js';

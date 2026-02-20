@@ -10,7 +10,7 @@
  * - 부재중 전화 연출
  */
 
-import { getContext } from '../../../../../st-context.js';
+import { getContext } from '../../utils/st-context.js';
 import { slashSend } from '../../utils/slash.js';
 import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
 import { showToast, escapeHtml } from '../../utils/ui.js';

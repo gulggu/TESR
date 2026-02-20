@@ -4,7 +4,7 @@
  * SillyTavern의 executeSlashCommandsWithOptions를 사용한다
  */
 
-import { getContext } from '../../../../st-context.js';
+import { getContext } from './st-context.js';
 
 /**
  * 슬래시 커맨드를 실행하는 내부 함수

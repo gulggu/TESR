@@ -3,7 +3,7 @@
  * 채팅별 또는 캐릭터별로 데이터를 저장하고 불러오는 유틸리티
  */
 
-import { getContext } from '../../../../st-context.js';
+import { getContext } from './st-context.js';
 import { extension_settings } from '../../../../extensions.js';
 
 // 로컬스토리지 키 접두사

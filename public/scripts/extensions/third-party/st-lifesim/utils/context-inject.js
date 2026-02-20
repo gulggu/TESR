@@ -4,7 +4,7 @@
  * World Info(Lorebook) 항목을 생성하지 않고 직접 삽입한다
  */
 
-import { getContext } from '../../../../st-context.js';
+import { getContext } from './st-context.js';
 
 // 확장 프롬프트 주입 태그
 const INJECT_TAG = 'st-lifesim-context';

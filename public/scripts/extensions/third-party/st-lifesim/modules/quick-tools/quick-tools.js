@@ -9,7 +9,7 @@
  * - 음성메모 연출: 음성메시지 삽입 (내용힌트 토글)
  */
 
-import { getContext } from '../../../../../st-context.js';
+import { getContext } from '../../utils/st-context.js';
 import { slashSend, slashGen } from '../../utils/slash.js';
 import { showToast, escapeHtml } from '../../utils/ui.js';
 import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';

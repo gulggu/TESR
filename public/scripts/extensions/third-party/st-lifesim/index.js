@@ -13,7 +13,7 @@
  * 6. 확장 전체 ON/OFF 및 각 모듈별 개별 활성화 관리
  */
 
-import { getContext } from '../../../st-context.js';
+import { getContext } from './utils/st-context.js';
 import { extension_settings } from '../../../extensions.js';
 import { eventSource, event_types } from '../../../../script.js';
 import { injectContext, clearContext } from './utils/context-inject.js';

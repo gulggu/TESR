@@ -7,7 +7,7 @@
  * - 컨텍스트에 보관함 정보 주입
  */
 
-import { getContext } from '../../../../../st-context.js';
+import { getContext } from '../../utils/st-context.js';
 import { slashSend } from '../../utils/slash.js';
 import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
