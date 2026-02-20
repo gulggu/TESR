@@ -12,7 +12,7 @@
 import { getContext } from '../../utils/st-context.js';
 import { slashSend, slashGen, slashSendAs } from '../../utils/slash.js';
 import { showToast, escapeHtml, generateId } from '../../utils/ui.js';
-import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
+import { loadData, saveData, getDefaultBinding, getExtensionSettings } from '../../utils/storage.js';
 
 // 사건 기록 아카이브 저장 키
 const ARCHIVE_KEY = 'event-archive';
@@ -520,13 +520,24 @@ export function renderVoiceMemoUI() {
     const imageBtn = document.createElement('button');
     imageBtn.className = 'slm-btn slm-btn-secondary slm-btn-sm';
     imageBtn.textContent = '삽입';
+
+    const imageDescInput = document.createElement('input');
+    imageDescInput.className = 'slm-input';
+    imageDescInput.type = 'text';
+    imageDescInput.placeholder = '사진 설명(선택)';
+
     imageBtn.onclick = async () => {
         const url = imageInput.value.trim();
         if (!url) return;
-        await slashSend(`<img src="${escapeHtml(url)}" alt="이미지" class="slm-quick-image">`);
+        const radius = Math.max(0, Math.min(50, Number(getExtensionSettings()?.['st-lifesim']?.emoticonRadius ?? 10)));
+        const desc = imageDescInput.value.trim();
+        const descHtml = desc ? `<br><em class="slm-quick-image-desc">${escapeHtml(desc)}</em>` : '';
+        await slashSend(`<img src="${escapeHtml(url)}" alt="이미지" class="slm-quick-image" style="border-radius:${radius}px">${descHtml}`);
         imageInput.value = '';
+        imageDescInput.value = '';
     };
     imageRow.appendChild(imageInput);
+    imageRow.appendChild(imageDescInput);
     imageRow.appendChild(imageBtn);
     container.appendChild(imageRow);
 
@@ -552,13 +563,13 @@ async function handleVoiceMemo(seconds, hint, aiMode = false) {
             await slashGen(
                 `As ${charName}, send exactly one voice message in Korean. You must choose suitable duration and content yourself based on current context.
 Output only this HTML format:
-<details class="slm-voice-msg"><summary>🎤 음성메시지 (M:SS)</summary><div class="slm-voice-hint">[actual voice message content]</div></details>`,
+<div class="slm-voice-msg">🎤 음성메시지 (M:SS)<br><em class="slm-voice-hint">[actual voice message content]</em></div>`,
                 charName,
             );
             showToast(`${charName}의 음성메세지 생성 완료`, 'success', 1500);
         } else {
             const hintText = hint ? escapeHtml(hint) : '(내용 없음)';
-            const voiceHtml = `<details class="slm-voice-msg"><summary>🎤 음성메시지 (${timeStr})</summary><div class="slm-voice-hint">${hintText}</div></details>`;
+            const voiceHtml = `<div class="slm-voice-msg">🎤 음성메시지 (${timeStr})<br><em class="slm-voice-hint">${hintText}</em></div>`;
             await slashSend(voiceHtml);
             showToast('음성메모 삽입 완료', 'success', 1500);
         }

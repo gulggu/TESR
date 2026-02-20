@@ -211,6 +211,17 @@ function renderSendForm() {
     const emojiInput = createField(container, '이모지 아이콘 *', 'text', '🎁');
     emojiInput.style.fontSize = '22px';
     emojiInput.style.width = '60px';
+    const quickEmojiRow = document.createElement('div');
+    quickEmojiRow.className = 'slm-btn-row';
+    ['🎁', '☕', '🍰', '🍗', '🍦', '🧋'].forEach((emoji) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'slm-btn slm-btn-ghost slm-btn-xs';
+        btn.textContent = emoji;
+        btn.onclick = () => { emojiInput.value = emoji; };
+        quickEmojiRow.appendChild(btn);
+    });
+    container.appendChild(quickEmojiRow);
     const nameInput = createField(container, '기프티콘 이름 *', 'text', '');
     const brandInput = createField(container, '브랜드', 'text', '');
     const valueInput = createField(container, '금액/가치', 'text', '');
@@ -251,11 +262,15 @@ function renderSendForm() {
     };
 
     container.appendChild(recipLabel);
-    container.appendChild(recipSelect);
-    container.appendChild(recipInput);
+    const recipWrap = document.createElement('div');
+    recipWrap.className = 'slm-gifticon-recipient-row';
+    recipWrap.appendChild(recipSelect);
+    recipWrap.appendChild(recipInput);
+    container.appendChild(recipWrap);
 
     const sendBtn = document.createElement('button');
     sendBtn.className = 'slm-btn slm-btn-primary';
+    sendBtn.classList.add('slm-gifticon-send-btn');
     sendBtn.style.marginTop = '12px';
     sendBtn.textContent = '📤 기프티콘 보내기';
     sendBtn.onclick = async () => {

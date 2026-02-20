@@ -17,13 +17,13 @@ import { getContext } from './utils/st-context.js';
 import { getExtensionSettings } from './utils/storage.js';
 import { injectContext, clearContext } from './utils/context-inject.js';
 import { createPopup, createTabs, closePopup } from './utils/popup.js';
-import { showToast } from './utils/ui.js';
-import { exportAllData, importAllData } from './utils/storage.js';
+import { showToast, showConfirm } from './utils/ui.js';
+import { exportAllData, importAllData, clearAllData } from './utils/storage.js';
 import { injectQuickSendButton, renderTimeDividerUI, renderReadReceiptUI, renderNoContactUI, renderEventGeneratorUI, renderVoiceMemoUI } from './modules/quick-tools/quick-tools.js';
 import { startFirstMsgTimer, renderFirstMsgSettingsUI } from './modules/firstmsg/firstmsg.js';
 import { initEmoticon, openEmoticonPopup } from './modules/emoticon/emoticon.js';
 import { initContacts, openContactsPopup } from './modules/contacts/contacts.js';
-import { initCall, openCallLogsPopup } from './modules/call/call.js';
+import { initCall, openCallLogsPopup, triggerProactiveIncomingCall } from './modules/call/call.js';
 import { initWallet, openWalletPopup } from './modules/wallet/wallet.js';
 import { initSns, openSnsPopup, triggerNpcPosting } from './modules/sns/sns.js';
 import { initCalendar, openCalendarPopup } from './modules/calendar/calendar.js';
@@ -59,6 +59,7 @@ const DEFAULT_SETTINGS = {
         probability: 8,
     },
     snsPostingProbability: 10, // % (0~100)
+    proactiveCallProbability: 0, // % (0~100)
 };
 
 /**
@@ -96,6 +97,9 @@ function getSettings() {
     }
     if (ext[SETTINGS_KEY].snsPostingProbability == null) {
         ext[SETTINGS_KEY].snsPostingProbability = DEFAULT_SETTINGS.snsPostingProbability;
+    }
+    if (ext[SETTINGS_KEY].proactiveCallProbability == null) {
+        ext[SETTINGS_KEY].proactiveCallProbability = DEFAULT_SETTINGS.proactiveCallProbability;
     }
     return ext[SETTINGS_KEY];
 }
@@ -344,11 +348,6 @@ function openSettingsPanel(onBack) {
 
         wrapper.appendChild(Object.assign(document.createElement('hr'), { className: 'slm-hr' }));
 
-        // 선톡 설정
-        wrapper.appendChild(renderFirstMsgSettingsUI(settings, saveSettings));
-
-        wrapper.appendChild(Object.assign(document.createElement('hr'), { className: 'slm-hr' }));
-
         // 데이터 내보내기 / 가져오기
         const dataTitle = document.createElement('div');
         dataTitle.className = 'slm-label';
@@ -407,6 +406,25 @@ function openSettingsPanel(onBack) {
         dataBtnRow.appendChild(importBtn);
         dataBtnRow.appendChild(importInput);
         wrapper.appendChild(dataBtnRow);
+
+        const resetBtn = document.createElement('button');
+        resetBtn.className = 'slm-btn slm-btn-danger slm-btn-sm';
+        resetBtn.style.marginTop = '10px';
+        resetBtn.textContent = '🧹 확장 설정 기본값으로 초기화';
+        resetBtn.onclick = async () => {
+            const confirmed = await showConfirm('진짜 초기화하시겠습니까?', '예', '아니오');
+            if (!confirmed) return;
+            clearAllData();
+            localStorage.removeItem(THEME_STORAGE_KEY);
+            const ext = getExtensionSettings();
+            if (ext && ext[SETTINGS_KEY]) {
+                delete ext[SETTINGS_KEY];
+            }
+            saveSettings();
+            showToast('ST-LifeSim 설정/데이터가 초기화되었습니다. 새로고침합니다.', 'success', 1800);
+            setTimeout(() => location.reload(), 500);
+        };
+        wrapper.appendChild(resetBtn);
 
         return wrapper;
     }
@@ -514,6 +532,9 @@ function openSettingsPanel(onBack) {
         const wrapper = document.createElement('div');
         wrapper.className = 'slm-settings-wrapper slm-form';
 
+        wrapper.appendChild(renderFirstMsgSettingsUI(settings, saveSettings));
+        wrapper.appendChild(Object.assign(document.createElement('hr'), { className: 'slm-hr' }));
+
         const snsProbRow = document.createElement('div');
         snsProbRow.className = 'slm-input-row';
         const snsProbLbl = Object.assign(document.createElement('label'), { className: 'slm-label', textContent: 'SNS 자동 포스팅 확률:' });
@@ -535,6 +556,29 @@ function openSettingsPanel(onBack) {
         };
         snsProbRow.append(snsProbLbl, snsProbInput, snsProbPctLbl, snsProbApplyBtn);
         wrapper.appendChild(snsProbRow);
+
+        const callProbRow = document.createElement('div');
+        callProbRow.className = 'slm-input-row';
+        callProbRow.style.marginTop = '8px';
+        const callProbLbl = Object.assign(document.createElement('label'), { className: 'slm-label', textContent: '먼저 전화를 걸 확률:' });
+        const callProbInput = Object.assign(document.createElement('input'), {
+            className: 'slm-input slm-input-sm', type: 'number', min: '0', max: '100',
+            value: String(settings.proactiveCallProbability ?? 0),
+        });
+        callProbInput.style.width = '70px';
+        const callProbPctLbl = Object.assign(document.createElement('span'), { className: 'slm-label', textContent: '%' });
+        const callProbApplyBtn = document.createElement('button');
+        callProbApplyBtn.className = 'slm-btn slm-btn-primary slm-btn-sm';
+        callProbApplyBtn.textContent = '적용';
+        callProbApplyBtn.onclick = () => {
+            const val = parseInt(callProbInput.value);
+            settings.proactiveCallProbability = Math.max(0, Math.min(100, isNaN(val) ? 0 : val));
+            callProbInput.value = String(settings.proactiveCallProbability);
+            saveSettings();
+            showToast(`선전화 확률: ${settings.proactiveCallProbability}%`, 'success', 1500);
+        };
+        callProbRow.append(callProbLbl, callProbInput, callProbPctLbl, callProbApplyBtn);
+        wrapper.appendChild(callProbRow);
         return wrapper;
     }
 
@@ -771,6 +815,15 @@ async function init() {
             const prob = (getSettings().snsPostingProbability ?? 10) / 100;
             if (isEnabled() && Math.random() < prob) {
                 triggerNpcPosting().catch(e => console.error('[ST-LifeSim] SNS 자동 포스팅 오류:', e));
+            }
+        });
+    }
+
+    if (isModuleEnabled('call') && evSrc && eventTypes?.MESSAGE_SENT) {
+        evSrc.on(eventTypes.MESSAGE_SENT, () => {
+            const callProb = getSettings().proactiveCallProbability ?? 0;
+            if (isEnabled() && callProb > 0) {
+                triggerProactiveIncomingCall(callProb).catch(e => console.error('[ST-LifeSim] 선전화 트리거 오류:', e));
             }
         });
     }

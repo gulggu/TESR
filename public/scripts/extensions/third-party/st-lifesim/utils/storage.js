@@ -120,3 +120,15 @@ export function importAllData(json) {
         throw e;
     }
 }
+
+/**
+ * ST-LifeSim 저장소 데이터를 모두 삭제한다
+ */
+export function clearAllData() {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(PREFIX)) keys.push(k);
+    }
+    keys.forEach(k => localStorage.removeItem(k));
+}
