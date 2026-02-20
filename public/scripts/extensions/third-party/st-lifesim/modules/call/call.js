@@ -293,9 +293,13 @@ async function initiateCallWithAiDecision(charName) {
     try {
         if (ctx && typeof ctx.generateQuietPrompt === 'function') {
             const userName = ctx.name1 || 'the user';
-            const decisionPrompt = isMainChar
-                ? `${charName} is receiving a phone call from ${userName}. Based on the current situation and ${charName}'s personality and mood, decide whether to ACCEPT or REJECT the call. Reply with only one word: "ACCEPT" or "REJECT".`
-                : `${charName} is NOT {{char}}. ${charName} is a contact of {{user}}.${matchedContact?.personality ? ` Personality: ${matchedContact.personality}.` : ''}${matchedContact?.relationToUser ? ` Relationship to {{user}}: ${matchedContact.relationToUser}.` : ''} Decide if ${charName} accepts the incoming call from ${userName}. If ${activeChar} is mentioned, refer to ${activeChar} indirectly (e.g., "아, 그 녀석 얘기구나"). Reply with only one word: "ACCEPT" or "REJECT".`;
+            const decisionPrompt = buildCallDecisionPrompt({
+                charName,
+                userName,
+                isMainChar,
+                matchedContact,
+                activeChar,
+            });
             const decision = await ctx.generateQuietPrompt({ quietPrompt: decisionPrompt, quietName: charName }) || 'ACCEPT';
             acceptCall = !decision.toUpperCase().includes('REJECT');
         }
@@ -330,6 +334,15 @@ async function initiateCallWithAiDecision(charName) {
         // 착신 수락: 통화 시작
         await startCall(charName);
     }
+}
+
+function buildCallDecisionPrompt({ charName, userName, isMainChar, matchedContact, activeChar }) {
+    if (isMainChar) {
+        return `${charName} is receiving a phone call from ${userName}. Based on the current situation and ${charName}'s personality and mood, decide whether to ACCEPT or REJECT the call. Reply with only one word: "ACCEPT" or "REJECT".`;
+    }
+    const personality = matchedContact?.personality ? ` Personality: ${matchedContact.personality}.` : '';
+    const relation = matchedContact?.relationToUser ? ` Relationship to {{user}}: ${matchedContact.relationToUser}.` : '';
+    return `${charName} is NOT {{char}}. ${charName} is a contact of {{user}}.${personality}${relation} Decide if ${charName} accepts the incoming call from ${userName}. If ${activeChar} is mentioned, refer to ${activeChar} indirectly (e.g., "아, 그 녀석 얘기구나"). Reply with only one word: "ACCEPT" or "REJECT".`;
 }
 
 

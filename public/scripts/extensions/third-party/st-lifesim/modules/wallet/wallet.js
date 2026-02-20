@@ -13,6 +13,7 @@ import { registerContextBuilder } from '../../utils/context-inject.js';
 import { showToast, escapeHtml, generateId } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 import { getContacts } from '../contacts/contacts.js';
+import { getContext } from '../../utils/st-context.js';
 
 const MODULE_KEY = 'wallet';
 // 초기 설정 완료 여부 키
@@ -210,7 +211,8 @@ function buildWalletContent() {
 
     const senderSelect = document.createElement('select');
     senderSelect.className = 'slm-select';
-    senderSelect.innerHTML = '<option value="user">user</option><option value="">직접 입력...</option>';
+    const userName = getContext()?.name1 || 'user';
+    senderSelect.innerHTML = `<option value="${userName}">${userName}</option><option value="">직접 입력...</option>`;
     getContacts('chat').forEach(c => {
         const opt = document.createElement('option');
         opt.value = c.name;
@@ -279,7 +281,7 @@ function buildWalletContent() {
     sendBtn.className = 'slm-btn slm-btn-primary';
     sendBtn.textContent = '송금 확인';
     sendBtn.onclick = async () => {
-        const sender = senderSelect.value || senderInput.value.trim() || 'user';
+        const sender = senderSelect.value || senderInput.value.trim() || userName;
         const recipient = recipientSelect.value || recipientInput.value.trim();
         const amount = parseInt(amountInput.value) || 0;
         const memo = memoInput.value.trim();

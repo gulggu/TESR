@@ -20,6 +20,7 @@ const AVATARS_KEY = 'sns-avatars';
 const USER_IDS_KEY = 'sns-user-ids';      // { authorName: '@handle' }
 const CONTACT_LINK_KEY = 'sns-contact-link'; // boolean: link avatars to contacts
 const AUTHOR_DEFAULT_IMAGE_KEY = 'sns-author-default-images'; // { authorName: imageUrl }
+const MAX_RECENT_IMAGE_PRESETS = 50;
 
 /**
  * SNS 기본 이미지 URL을 가져온다
@@ -856,7 +857,8 @@ function openAvatarSettingsDialog(onUpdate) {
     const defaultImages = loadAuthorDefaultImages();
     const contacts = getContacts('chat');
     const feed = loadFeed();
-    const presets = Array.from(new Set([getDefaultImageUrl(), ...feed.map(p => p.imageUrl)].filter(Boolean)));
+    const recentImages = feed.slice(-MAX_RECENT_IMAGE_PRESETS).map(p => p.imageUrl);
+    const presets = Array.from(new Set([getDefaultImageUrl(), ...recentImages].filter(Boolean)));
     if (!presets.length) presets.push('');
 
     contacts.forEach(c => {

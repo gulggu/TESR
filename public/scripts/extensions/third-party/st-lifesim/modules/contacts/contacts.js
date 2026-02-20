@@ -15,6 +15,7 @@ import { showToast, escapeHtml, generateId } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 
 const MODULE_KEY = 'contacts';
+const MAX_AI_CONTACT_KEYWORD_LENGTH = 200;
 
 /**
  * @typedef {Object} Contact
@@ -440,6 +441,7 @@ function openAiContactDialog(binding, onSave) {
     createBtn.onclick = async () => {
         const q = keyword.value.trim();
         if (!q) { showToast('키워드를 입력해주세요.', 'warn'); return; }
+        const safeKeyword = q.replace(/[{}\n\r]/g, ' ').slice(0, MAX_AI_CONTACT_KEYWORD_LENGTH);
         const ctx = getContext();
         if (typeof ctx?.generateQuietPrompt !== 'function') {
             showToast('AI 생성 기능을 사용할 수 없습니다.', 'error');
@@ -447,7 +449,7 @@ function openAiContactDialog(binding, onSave) {
         }
         createBtn.disabled = true;
         try {
-            const prompt = `Create one realistic contact profile in JSON only (no markdown). Keyword: "${q}".\n{"name":"", "description":"", "relationToUser":"", "relationToChar":"", "personality":"", "avatar":""}`;
+            const prompt = `Create one realistic contact profile in JSON only (no markdown). Keyword: "${safeKeyword}".\n{"name":"", "description":"", "relationToUser":"", "relationToChar":"", "personality":"", "avatar":""}`;
             const raw = await ctx.generateQuietPrompt({ quietPrompt: prompt, quietName: ctx?.name2 || '{{char}}' }) || '';
             const match = raw.match(/\{[\s\S]*?\}/);
             if (!match) throw new Error('JSON 응답이 없습니다.');
