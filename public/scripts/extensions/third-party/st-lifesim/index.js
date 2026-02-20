@@ -657,7 +657,7 @@ function openSettingsPanel(onBack) {
     const tabs = createTabs([
         { key: 'general', label: '⚙️ 일반', content: buildGeneralTab() },
         { key: 'modules', label: '🧩 모듈', content: buildModulesTab() },
-        { key: 'media', label: '🖼️ 이미지 관련', content: buildMediaTab() },
+        { key: 'media', label: '🖼️ 이미지', content: buildMediaTab() },
         { key: 'probability', label: '🎲 확률', content: buildProbabilityTab() },
         { key: 'theme', label: '🎨 테마', content: buildThemeTab() },
     ], 'general');
@@ -811,19 +811,19 @@ async function init() {
     }
 
     // 유저 메시지 전송 시 설정된 확률로 SNS 포스팅 트리거
-    if (isModuleEnabled('sns') && evSrc && eventTypes?.MESSAGE_SENT) {
+    if (evSrc && eventTypes?.MESSAGE_SENT) {
         evSrc.on(eventTypes.MESSAGE_SENT, () => {
             const prob = (getSettings().snsPostingProbability ?? 10) / 100;
-            if (isEnabled() && Math.random() < prob) {
+            if (isModuleEnabled('sns') && Math.random() < prob) {
                 triggerNpcPosting().catch(e => console.error('[ST-LifeSim] SNS 자동 포스팅 오류:', e));
             }
         });
     }
 
-    if (isModuleEnabled('call') && evSrc && eventTypes?.MESSAGE_SENT) {
+    if (evSrc && eventTypes?.MESSAGE_SENT) {
         evSrc.on(eventTypes.MESSAGE_SENT, () => {
             const callProb = getSettings().proactiveCallProbability ?? 0;
-            if (isEnabled() && callProb > 0) {
+            if (isModuleEnabled('call') && callProb > 0) {
                 triggerProactiveIncomingCall(callProb).catch(e => console.error('[ST-LifeSim] 선전화 트리거 오류:', e));
             }
         });
