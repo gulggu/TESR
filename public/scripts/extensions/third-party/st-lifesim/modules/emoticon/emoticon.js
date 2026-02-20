@@ -11,7 +11,7 @@
 import { slashSend } from '../../utils/slash.js';
 import { loadData, saveData, getDefaultBinding, getExtensionSettings } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
-import { showToast, generateId } from '../../utils/ui.js';
+import { showToast, generateId, escapeHtml } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 import { isCallActive } from '../call/call.js';
 
@@ -339,7 +339,7 @@ function buildEmoticonContent() {
                     const size = getEmoticonSize();
                     const radius = getEmoticonRadius();
                     // HTML img 태그로 크기/모서리 지정 (URL/이름 이스케이프)
-                    const safeName = e.name.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    const safeName = escapeHtml(e.name);
                     const safeUrl = e.url.replace(/"/g, '&quot;');
                     const html = `<img src="${safeUrl}" alt="${safeName}" style="width:${size}px;height:${size}px;object-fit:contain;display:inline-block;vertical-align:middle;border-radius:${radius}px"><br><small style="opacity:.75;font-size:11px">${safeName}</small>`;
                     await slashSend(html);
