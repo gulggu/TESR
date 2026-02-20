@@ -151,19 +151,6 @@ function buildCalendarContent() {
     addBtn.textContent = '+ 일정 추가';
     addBtn.onclick = () => openEventDialog(null, renderAll);
 
-    const aiScheduleBtn = document.createElement('button');
-    aiScheduleBtn.className = 'slm-btn slm-btn-secondary slm-btn-sm';
-    aiScheduleBtn.textContent = '🤖 AI 일정 등록';
-    aiScheduleBtn.title = 'AI(캐릭터)가 원하는 일정을 자동으로 등록합니다';
-    aiScheduleBtn.onclick = async () => {
-        aiScheduleBtn.disabled = true;
-        try {
-            await triggerAiSchedule(renderAll);
-        } finally {
-            aiScheduleBtn.disabled = false;
-        }
-    };
-
     const clearAllBtn = document.createElement('button');
     clearAllBtn.className = 'slm-btn slm-btn-danger slm-btn-sm';
     clearAllBtn.textContent = '🗑️ 전체 삭제';
@@ -179,7 +166,6 @@ function buildCalendarContent() {
     const btnRow = document.createElement('div');
     btnRow.className = 'slm-btn-row';
     btnRow.appendChild(addBtn);
-    btnRow.appendChild(aiScheduleBtn);
     btnRow.appendChild(clearAllBtn);
     wrapper.appendChild(btnRow);
 

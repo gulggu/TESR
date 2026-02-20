@@ -1774,6 +1774,16 @@ body[data-theme="dark"],
   border-left: 3px solid var(--slm-accent);
 }
 
+.slm-gifticon-send-form .slm-input,
+.slm-gifticon-send-form .slm-select {
+  margin-bottom: 2px;
+}
+
+.slm-call-row .slm-btn-row {
+  margin-top: 6px;
+  width: 100%;
+}
+
 /* ──────────────────────────────────────────
    버튼 클래스 셀렉터 (ID 셀렉터와 동일 스타일)
 ────────────────────────────────────────── */
@@ -1799,3 +1809,31 @@ body[data-theme="dark"],
 .slm-quick-send-btn:hover { opacity: 1; background: var(--slm-bg-secondary); }
 .slm-menu-btn:active,
 .slm-quick-send-btn:active { transform: scale(0.95); }
+
+@media (max-width: 480px) {
+  .slm-panel {
+    max-height: 88vh;
+  }
+  .slm-panel-body {
+    padding: 12px;
+  }
+  .slm-panel-footer {
+    flex-wrap: wrap;
+    justify-content: stretch;
+  }
+  .slm-panel-footer .slm-btn {
+    flex: 1 1 calc(50% - 6px);
+    min-width: 120px;
+  }
+  .slm-input-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  .slm-input-row .slm-btn {
+    width: 100%;
+  }
+  .slm-gifticon-inbox {
+    grid-template-columns: 1fr;
+  }
+}

@@ -198,13 +198,34 @@ function buildWalletContent() {
     hr.className = 'slm-hr';
     wrapper.appendChild(hr);
 
-    // 송금 폼
-    const sendSection = document.createElement('div');
-    sendSection.className = 'slm-send-section';
+    // 송금 폼 (토글 접힘)
+    const sendToggle = createToggleSection('💸 송금하기', false);
+    const sendSection = sendToggle.body;
+    sendSection.classList.add('slm-send-section');
+    wrapper.appendChild(sendToggle.container);
 
-    const sendTitle = document.createElement('h4');
-    sendTitle.textContent = '💸 송금하기';
-    sendSection.appendChild(sendTitle);
+    const senderLabel = document.createElement('label');
+    senderLabel.className = 'slm-label';
+    senderLabel.textContent = '보내는 사람';
+
+    const senderSelect = document.createElement('select');
+    senderSelect.className = 'slm-select';
+    senderSelect.innerHTML = '<option value="user">user</option><option value="">직접 입력...</option>';
+    getContacts('chat').forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.name;
+        opt.textContent = c.name;
+        senderSelect.appendChild(opt);
+    });
+
+    const senderInput = document.createElement('input');
+    senderInput.className = 'slm-input';
+    senderInput.type = 'text';
+    senderInput.placeholder = '보내는 사람 직접 입력';
+    senderInput.style.display = 'none';
+    senderSelect.onchange = () => {
+        senderInput.style.display = senderSelect.value === '' ? 'block' : 'none';
+    };
 
     const recipientLabel = document.createElement('label');
     recipientLabel.className = 'slm-label';
@@ -258,6 +279,7 @@ function buildWalletContent() {
     sendBtn.className = 'slm-btn slm-btn-primary';
     sendBtn.textContent = '송금 확인';
     sendBtn.onclick = async () => {
+        const sender = senderSelect.value || senderInput.value.trim() || 'user';
         const recipient = recipientSelect.value || recipientInput.value.trim();
         const amount = parseInt(amountInput.value) || 0;
         const memo = memoInput.value.trim();
@@ -267,7 +289,7 @@ function buildWalletContent() {
 
         sendBtn.disabled = true;
         try {
-            await handleSend(recipient, amount, memo);
+            await handleSend(sender, recipient, amount, memo);
             amountInput.value = '';
             memoInput.value = '';
             refreshAll();
@@ -276,6 +298,9 @@ function buildWalletContent() {
         }
     };
 
+    sendSection.appendChild(senderLabel);
+    sendSection.appendChild(senderSelect);
+    sendSection.appendChild(senderInput);
     sendSection.appendChild(recipientLabel);
     sendSection.appendChild(recipientSelect);
     sendSection.appendChild(recipientInput);
@@ -284,7 +309,6 @@ function buildWalletContent() {
     sendSection.appendChild(memoLabel);
     sendSection.appendChild(memoInput);
     sendSection.appendChild(sendBtn);
-    wrapper.appendChild(sendSection);
 
     // 구분선
     const hr2 = document.createElement('hr');
@@ -416,7 +440,7 @@ function adjustBalance(delta, type, counterpart, onDone) {
 /**
  * 송금을 처리한다 (채팅에 노출되지 않음 — 내부 기록만)
  */
-async function handleSend(recipient, amount, memo) {
+async function handleSend(sender, recipient, amount, memo) {
     const wallet = loadWallet();
     if (amount > wallet.balance) {
         showToast('잔액이 부족합니다.', 'error');
@@ -429,6 +453,7 @@ async function handleSend(recipient, amount, memo) {
         id: generateId(),
         type: 'send',
         amount: -amount,
+        sender,
         counterpart: recipient,
         note: memo,
         date: now.toISOString(),
@@ -436,7 +461,7 @@ async function handleSend(recipient, amount, memo) {
     });
     saveWallet(wallet);
 
-    showToast(`💸 ${recipient}에게 ${formatCurrency(amount, wallet.currencySymbol)} 송금 완료`, 'success');
+    showToast(`💸 ${sender} → ${recipient} ${formatCurrency(amount, wallet.currencySymbol)} 송금 완료`, 'success');
 }
 
 /**
@@ -460,4 +485,3 @@ function createInlineField(container, label, value) {
     container.appendChild(row);
     return input;
 }
-

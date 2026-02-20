@@ -148,12 +148,20 @@ function buildContactsContent() {
     wrapper.appendChild(searchInput);
 
     // 새 연락처 버튼
+    const actionRow = document.createElement('div');
+    actionRow.className = 'slm-btn-row';
+    actionRow.style.marginBottom = '8px';
     const addBtn = document.createElement('button');
     addBtn.className = 'slm-btn slm-btn-primary slm-btn-sm';
     addBtn.textContent = '+ 새 연락처';
-    addBtn.style.marginBottom = '8px';
     addBtn.onclick = () => openContactDialog(null, binding, renderList);
-    wrapper.appendChild(addBtn);
+    const aiAddBtn = document.createElement('button');
+    aiAddBtn.className = 'slm-btn slm-btn-secondary slm-btn-sm';
+    aiAddBtn.textContent = '🤖 AI 생성';
+    aiAddBtn.onclick = () => openAiContactDialog(binding, renderList);
+    actionRow.appendChild(addBtn);
+    actionRow.appendChild(aiAddBtn);
+    wrapper.appendChild(actionRow);
 
     // 연락처 목록
     const list = document.createElement('div');
@@ -396,6 +404,80 @@ function openContactDialog(existing, binding, onSave) {
         close();
         onSave();
         showToast(isEdit ? '연락처 수정 완료' : '연락처 추가 완료', 'success');
+    };
+}
+
+/**
+ * 키워드 기반 AI 연락처 생성 다이얼로그
+ * @param {'chat'|'character'} binding
+ * @param {Function} onSave
+ */
+function openAiContactDialog(binding, onSave) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'slm-form';
+    const keyword = createFormField(wrapper, '생성 키워드 *', 'text', '');
+    keyword.placeholder = '예: 까칠하지만 속정 깊은 바리스타';
+
+    const footer = document.createElement('div');
+    footer.className = 'slm-panel-footer';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'slm-btn slm-btn-secondary';
+    cancelBtn.textContent = '취소';
+    const createBtn = document.createElement('button');
+    createBtn.className = 'slm-btn slm-btn-primary';
+    createBtn.textContent = '생성';
+    footer.append(cancelBtn, createBtn);
+
+    const { close } = createPopup({
+        id: 'contact-ai-create',
+        title: '🤖 AI 연락처 생성',
+        content: wrapper,
+        footer,
+        className: 'slm-sub-panel',
+    });
+
+    cancelBtn.onclick = () => close();
+    createBtn.onclick = async () => {
+        const q = keyword.value.trim();
+        if (!q) { showToast('키워드를 입력해주세요.', 'warn'); return; }
+        const ctx = getContext();
+        if (typeof ctx?.generateQuietPrompt !== 'function') {
+            showToast('AI 생성 기능을 사용할 수 없습니다.', 'error');
+            return;
+        }
+        createBtn.disabled = true;
+        try {
+            const prompt = `Create one realistic contact profile in JSON only (no markdown). Keyword: "${q}".\n{"name":"", "description":"", "relationToUser":"", "relationToChar":"", "personality":"", "avatar":""}`;
+            const raw = await ctx.generateQuietPrompt({ quietPrompt: prompt, quietName: ctx?.name2 || '{{char}}' }) || '';
+            const match = raw.match(/\{[\s\S]*?\}/);
+            if (!match) throw new Error('JSON 응답이 없습니다.');
+            const parsed = JSON.parse(match[0]);
+            const name = (parsed.name || '').trim();
+            if (!name) throw new Error('이름이 비어 있습니다.');
+            const relationToUser = (parsed.relationToUser || '지인').trim();
+
+            const contacts = loadContacts(binding);
+            contacts.push({
+                id: generateId(),
+                name,
+                avatar: (parsed.avatar || '').trim(),
+                description: (parsed.description || '').trim(),
+                relationToUser,
+                relationToChar: (parsed.relationToChar || '').trim(),
+                personality: (parsed.personality || '').trim(),
+                phone: '',
+                tags: [],
+                binding,
+            });
+            saveContacts(contacts, binding);
+            close();
+            onSave();
+            showToast(`연락처 생성 완료: ${name}`, 'success');
+        } catch (e) {
+            showToast(`AI 생성 실패: ${e.message}`, 'error');
+        } finally {
+            createBtn.disabled = false;
+        }
     };
 }
 

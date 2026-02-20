@@ -11,10 +11,11 @@
  */
 
 import { getContext } from '../../utils/st-context.js';
-import { slashSend } from '../../utils/slash.js';
+import { slashSend, slashSendAs } from '../../utils/slash.js';
 import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
 import { showToast, escapeHtml, generateId } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
+import { getContacts } from '../contacts/contacts.js';
 
 const MODULE_KEY = 'call-logs';
 
@@ -167,16 +168,23 @@ function removeCallBanner() {
 async function startCall(charName) {
     if (callActive) return;
 
+    const ctx = getContext();
+    const activeChar = ctx?.name2 || '{{char}}';
+    const isMainChar = charName === activeChar;
+
     callActive = true;
     callStartTime = Date.now();
     callContact = charName;
 
     // 통화 시작 직전 채팅 메시지 인덱스 기록
-    const ctx = getContext();
     callStartMessageIdx = (ctx?.chat?.length ?? 1) - 1;
 
     try {
-        await slashSend(`📞 통화 시작 — ${charName}`);
+        if (isMainChar) {
+            await slashSend(`📞 통화 시작 — ${charName}`);
+        } else {
+            await slashSendAs(charName, '📞 통화 시작 — {{user}}와 통화를 시작합니다.');
+        }
     } catch (e) {
         console.error('[ST-LifeSim] 통화 시작 오류:', e);
     }
@@ -209,16 +217,24 @@ async function endCall() {
     removeCallBanner();
 
     // 통화 종료 메시지 삽입
+    const ctx = getContext();
+    const activeChar = ctx?.name2 || '{{char}}';
+    const isMainChar = endedContact === activeChar;
+
     try {
-        await slashSend(`📵 통화 종료 (통화시간: ${timeStr})`);
+        if (isMainChar) {
+            await slashSend(`📵 통화 종료 (통화시간: ${timeStr})`);
+        } else {
+            await slashSendAs(endedContact, `📵 통화 종료 (통화시간: ${timeStr})`);
+        }
     } catch (e) {
         console.error('[ST-LifeSim] 통화 종료 오류:', e);
     }
+    const endIdx = ((getContext()?.chat?.length ?? 1) - 1);
 
     // AI가 통화 내용 요약 생성 (채팅창에 보이지 않는 조용한 생성)
     let summary = '';
     try {
-        const ctx = getContext();
         const chatLen = ctx?.chat?.length ?? 0;
         const startFrom = Math.max(0, startIdx);
         const callMsgs = ctx?.chat?.slice(startFrom, chatLen) ?? [];
@@ -241,6 +257,7 @@ async function endCall() {
         durationSeconds: duration,
         summary,
         startMessageIdx: startIdx,
+        endMessageIdx: endIdx,
         includeInContext: false,
         binding: getDefaultBinding(),
     });
@@ -255,9 +272,18 @@ async function endCall() {
  * @param {string} charName
  */
 async function initiateCallWithAiDecision(charName) {
+    const ctx = getContext();
+    const activeChar = ctx?.name2 || '{{char}}';
+    const isMainChar = charName === activeChar;
+    const matchedContact = getContacts('chat').find(c => c.name === charName);
+
     // 발신 중 메시지 삽입
     try {
-        await slashSend(`📱 발신 중... ${charName}`);
+        if (isMainChar) {
+            await slashSend(`📱 발신 중... ${charName}`);
+        } else {
+            await slashSendAs(charName, '📱 {{user}}의 전화 요청...');
+        }
     } catch (e) {
         console.error('[ST-LifeSim] 발신 메시지 오류:', e);
     }
@@ -265,10 +291,11 @@ async function initiateCallWithAiDecision(charName) {
     // AI에게 착신 여부를 결정하게 한다
     let acceptCall = true;
     try {
-        const ctx = getContext();
         if (ctx && typeof ctx.generateQuietPrompt === 'function') {
             const userName = ctx.name1 || 'the user';
-            const decisionPrompt = `${charName} is receiving a phone call from ${userName}. Based on the current situation and ${charName}'s personality and mood, decide whether to ACCEPT or REJECT the call. Reply with only one word: "ACCEPT" or "REJECT".`;
+            const decisionPrompt = isMainChar
+                ? `${charName} is receiving a phone call from ${userName}. Based on the current situation and ${charName}'s personality and mood, decide whether to ACCEPT or REJECT the call. Reply with only one word: "ACCEPT" or "REJECT".`
+                : `${charName} is NOT {{char}}. ${charName} is a contact of {{user}}.${matchedContact?.personality ? ` Personality: ${matchedContact.personality}.` : ''}${matchedContact?.relationToUser ? ` Relationship to {{user}}: ${matchedContact.relationToUser}.` : ''} Decide if ${charName} accepts the incoming call from ${userName}. If ${activeChar} is mentioned, refer to ${activeChar} indirectly (e.g., "아, 그 녀석 얘기구나"). Reply with only one word: "ACCEPT" or "REJECT".`;
             const decision = await ctx.generateQuietPrompt({ quietPrompt: decisionPrompt, quietName: charName }) || 'ACCEPT';
             acceptCall = !decision.toUpperCase().includes('REJECT');
         }
@@ -292,6 +319,7 @@ async function initiateCallWithAiDecision(charName) {
             durationSeconds: 0,
             summary: '착신 거부',
             startMessageIdx: -1,
+            endMessageIdx: -1,
             includeInContext: false,
             missed: true,
             binding: getDefaultBinding(),
@@ -433,6 +461,40 @@ function buildCallLogsContent() {
                 };
                 row.appendChild(jumpBtn);
             }
+
+            const actionRow = document.createElement('div');
+            actionRow.className = 'slm-btn-row';
+
+            if (typeof log.startMessageIdx === 'number' && typeof log.endMessageIdx === 'number'
+                && log.startMessageIdx >= 0 && log.endMessageIdx >= log.startMessageIdx) {
+                const hideBtn = document.createElement('button');
+                hideBtn.className = 'slm-btn slm-btn-ghost slm-btn-sm';
+                hideBtn.textContent = '🙈 컨텍스트 제외';
+                hideBtn.onclick = async () => {
+                    try {
+                        const ctx = getContext();
+                        await ctx.executeSlashCommandsWithOptions(`/hide ${log.startMessageIdx}-${log.endMessageIdx}`, { showOutput: false });
+                        showToast('통화 구간을 컨텍스트에서 제외했습니다.', 'success', 1600);
+                    } catch (e) {
+                        showToast('컨텍스트 제외 실패', 'error', 2000);
+                    }
+                };
+                actionRow.appendChild(hideBtn);
+            }
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'slm-btn slm-btn-danger slm-btn-sm';
+            deleteBtn.textContent = '🗑️ 기록 삭제';
+            deleteBtn.onclick = () => {
+                const all = loadCallLogs().filter(x => x.id !== log.id);
+                saveCallLogs(all);
+                const idx = logs.findIndex(x => x.id === log.id);
+                if (idx !== -1) logs.splice(idx, 1);
+                renderLogs();
+                showToast('통화 기록 삭제됨', 'success', 1400);
+            };
+            actionRow.appendChild(deleteBtn);
+            row.appendChild(actionRow);
 
             logList.appendChild(row);
         });

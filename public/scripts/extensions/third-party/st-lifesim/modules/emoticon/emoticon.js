@@ -261,43 +261,9 @@ function buildEmoticonContent() {
         }
     };
 
-    // 이모티콘 URL 목록 공유 버튼
-    const shareBtn = document.createElement('button');
-    shareBtn.className = 'slm-btn slm-btn-secondary slm-btn-sm';
-    shareBtn.textContent = '🔗 URL 공유';
-    shareBtn.title = '저장된 이모티콘의 이름과 URL 목록을 텍스트 파일로 다운로드';
-    shareBtn.onclick = () => {
-        try {
-            const emoticons = loadEmoticons();
-            if (emoticons.length === 0) {
-                showToast('공유할 이모티콘이 없습니다.', 'warn');
-                return;
-            }
-            const lines = emoticons.map(e =>
-                `[${e.category || '기본'}] ${e.name}\t${e.url}`,
-            );
-            const text = `ST-LifeSim 이모티콘 URL 목록 (${new Date().toLocaleDateString('ko-KR')})\n` +
-                         `총 ${emoticons.length}개\n\n` +
-                         lines.join('\n');
-            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `emoticon-urls-${new Date().toISOString().slice(0, 10)}.txt`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            showToast(`URL 목록 ${emoticons.length}개 다운로드 완료`, 'success');
-        } catch (err) {
-            showToast('공유 실패: ' + err.message, 'error');
-        }
-    };
-
     footer.appendChild(addBtn);
     footer.appendChild(importBtn);
     footer.appendChild(exportBtn);
-    footer.appendChild(shareBtn);
     wrapper.appendChild(footer);
 
     // 전체 렌더링
