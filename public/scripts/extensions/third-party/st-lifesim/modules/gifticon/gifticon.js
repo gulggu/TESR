@@ -23,7 +23,6 @@ const MODULE_KEY = 'gifticons';
  * @property {string} emoji - 대표 이모지 (예: 🍰)
  * @property {string} brand - 브랜드
  * @property {string} value - 금액/가치 설명
- * @property {string} expiryDate - 만료일 (YYYY-MM-DD, 선택)
  * @property {'received'|'sent'|'used'} status
  * @property {string} counterpart - 상대방 이름
  * @property {string} date - 거래 날짜 ISO 문자열
@@ -46,7 +45,6 @@ export function initGifticon() {
         const lines = active.map(g => {
             let line = `• ${g.emoji || '🎁'} ${g.name} (${g.brand || '?'})`;
             if (g.value) line += ` — ${g.value}`;
-            if (g.expiryDate) line += ` [exp: ${g.expiryDate}]`;
             return line;
         });
         return `=== Gifticon Wallet ===\nAvailable gift cards:\n${lines.join('\n')}`;
@@ -149,7 +147,6 @@ function renderInbox() {
                 <div class="slm-gifticon-name">${escapeHtml(g.name)}</div>
                 <div class="slm-gifticon-brand">${escapeHtml(g.brand || '')}</div>
                 ${g.value ? `<div class="slm-gifticon-value">${escapeHtml(g.value)}</div>` : ''}
-                ${g.expiryDate ? `<div class="slm-gifticon-expiry">만료: ${escapeHtml(g.expiryDate)}</div>` : ''}
                 <div class="slm-gifticon-counterpart">${g.status === 'received' ? '보낸이' : '받는이'}: ${escapeHtml(g.counterpart || '?')}</div>
                 ${g.memo ? `<div class="slm-gifticon-memo">${escapeHtml(g.memo)}</div>` : ''}
             `;
@@ -217,7 +214,6 @@ function renderSendForm() {
     const nameInput = createField(container, '기프티콘 이름 *', 'text', '');
     const brandInput = createField(container, '브랜드', 'text', '');
     const valueInput = createField(container, '금액/가치', 'text', '');
-    const expiryInput = createField(container, '만료일 (선택)', 'date', '');
     const memoInput = createField(container, '메모 (선택)', 'text', '');
 
     const recipLabel = document.createElement('label');
@@ -277,7 +273,6 @@ function renderSendForm() {
                 emoji,
                 brand: brandInput.value.trim(),
                 value: valueInput.value.trim(),
-                expiryDate: expiryInput.value || '',
                 status: 'sent',
                 counterpart: recipient,
                 date: new Date().toISOString(),
@@ -295,7 +290,6 @@ function renderSendForm() {
             emojiInput.value = '🎁';
             brandInput.value = '';
             valueInput.value = '';
-            expiryInput.value = '';
             memoInput.value = '';
             recipInput.value = '';
         } catch (e) {

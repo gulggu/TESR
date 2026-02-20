@@ -22,6 +22,9 @@ const MODULE_KEY = 'call-logs';
 // 통화 감지 키워드 설정 저장 키
 const KEYWORDS_KEY = 'call-keywords';
 
+// 통화 중 컨텍스트 주입 태그
+const CALL_INJECT_TAG = 'st-lifesim-call';
+
 // 통화 감지 키워드 (설정에서 변경 가능)
 const DEFAULT_KEYWORDS = ['전화할게', '전화 걸게', '전화해도 돼', '전화 줄게', 'call', 'phone'];
 
@@ -38,6 +41,8 @@ export function isCallActive() {
 let callStartTime = null;
 let callContact = '';
 let callStartMessageIdx = -1; // 통화 시작 당시 채팅 메시지 인덱스
+let callIsMainChar = true;   // 통화 상대가 {{char}}인지 여부
+let isReinjectingCallMessage = false; // 비-char 통화 메시지 재주입 중복 방지
 
 /**
  * 통화 로그 데이터 불러오기
@@ -56,6 +61,34 @@ function saveCallLogs(logs) {
 }
 
 /**
+ * 비-char 통화 중 컨텍스트 주입
+ * @param {string} charName - 통화 상대 이름
+ * @param {Object|null} matchedContact - 연락처 정보
+ */
+function injectCallContext(charName, matchedContact) {
+    const ctx = getContext();
+    if (!ctx || typeof ctx.setExtensionPrompt !== 'function') return;
+
+    let prompt = `[ACTIVE PHONE CALL]\n{{user}}는 지금 ${charName}와(과) 전화 통화 중입니다. ${charName}는 {{char}}가 아닙니다.\n`;
+    if (matchedContact?.personality) prompt += `${charName}의 성격: ${matchedContact.personality}\n`;
+    if (matchedContact?.relationToUser) prompt += `${charName}의 {{user}}와의 관계: ${matchedContact.relationToUser}\n`;
+    if (matchedContact?.description) prompt += `${charName} 설명: ${matchedContact.description}\n`;
+    prompt += `중요: 이 전화 통화 동안 반드시 ${charName}로서만 응답하고, {{char}}로서는 응답하지 마십시오. 통화 내내 ${charName}의 프로필과 성격에 충실하게 유지하세요.`;
+
+    ctx.setExtensionPrompt(CALL_INJECT_TAG, prompt, 1, 0);
+}
+
+/**
+ * 통화 컨텍스트 주입 제거
+ */
+function clearCallContext() {
+    const ctx = getContext();
+    if (ctx && typeof ctx.setExtensionPrompt === 'function') {
+        ctx.setExtensionPrompt(CALL_INJECT_TAG, '', 1, 0);
+    }
+}
+
+/**
  * 통화 모듈을 초기화한다 — AI 응답 감지 이벤트 리스너 등록
  */
 export function initCall() {
@@ -65,17 +98,37 @@ export function initCall() {
     const eventTypes = ctx.event_types || ctx.eventTypes;
     if (!eventTypes?.CHARACTER_MESSAGE_RENDERED) return;
 
-    // AI 응답 완료 시 통화 키워드 감지
-    ctx.eventSource.on(eventTypes.CHARACTER_MESSAGE_RENDERED, (data) => {
-        detectCallKeywords(data);
+    // AI 응답 완료 시 통화 키워드 감지 + 비-char 통화 메시지 재주입
+    ctx.eventSource.on(eventTypes.CHARACTER_MESSAGE_RENDERED, async () => {
+        detectCallKeywords();
+
+        // 비-char 통화 중: AI 응답을 "전화" 이름으로 재주입
+        if (callActive && !callIsMainChar && !isReinjectingCallMessage) {
+            const freshCtx = getContext();
+            if (!freshCtx) return;
+            const lastMsg = freshCtx.chat?.[freshCtx.chat.length - 1];
+            if (!lastMsg || lastMsg.is_user || lastMsg.name === '전화') return;
+
+            const content = lastMsg.mes;
+            const msgIdx = (freshCtx.chat?.length ?? 1) - 1;
+
+            isReinjectingCallMessage = true;
+            try {
+                await freshCtx.executeSlashCommandsWithOptions(`/hide ${msgIdx}`, { showOutput: false });
+                await slashSendAs('전화', content);
+            } catch (e) {
+                console.error('[ST-LifeSim] 통화 메시지 재주입 오류:', e);
+            } finally {
+                isReinjectingCallMessage = false;
+            }
+        }
     });
 }
 
 /**
  * AI 응답 텍스트에서 통화 키워드를 감지한다
- * @param {*} data - 메시지 데이터
  */
-function detectCallKeywords(data) {
+function detectCallKeywords() {
     if (callActive) return; // 이미 통화 중이면 무시
 
     // 마지막 AI 메시지 텍스트 가져오기
@@ -164,8 +217,9 @@ function removeCallBanner() {
 /**
  * 통화를 시작한다
  * @param {string} charName - 통화 상대 이름
+ * @param {Object|null} [matchedContact] - 연락처 정보 (비-char 통화 시 컨텍스트 주입용)
  */
-async function startCall(charName) {
+async function startCall(charName, matchedContact = null) {
     if (callActive) return;
 
     const ctx = getContext();
@@ -173,17 +227,23 @@ async function startCall(charName) {
     const isMainChar = charName === activeChar;
 
     callActive = true;
+    callIsMainChar = isMainChar;
     callStartTime = Date.now();
     callContact = charName;
 
     // 통화 시작 직전 채팅 메시지 인덱스 기록
     callStartMessageIdx = (ctx?.chat?.length ?? 1) - 1;
 
+    // 비-char 통화 시 컨텍스트 주입
+    if (!isMainChar) {
+        injectCallContext(charName, matchedContact);
+    }
+
     try {
         if (isMainChar) {
             await slashSend(`📞 통화 시작 — ${charName}`);
         } else {
-            await slashSendAs(charName, '📞 통화 시작 — {{user}}와 통화를 시작합니다.');
+            await slashSendAs('전화', `📞 통화 시작 — ${charName}와(과) 연결되었습니다.`);
         }
     } catch (e) {
         console.error('[ST-LifeSim] 통화 시작 오류:', e);
@@ -209,23 +269,28 @@ async function endCall() {
     callActive = false;
     const endedContact = callContact;
     const startIdx = callStartMessageIdx;
+    const wasMainChar = callIsMainChar;
     callStartTime = null;
     callContact = '';
     callStartMessageIdx = -1;
+    callIsMainChar = true;
+
+    // 비-char 통화 컨텍스트 주입 제거
+    if (!wasMainChar) {
+        clearCallContext();
+    }
 
     // 상단 배너 제거
     removeCallBanner();
 
     // 통화 종료 메시지 삽입
     const ctx = getContext();
-    const activeChar = ctx?.name2 || '{{char}}';
-    const isMainChar = endedContact === activeChar;
 
     try {
-        if (isMainChar) {
+        if (wasMainChar) {
             await slashSend(`📵 통화 종료 (통화시간: ${timeStr})`);
         } else {
-            await slashSendAs(endedContact, `📵 통화 종료 (통화시간: ${timeStr})`);
+            await slashSendAs('전화', `📵 통화 종료 (통화시간: ${timeStr})`);
         }
     } catch (e) {
         console.error('[ST-LifeSim] 통화 종료 오류:', e);
@@ -331,8 +396,8 @@ async function initiateCallWithAiDecision(charName) {
         saveCallLogs(logs);
         showToast(`${charName}이(가) 전화를 거부했습니다.`, 'warn', 3000);
     } else {
-        // 착신 수락: 통화 시작
-        await startCall(charName);
+        // 착신 수락: 통화 시작 (matchedContact 전달)
+        await startCall(charName, matchedContact);
     }
 }
 
@@ -377,20 +442,46 @@ function buildCallLogsContent() {
     const dialRow = document.createElement('div');
     dialRow.className = 'slm-input-row';
 
+    // 연락처 드롭다운
+    const ctx0 = getContext();
+    const charName0 = ctx0?.name2;
+    const dialSelect = document.createElement('select');
+    dialSelect.className = 'slm-select';
+    const customOpt = document.createElement('option');
+    customOpt.value = '';
+    customOpt.textContent = '직접 입력...';
+    dialSelect.appendChild(customOpt);
+    if (charName0) {
+        const opt = document.createElement('option');
+        opt.value = charName0;
+        opt.textContent = `📞 ${charName0} (캐릭터)`;
+        opt.selected = true;
+        dialSelect.appendChild(opt);
+    }
+    getContacts('chat').forEach(c => {
+        if (c.name !== charName0) {
+            const opt = document.createElement('option');
+            opt.value = c.name;
+            opt.textContent = c.name;
+            dialSelect.appendChild(opt);
+        }
+    });
+
     const dialInput = document.createElement('input');
     dialInput.className = 'slm-input';
     dialInput.type = 'text';
-    dialInput.placeholder = '상대방 이름 입력';
+    dialInput.placeholder = '직접 이름 입력';
+    dialInput.style.display = 'none';
 
-    // {{char}} 이름을 기본값으로 설정
-    const ctx0 = getContext();
-    if (ctx0?.name2) dialInput.value = ctx0.name2;
+    dialSelect.onchange = () => {
+        dialInput.style.display = dialSelect.value === '' ? 'block' : 'none';
+    };
 
     const dialBtn = document.createElement('button');
     dialBtn.className = 'slm-btn slm-btn-primary slm-btn-sm';
     dialBtn.innerHTML = '📞 발신';
     dialBtn.onclick = async () => {
-        const name = dialInput.value.trim();
+        const name = (dialSelect.value || dialInput.value).trim();
         if (!name) { showToast('이름을 입력해주세요.', 'warn'); return; }
         if (callActive) { showToast('이미 통화 중입니다.', 'warn'); return; }
         // 팝업 닫고 AI 착신 여부 판단
@@ -399,6 +490,7 @@ function buildCallLogsContent() {
         await initiateCallWithAiDecision(name);
     };
 
+    dialRow.appendChild(dialSelect);
     dialRow.appendChild(dialInput);
     dialRow.appendChild(dialBtn);
     dialSection.appendChild(dialRow);
@@ -445,19 +537,17 @@ function buildCallLogsContent() {
             const infoDiv = document.createElement('div');
             infoDiv.className = 'slm-call-info';
             infoDiv.innerHTML = `
-                <span class="slm-call-icon">📞</span>
+                <span class="slm-call-icon">${log.missed ? '📵' : '📞'}</span>
                 <span class="slm-call-name">${escapeHtml(log.contactName)}</span>
                 <span class="slm-call-dur">${escapeHtml(durStr)}</span>
             `;
             row.appendChild(infoDiv);
 
-            // 요약 표시
-            if (log.summary) {
-                const sumDiv = document.createElement('div');
-                sumDiv.className = 'slm-call-summary';
-                sumDiv.textContent = `📝 ${log.summary}`;
-                row.appendChild(sumDiv);
-            }
+            // 요약 표시 (인라인 수정 가능)
+            const sumDiv = document.createElement('div');
+            sumDiv.className = 'slm-call-summary';
+            sumDiv.textContent = log.summary ? `📝 ${log.summary}` : '';
+            row.appendChild(sumDiv);
 
             // 통화 시작 위치로 점프 버튼
             if (typeof log.startMessageIdx === 'number' && log.startMessageIdx >= 0) {
@@ -495,10 +585,29 @@ function buildCallLogsContent() {
                 actionRow.appendChild(hideBtn);
             }
 
+            // 수정 버튼
+            const editBtn = document.createElement('button');
+            editBtn.className = 'slm-btn slm-btn-ghost slm-btn-sm';
+            editBtn.textContent = '✏️ 수정';
+            editBtn.onclick = () => {
+                openCallLogEditDialog(log, logs, renderLogs);
+            };
+            actionRow.appendChild(editBtn);
+
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'slm-btn slm-btn-danger slm-btn-sm';
-            deleteBtn.textContent = '🗑️ 기록 삭제';
-            deleteBtn.onclick = () => {
+            deleteBtn.textContent = '🗑️ 삭제';
+            deleteBtn.onclick = async () => {
+                // /cut 명령으로 채팅 구간 삭제
+                if (typeof log.startMessageIdx === 'number' && typeof log.endMessageIdx === 'number'
+                    && log.startMessageIdx >= 0 && log.endMessageIdx >= log.startMessageIdx) {
+                    try {
+                        const ctx = getContext();
+                        await ctx.executeSlashCommandsWithOptions(`/cut ${log.startMessageIdx}-${log.endMessageIdx}`, { showOutput: false });
+                    } catch (e) {
+                        console.error('[ST-LifeSim] /cut 오류:', e);
+                    }
+                }
                 const all = loadCallLogs().filter(x => x.id !== log.id);
                 saveCallLogs(all);
                 const idx = logs.findIndex(x => x.id === log.id);
@@ -558,4 +667,65 @@ function buildCallLogsContent() {
 
     renderLogs();
     return wrapper;
+}
+
+/**
+ * 통화 기록 수정 다이얼로그를 연다
+ * @param {Object} log - 통화 기록
+ * @param {Object[]} logs - 전체 기록 배열 (참조)
+ * @param {Function} onUpdate - 갱신 콜백
+ */
+function openCallLogEditDialog(log, logs, onUpdate) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'slm-form';
+
+    const sumLabel = document.createElement('label');
+    sumLabel.className = 'slm-label';
+    sumLabel.textContent = '통화 요약';
+    const sumInput = document.createElement('textarea');
+    sumInput.className = 'slm-textarea';
+    sumInput.rows = 3;
+    sumInput.value = log.summary || '';
+
+    wrapper.appendChild(sumLabel);
+    wrapper.appendChild(sumInput);
+
+    const footer = document.createElement('div');
+    footer.className = 'slm-panel-footer';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'slm-btn slm-btn-secondary';
+    cancelBtn.textContent = '취소';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'slm-btn slm-btn-primary';
+    saveBtn.textContent = '저장';
+
+    footer.appendChild(cancelBtn);
+    footer.appendChild(saveBtn);
+
+    const { close } = createPopup({
+        id: 'call-log-edit',
+        title: '✏️ 통화 기록 수정',
+        content: wrapper,
+        footer,
+        className: 'slm-sub-panel',
+        onBack: () => openCallLogsPopup(),
+    });
+
+    cancelBtn.onclick = () => close();
+    saveBtn.onclick = () => {
+        const newSummary = sumInput.value.trim();
+        const all = loadCallLogs();
+        const idx = all.findIndex(x => x.id === log.id);
+        if (idx !== -1) {
+            all[idx].summary = newSummary;
+            saveCallLogs(all);
+            const logIdx = logs.findIndex(x => x.id === log.id);
+            if (logIdx !== -1) logs[logIdx].summary = newSummary;
+        }
+        close();
+        onUpdate();
+        showToast('수정 완료', 'success', 1200);
+    };
 }
