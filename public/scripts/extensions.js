@@ -512,7 +512,7 @@ async function activateExtensions() {
                         console.log('Could not activate extension', name, err);
                         let errMsg = String(err);
                         if (err instanceof Event) {
-                            errMsg = `Script ${err.type}`;
+                            errMsg = err.message || `Script ${err.type}`;
                         } else if (err instanceof Error) {
                             errMsg = err.message;
                         }
@@ -708,7 +708,9 @@ function addExtensionScript(name, manifest) {
             script.src = url;
             script.async = true;
             script.onerror = function (err) {
-                reject(new Error(`Failed to load script: ${url} (${err?.type ?? 'unknown'})`));
+                script.remove();
+                const errDetail = err?.message || err?.type || 'unknown';
+                reject(new Error(`Failed to load script: ${url} (${errDetail})`));
             };
             script.onload = function () {
                 if (!ready) {
