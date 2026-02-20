@@ -691,9 +691,11 @@ async function init() {
 }
 
 let initialized = false;
+let initializing = false;
 async function initIfNeeded() {
-    if (initialized) return;
-    try { initialized = await init(); } catch (e) { console.error('[ST-LifeSim] 초기화 오류:', e); }
+    if (initialized || initializing) return;
+    initializing = true;
+    try { initialized = await init(); } catch (e) { console.error('[ST-LifeSim] 초기화 오류:', e); } finally { initializing = false; }
 }
 
 // SillyTavern APP_READY 이벤트에서 초기화 실행 (호환성 위해 즉시 시도도 함께 수행)
