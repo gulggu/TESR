@@ -11,7 +11,7 @@
  */
 
 import { getContext } from '../../utils/st-context.js';
-import { slashSend, slashSendAs } from '../../utils/slash.js';
+import { slashSend, slashSendAs, slashGen } from '../../utils/slash.js';
 import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
 import { showToast, escapeHtml, generateId } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
@@ -24,6 +24,8 @@ const KEYWORDS_KEY = 'call-keywords';
 
 // 통화 중 컨텍스트 주입 태그
 const CALL_INJECT_TAG = 'st-lifesim-call';
+const CALL_POLICY_TAG = 'st-lifesim-call-policy';
+const INCOMING_CALL_CONFIDENCE_THRESHOLD = 0.5;
 
 // 통화 감지 키워드 (설정에서 변경 가능)
 const DEFAULT_KEYWORDS = ['전화할게', '전화 걸게', '전화해도 돼', '전화 줄게', 'call', 'phone'];
@@ -43,6 +45,8 @@ let callContact = '';
 let callStartMessageIdx = -1; // 통화 시작 당시 채팅 메시지 인덱스
 let callIsMainChar = true;   // 통화 상대가 {{char}}인지 여부
 let isReinjectingCallMessage = false; // 비-char 통화 메시지 재주입 중복 방지
+let lastIncomingCallCheckedIdx = -1;
+let incomingCallUiOpen = false;
 
 /**
  * 통화 로그 데이터 불러오기
@@ -94,13 +98,14 @@ function clearCallContext() {
 export function initCall() {
     const ctx = getContext();
     if (!ctx || !ctx.eventSource) return;
+    injectCallPolicyPrompt();
 
     const eventTypes = ctx.event_types || ctx.eventTypes;
     if (!eventTypes?.CHARACTER_MESSAGE_RENDERED) return;
 
     // AI 응답 완료 시 통화 키워드 감지 + 비-char 통화 메시지 재주입
     ctx.eventSource.on(eventTypes.CHARACTER_MESSAGE_RENDERED, async () => {
-        detectCallKeywords();
+        await detectCallKeywords();
 
         // 비-char 통화 중: AI 응답을 "전화" 이름으로 재주입
         if (callActive && !callIsMainChar && !isReinjectingCallMessage) {
@@ -110,12 +115,16 @@ export function initCall() {
             if (!lastMsg || lastMsg.is_user || lastMsg.name === '전화') return;
 
             const content = lastMsg.mes;
-            const msgIdx = (freshCtx.chat?.length ?? 1) - 1;
+            const beforeSendLen = freshCtx.chat?.length ?? 0;
 
             isReinjectingCallMessage = true;
             try {
-                await freshCtx.executeSlashCommandsWithOptions(`/hide ${msgIdx}`, { showOutput: false });
                 await slashSendAs('전화', content);
+                const latestIdx = (getContext()?.chat?.length ?? 1) - 1;
+                const cutIdx = beforeSendLen > 0 ? Math.min(latestIdx - 1, beforeSendLen - 1) : -1;
+                if (cutIdx >= 0) {
+                    await freshCtx.executeSlashCommandsWithOptions(`/cut ${cutIdx}`, { showOutput: false });
+                }
             } catch (e) {
                 console.error('[ST-LifeSim] 통화 메시지 재주입 오류:', e);
             } finally {
@@ -125,51 +134,164 @@ export function initCall() {
     });
 }
 
+function injectCallPolicyPrompt() {
+    const ctx = getContext();
+    if (!ctx || typeof ctx.setExtensionPrompt !== 'function') return;
+    const prompt = `[PHONE CALL ROLEPLAY POLICY]
+- Never assume an active phone call unless an explicit call-start marker appears in chat.
+- Before a call starts, speak as normal chat text.
+- If you want to call first, explicitly ask or state that you are calling now in a natural way, then wait for user action.
+- Do not continue as if the call is already connected until the call is accepted.
+- Make call initiation natural and context-driven (emotion, urgency, intimacy), not repetitive.`;
+    ctx.setExtensionPrompt(CALL_POLICY_TAG, prompt, 1, 0);
+}
+
 /**
  * AI 응답 텍스트에서 통화 키워드를 감지한다
  */
-function detectCallKeywords() {
-    if (callActive) return; // 이미 통화 중이면 무시
+async function detectCallKeywords() {
+    if (callActive || incomingCallUiOpen) return; // 이미 통화 중이면 무시
 
     // 마지막 AI 메시지 텍스트 가져오기
     const ctx = getContext();
     if (!ctx) return;
+    const msgIdx = (ctx.chat?.length ?? 1) - 1;
+    if (msgIdx <= lastIncomingCallCheckedIdx) return;
     const lastMsg = ctx.chat?.[ctx.chat.length - 1];
     if (!lastMsg || lastMsg.is_user) return;
+    lastIncomingCallCheckedIdx = msgIdx;
 
     const text = (lastMsg.mes || '').toLowerCase();
-    const keywords = loadData(KEYWORDS_KEY, DEFAULT_KEYWORDS, getDefaultBinding());
-    const found = keywords.some(kw => text.includes(kw.toLowerCase()));
-
+    const keywords = [
+        ...loadData(KEYWORDS_KEY, DEFAULT_KEYWORDS, getDefaultBinding()),
+        '전화 받', '전화를 받을', 'call me', 'calling you', 'pick up', 'answer the phone', 'ringing',
+    ];
+    const found = keywords.some(kw => text.includes(String(kw).toLowerCase()));
     if (!found) return;
 
-    // 토스트로 확인 요청
-    const toast = document.createElement('div');
-    toast.className = 'slm-toast slm-toast-info slm-call-toast';
-    toast.innerHTML = `
-        <span>📞 통화를 시작하시겠습니까?</span>
-        <button class="slm-btn slm-btn-primary slm-btn-sm" id="slm-call-confirm">확인</button>
-        <button class="slm-btn slm-btn-secondary slm-btn-sm" id="slm-call-ignore">무시</button>
-    `;
+    const intent = await classifyIncomingCallIntent(lastMsg.mes || '');
+    if (!intent.incoming) return;
 
-    let container = document.getElementById('slm-toast-container');
-    if (!container) {
-        container = document.createElement('div');
-        container.id = 'slm-toast-container';
-        document.body.appendChild(container);
-    }
-    container.appendChild(toast);
+    const charName = ctx?.name2 || '{{char}}';
+    await showIncomingCallDialog(charName);
+}
 
-    toast.querySelector('#slm-call-confirm').onclick = async () => {
-        toast.remove();
-        const freshCtx = getContext();
-        const charName = freshCtx?.name2 || '{{char}}';
-        await startCall(charName);
+async function classifyIncomingCallIntent(messageText) {
+    const ctx = getContext();
+    const fallback = {
+        incoming: /(전화할게|전화 걸게|calling you|pick up|answer)/i.test(messageText),
     };
-    toast.querySelector('#slm-call-ignore').onclick = () => toast.remove();
+    if (!ctx || typeof ctx.generateQuietPrompt !== 'function') return fallback;
 
-    // 10초 후 자동 제거
-    setTimeout(() => toast.remove(), 10000);
+    const prompt = `You are classifying an assistant message for phone-call intent.
+Message:
+"""${messageText}"""
+
+Return JSON only:
+{"incoming_call":true|false,"confidence":0.0-1.0}
+
+Set incoming_call=true ONLY when the message clearly means "the caller is calling now and user should pick up/accept/reject".
+Set false for hypothetical talk, future planning, roleplay narration of an already-active call, or vague mention of phone/call.
+No prose, no markdown, JSON only.`;
+    try {
+        const raw = await ctx.generateQuietPrompt({ quietPrompt: prompt, quietName: 'call-intent' }) || '';
+        const jsonPart = raw.match(/\{[\s\S]*\}/)?.[0];
+        if (!jsonPart) return fallback;
+        const parsed = JSON.parse(jsonPart);
+        return { incoming: !!parsed.incoming_call && Number(parsed.confidence || 0) >= INCOMING_CALL_CONFIDENCE_THRESHOLD };
+    } catch {
+        return fallback;
+    }
+}
+
+async function showIncomingCallDialog(charName) {
+    if (incomingCallUiOpen) return;
+    incomingCallUiOpen = true;
+
+    const existing = document.getElementById('slm-incoming-call-overlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'slm-incoming-call-overlay';
+    overlay.className = 'slm-incoming-call-overlay';
+
+    const card = document.createElement('div');
+    card.className = 'slm-incoming-call-card';
+    const title = document.createElement('div');
+    title.className = 'slm-incoming-call-title';
+    title.textContent = '📲 수신 전화';
+    const caller = document.createElement('div');
+    caller.className = 'slm-incoming-call-caller';
+    caller.textContent = charName;
+
+    const row = document.createElement('div');
+    row.className = 'slm-incoming-call-actions';
+    const acceptBtn = document.createElement('button');
+    acceptBtn.className = 'slm-btn slm-btn-primary';
+    acceptBtn.textContent = '✅ 수락';
+    const rejectBtn = document.createElement('button');
+    rejectBtn.className = 'slm-btn slm-btn-danger';
+    rejectBtn.textContent = '❌ 거절';
+    const missedBtn = document.createElement('button');
+    missedBtn.className = 'slm-btn slm-btn-secondary';
+    missedBtn.textContent = '📵 부재중';
+    row.append(acceptBtn, rejectBtn, missedBtn);
+
+    card.append(title, caller, row);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+
+    const cleanup = () => {
+        overlay.remove();
+        incomingCallUiOpen = false;
+    };
+
+    acceptBtn.onclick = async () => {
+        cleanup();
+        const matchedContact = getContacts('chat').find(c => c.name === charName) || null;
+        await startCall(charName, matchedContact);
+        await slashGen(
+            'You just connected a phone call with {{user}}. Start the call naturally with one short opening utterance. Do not narrate that the call was already active before this moment.',
+            charName,
+        );
+    };
+
+    rejectBtn.onclick = async () => {
+        cleanup();
+        await slashSend(`📵 수신 거절 — ${charName}`);
+        appendMissedCallLog(charName, '수신 거절');
+        await slashGen(
+            `${charName}'s call was rejected by {{user}}. Generate one short follow-up reaction as a normal chat message.`,
+            charName,
+        );
+    };
+
+    missedBtn.onclick = async () => {
+        cleanup();
+        await slashSend(`📵 부재중 전화 — ${charName}`);
+        appendMissedCallLog(charName, '부재중');
+        await slashGen(
+            `${charName} could not reach {{user}} because the call was missed. Generate one short follow-up reaction as a normal chat message.`,
+            charName,
+        );
+    };
+}
+
+function appendMissedCallLog(charName, summary) {
+    const logs = loadCallLogs();
+    logs.push({
+        id: generateId(),
+        contactName: charName,
+        date: new Date().toISOString(),
+        durationSeconds: 0,
+        summary,
+        startMessageIdx: -1,
+        endMessageIdx: -1,
+        includeInContext: false,
+        missed: true,
+        binding: getDefaultBinding(),
+    });
+    saveCallLogs(logs);
 }
 
 /**
@@ -403,11 +525,11 @@ async function initiateCallWithAiDecision(charName) {
 
 function buildCallDecisionPrompt({ charName, userName, isMainChar, matchedContact, activeChar }) {
     if (isMainChar) {
-        return `${charName} is receiving a phone call from ${userName}. Based on the current situation and ${charName}'s personality and mood, decide whether to ACCEPT or REJECT the call. Reply with only one word: "ACCEPT" or "REJECT".`;
+        return `${charName} is receiving a phone call from ${userName}. Decide whether to ACCEPT or REJECT based on context, mood, and personality. Rules: output only one word ("ACCEPT" or "REJECT"), avoid neutral/extra text, and be decisive.`;
     }
     const personality = matchedContact?.personality ? ` Personality: ${matchedContact.personality}.` : '';
     const relation = matchedContact?.relationToUser ? ` Relationship to {{user}}: ${matchedContact.relationToUser}.` : '';
-    return `${charName} is NOT {{char}}. ${charName} is a contact of {{user}}.${personality}${relation} Decide if ${charName} accepts the incoming call from ${userName}. If ${activeChar} is mentioned, refer to ${activeChar} indirectly (e.g., "아, 그 녀석 얘기구나"). Reply with only one word: "ACCEPT" or "REJECT".`;
+    return `${charName} is NOT {{char}}. ${charName} is a contact of {{user}}.${personality}${relation} Decide if ${charName} accepts the incoming call from ${userName}. If ${activeChar} is mentioned, refer to ${activeChar} indirectly. Reply with only one word: "ACCEPT" or "REJECT".`;
 }
 
 
@@ -572,14 +694,21 @@ function buildCallLogsContent() {
                 && log.startMessageIdx >= 0 && log.endMessageIdx >= log.startMessageIdx) {
                 const hideBtn = document.createElement('button');
                 hideBtn.className = 'slm-btn slm-btn-ghost slm-btn-sm';
-                hideBtn.textContent = '🙈 컨텍스트 제외';
+                hideBtn.textContent = log.includeInContext ? '🙈 컨텍스트 제외' : '🙉 컨텍스트 포함';
                 hideBtn.onclick = async () => {
                     try {
                         const ctx = getContext();
-                        await ctx.executeSlashCommandsWithOptions(`/hide ${log.startMessageIdx}-${log.endMessageIdx}`, { showOutput: false });
-                        showToast('통화 구간을 컨텍스트에서 제외했습니다.', 'success', 1600);
+                        const shouldInclude = !!log.includeInContext;
+                        await ctx.executeSlashCommandsWithOptions(`/${shouldInclude ? 'unhide' : 'hide'} ${log.startMessageIdx}-${log.endMessageIdx}`, { showOutput: false });
+                        const all = loadCallLogs();
+                        const hit = all.find(x => x.id === log.id);
+                        if (hit) hit.includeInContext = !shouldInclude;
+                        saveCallLogs(all);
+                        log.includeInContext = !shouldInclude;
+                        hideBtn.textContent = log.includeInContext ? '🙈 컨텍스트 제외' : '🙉 컨텍스트 포함';
+                        showToast(log.includeInContext ? '통화 구간을 컨텍스트에 포함했습니다.' : '통화 구간을 컨텍스트에서 제외했습니다.', 'success', 1600);
                     } catch (e) {
-                        showToast('컨텍스트 제외 실패', 'error', 2000);
+                        showToast('컨텍스트 설정 실패', 'error', 2000);
                     }
                 };
                 actionRow.appendChild(hideBtn);

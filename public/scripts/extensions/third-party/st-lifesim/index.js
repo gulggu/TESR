@@ -163,10 +163,6 @@ function openMainMenuPopup() {
     const wrapper = document.createElement('div');
     wrapper.className = 'slm-main-menu';
 
-    // 주간/야간 토글 (상단 우측)
-    const themeRow = document.createElement('div');
-    themeRow.className = 'slm-theme-toggle-row';
-
     const themeBtn = document.createElement('button');
     themeBtn.className = 'slm-theme-toggle-btn';
 
@@ -190,9 +186,6 @@ function openMainMenuPopup() {
         showToast(`테마: ${label}`, 'success', 1200);
     };
 
-    themeRow.appendChild(themeBtn);
-    wrapper.appendChild(themeRow);
-
     const grid = document.createElement('div');
     grid.className = 'slm-menu-grid';
     wrapper.appendChild(grid);
@@ -203,6 +196,8 @@ function openMainMenuPopup() {
         content: wrapper,
         className: 'slm-main-menu-panel',
     });
+    const titleLeft = popup.panel.querySelector('.slm-panel-title-left');
+    if (titleLeft) titleLeft.appendChild(themeBtn);
 
     const menuItems = [
         { key: 'quickTools', icon: '🛠️', label: '퀵 도구', action: openQuickToolsPanel },
@@ -512,9 +507,13 @@ function openSettingsPanel(onBack) {
         radiusRow.append(radiusLbl, radiusInput, radiusPxLbl, radiusApplyBtn);
         wrapper.appendChild(radiusRow);
 
-        wrapper.appendChild(Object.assign(document.createElement('hr'), { className: 'slm-hr' }));
+        return wrapper;
+    }
 
-        // SNS 자동 포스팅 확률
+    function buildProbabilityTab() {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'slm-settings-wrapper slm-form';
+
         const snsProbRow = document.createElement('div');
         snsProbRow.className = 'slm-input-row';
         const snsProbLbl = Object.assign(document.createElement('label'), { className: 'slm-label', textContent: 'SNS 자동 포스팅 확률:' });
@@ -536,7 +535,6 @@ function openSettingsPanel(onBack) {
         };
         snsProbRow.append(snsProbLbl, snsProbInput, snsProbPctLbl, snsProbApplyBtn);
         wrapper.appendChild(snsProbRow);
-
         return wrapper;
     }
 
@@ -629,6 +627,7 @@ function openSettingsPanel(onBack) {
         { key: 'general', label: '⚙️ 일반', content: buildGeneralTab() },
         { key: 'modules', label: '🧩 모듈', content: buildModulesTab() },
         { key: 'media', label: '😊 이모티콘·SNS', content: buildMediaTab() },
+        { key: 'probability', label: '🎲 확률', content: buildProbabilityTab() },
         { key: 'theme', label: '🎨 테마', content: buildThemeTab() },
     ], 'general');
 

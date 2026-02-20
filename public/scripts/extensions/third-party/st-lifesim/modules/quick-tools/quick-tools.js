@@ -93,7 +93,7 @@ async function handleQuickSend() {
  */
 async function handleDeletedMessage() {
     try {
-        await slashSend('<span class="slm-deleted-msg">🚫 삭제된 메세지입니다.</span>');
+        await slashSend('🚫 삭제된 메세지입니다');
         showToast('삭제된 메세지 전송', 'success', 1200);
     } catch (e) {
         showToast('전송 실패: ' + e.message, 'error');
@@ -351,7 +351,7 @@ async function generateEvent(category) {
             if (contentResult) eventContent = contentResult.trim();
         }
 
-        const formatted = `\`\`\`\n## ${eventTitle}\n\n${eventContent}\n\`\`\``;
+        const formatted = buildEventCssMessage(eventTitle, eventContent);
         await slashSendAs('이벤트', formatted);
 
         const summary = `[${category}] ${eventTitle}`;
@@ -368,6 +368,36 @@ async function generateEvent(category) {
     } catch (e) {
         showToast('사건 생성 실패: ' + e.message, 'error');
     }
+}
+
+function buildEventCssMessage(title, content) {
+    const safeTitle = escapeHtml(title);
+    const safeContent = escapeHtml(content).replace(/\n/g, '<br>');
+    return `\`\`\`
+<style>
+  .notif-wrapper{width:100%;animation:slideDown .4s cubic-bezier(.34,1.3,.64,1) both}
+  @keyframes slideDown{from{opacity:0;transform:translateY(-16px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
+  .notif-card{background:rgba(242,242,247,.8);backdrop-filter:blur(20px);border-radius:14px;overflow:hidden}
+  .notif-header{display:flex;align-items:center;gap:8px;padding:14px 18px 9px;border-bottom:1px solid rgba(0,0,0,.06)}
+  .notif-app-name{flex:1;font-size:12px;font-weight:900;color:#6c6c70;letter-spacing:.06em;text-transform:uppercase}
+  .notif-time{font-size:12px;color:#6c6c70}
+  .notif-body{padding:14px 18px 20px}
+  .notif-sender{font-size:14px;font-weight:700;color:#1c1c1e;margin-bottom:7px}
+  .notif-text{font-size:12px;font-weight:600;color:#1c1c1e;line-height:1.6rem}
+</style>
+<div class="notif-wrapper">
+  <div class="notif-card">
+    <div class="notif-header">
+      <div class="notif-app-name">Messages</div>
+      <div class="notif-time">지금</div>
+    </div>
+    <div class="notif-body">
+      <div class="notif-sender">${safeTitle}</div>
+      <div class="notif-text">${safeContent}</div>
+    </div>
+  </div>
+</div>
+\`\`\``;
 }
 
 /**
@@ -399,7 +429,7 @@ function showEventArchive(container) {
 }
 
 /**
- * 음성메모 연출 UI를 렌더링한다 (내용힌트 기본 접힘)
+ * 음성메모/이미지 연출 UI를 렌더링한다
  * @returns {HTMLElement}
  */
 export function renderVoiceMemoUI() {
@@ -423,39 +453,21 @@ export function renderVoiceMemoUI() {
     durationInput.type = 'number';
     durationInput.min = '1';
     durationInput.max = '3600';
-    durationInput.value = '23';
+    durationInput.value = '';
+    durationInput.placeholder = '직접 입력';
 
     durationRow.appendChild(durationLabel);
     durationRow.appendChild(durationInput);
     container.appendChild(durationRow);
 
-    // 내용 힌트 토글 (기본 접힘)
-    const hintToggle = document.createElement('div');
-    hintToggle.className = 'slm-voice-hint-toggle';
-    const hintChevron = document.createElement('span');
-    hintChevron.className = 'slm-voice-hint-toggle-chevron';
-    hintChevron.textContent = '▶';
-    hintToggle.appendChild(hintChevron);
-    hintToggle.appendChild(document.createTextNode(' 내용 힌트 (선택)'));
-    container.appendChild(hintToggle);
-
     const hintBody = document.createElement('div');
-    hintBody.style.display = 'none';
     hintBody.style.marginTop = '6px';
-
     const hintInput = document.createElement('input');
     hintInput.className = 'slm-input';
     hintInput.type = 'text';
     hintInput.placeholder = '예: 오늘 늦겠다고';
     hintBody.appendChild(hintInput);
     container.appendChild(hintBody);
-
-    hintToggle.onclick = () => {
-        const isOpen = hintBody.style.display !== 'none';
-        hintBody.style.display = isOpen ? 'none' : 'block';
-        hintChevron.textContent = isOpen ? '▶' : '▼';
-        hintChevron.classList.toggle('open', !isOpen);
-    };
 
     // 실행 버튼 (user → 유저가 보내는 음성메모)
     const btn = document.createElement('button');
@@ -465,7 +477,7 @@ export function renderVoiceMemoUI() {
     btn.onclick = async () => {
         btn.disabled = true;
         try {
-            const secs = parseInt(durationInput.value) || 23;
+            const secs = Math.max(1, parseInt(durationInput.value) || 1);
             const hint = hintInput.value.trim();
             await handleVoiceMemo(secs, hint, false);
             hintInput.value = '';
@@ -484,7 +496,7 @@ export function renderVoiceMemoUI() {
     aiVoiceBtn.onclick = async () => {
         aiVoiceBtn.disabled = true;
         try {
-            const secs = parseInt(durationInput.value) || 23;
+            const secs = Math.max(1, parseInt(durationInput.value) || 1);
             const hint = hintInput.value.trim();
             await handleVoiceMemo(secs, hint, true);
             hintInput.value = '';
@@ -493,6 +505,30 @@ export function renderVoiceMemoUI() {
         }
     };
     container.appendChild(aiVoiceBtn);
+
+    const imageTitle = document.createElement('h4');
+    imageTitle.style.marginTop = '14px';
+    imageTitle.textContent = '🖼️ 이미지 삽입';
+    container.appendChild(imageTitle);
+
+    const imageRow = document.createElement('div');
+    imageRow.className = 'slm-input-row';
+    const imageInput = document.createElement('input');
+    imageInput.className = 'slm-input';
+    imageInput.type = 'url';
+    imageInput.placeholder = 'https://...';
+    const imageBtn = document.createElement('button');
+    imageBtn.className = 'slm-btn slm-btn-secondary slm-btn-sm';
+    imageBtn.textContent = '삽입';
+    imageBtn.onclick = async () => {
+        const url = imageInput.value.trim();
+        if (!url) return;
+        await slashSend(`<img src="${escapeHtml(url)}" alt="이미지" class="slm-quick-image">`);
+        imageInput.value = '';
+    };
+    imageRow.appendChild(imageInput);
+    imageRow.appendChild(imageBtn);
+    container.appendChild(imageRow);
 
     return container;
 }
@@ -512,23 +548,18 @@ async function handleVoiceMemo(seconds, hint, aiMode = false) {
     const timeStr = `${m}:${String(s).padStart(2, '0')}`;
 
     try {
-        const hintHtml = hint
-            ? `<br><em>*${escapeHtml(hint)}*</em>`
-            : '';
-        const voiceHtml = `🎤 음성메시지 (${timeStr})${hintHtml}`;
-
         if (aiMode) {
-            // 캐릭터 이름으로 음성메세지 삽입
-            await slashSendAs(charName, voiceHtml);
-            showToast(`${charName}의 음성메세지 삽입 완료`, 'success', 1500);
+            await slashGen(
+                `As ${charName}, send exactly one voice message in Korean. You must choose suitable duration and content yourself based on current context.
+Output only this HTML format:
+<details class="slm-voice-msg"><summary>🎤 음성메시지 (M:SS)</summary><div class="slm-voice-hint">[actual voice message content]</div></details>`,
+                charName,
+            );
+            showToast(`${charName}의 음성메세지 생성 완료`, 'success', 1500);
         } else {
+            const hintText = hint ? escapeHtml(hint) : '(내용 없음)';
+            const voiceHtml = `<details class="slm-voice-msg"><summary>🎤 음성메시지 (${timeStr})</summary><div class="slm-voice-hint">${hintText}</div></details>`;
             await slashSend(voiceHtml);
-            if (hint) {
-                await slashGen(
-                    `A voice message has arrived for ${charName}. Content hint: ${hint}. React naturally to this voice message.`,
-                    charName,
-                );
-            }
             showToast('음성메모 삽입 완료', 'success', 1500);
         }
     } catch (e) {

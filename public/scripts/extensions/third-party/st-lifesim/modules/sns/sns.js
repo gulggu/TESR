@@ -20,14 +20,31 @@ const AVATARS_KEY = 'sns-avatars';
 const USER_IDS_KEY = 'sns-user-ids';      // { authorName: '@handle' }
 const CONTACT_LINK_KEY = 'sns-contact-link'; // boolean: link avatars to contacts
 const AUTHOR_DEFAULT_IMAGE_KEY = 'sns-author-default-images'; // { authorName: imageUrl }
-const IMAGE_PRESETS_KEY = 'sns-image-presets'; // string[]: 관리형 이미지 URL 프리셋 목록
+const IMAGE_PRESETS_KEY = 'sns-image-presets'; // {id,name,url}[]
+const POSTING_ENABLED_KEY = 'sns-posting-enabled'; // { authorName: boolean }
 
 /**
  * 관리형 이미지 프리셋 목록을 불러온다
  * @returns {string[]}
  */
 function loadImagePresets() {
-    return loadData(IMAGE_PRESETS_KEY, [], getDefaultBinding());
+    const raw = loadData(IMAGE_PRESETS_KEY, [], getDefaultBinding());
+    if (!Array.isArray(raw)) return [];
+    return raw
+        .map((item, i) => {
+            if (typeof item === 'string') {
+                return { id: `legacy-${i}`, name: `프리셋 ${i + 1}`, url: item };
+            }
+            if (item && typeof item === 'object' && typeof item.url === 'string') {
+                return {
+                    id: item.id || `preset-${i}`,
+                    name: item.name || `프리셋 ${i + 1}`,
+                    url: item.url,
+                };
+            }
+            return null;
+        })
+        .filter(Boolean);
 }
 
 /**
@@ -36,6 +53,14 @@ function loadImagePresets() {
  */
 function saveImagePresets(presets) {
     saveData(IMAGE_PRESETS_KEY, presets, getDefaultBinding());
+}
+
+function loadPostingEnabledMap() {
+    return loadData(POSTING_ENABLED_KEY, {}, getDefaultBinding());
+}
+
+function savePostingEnabledMap(map) {
+    saveData(POSTING_ENABLED_KEY, map, getDefaultBinding());
 }
 
 /**
@@ -165,12 +190,14 @@ export function initSns() {
 export async function triggerNpcPosting() {
     const ctx = getContext();
     const charName = ctx?.name2 || '{{char}}';
+    const userName = ctx?.name1 || 'user';
+    const postingEnabled = loadPostingEnabledMap();
 
     const contacts = getContacts(getDefaultBinding());
     const candidates = [
         { name: charName, personality: '', isChar: true },
         ...contacts.map(c => ({ name: c.name, personality: c.personality, isChar: false })),
-    ];
+    ].filter(c => c.name !== userName && postingEnabled[c.name] !== false);
 
     if (candidates.length === 0) return;
 
@@ -741,14 +768,12 @@ function openWritePostDialog(onSave) {
     imgLabel.className = 'slm-label';
     imgLabel.textContent = '이미지 URL (선택)';
 
-    const userName = getContext()?.name1 || 'user';
-    const defaultImg = getAuthorDefaultImageUrl(userName);
     const useDefaultLabel = document.createElement('label');
     useDefaultLabel.className = 'slm-toggle-label';
     useDefaultLabel.style.marginBottom = '4px';
     const useDefaultCheck = document.createElement('input');
     useDefaultCheck.type = 'checkbox';
-    useDefaultCheck.checked = !!defaultImg;
+    useDefaultCheck.checked = true;
     useDefaultLabel.appendChild(useDefaultCheck);
     useDefaultLabel.appendChild(document.createTextNode(' 기본 이미지 사용'));
 
@@ -774,7 +799,7 @@ function openWritePostDialog(onSave) {
     wrapper.appendChild(contentLabel);
     wrapper.appendChild(contentInput);
     wrapper.appendChild(imgLabel);
-    if (defaultImg) wrapper.appendChild(useDefaultLabel);
+    wrapper.appendChild(useDefaultLabel);
     wrapper.appendChild(imgInput);
     wrapper.appendChild(imgDescLabel);
     wrapper.appendChild(imgDescInput);
@@ -837,6 +862,108 @@ function openWritePostDialog(onSave) {
     };
 }
 
+function openImagePresetManager(onChanged) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'slm-form';
+    const list = document.createElement('div');
+    list.className = 'slm-form';
+    wrapper.appendChild(list);
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'slm-btn slm-btn-primary slm-btn-sm';
+    addBtn.textContent = '+ 프리셋 추가';
+    addBtn.onclick = () => openPresetEditor(null, render);
+    wrapper.appendChild(addBtn);
+
+    function render() {
+        list.innerHTML = '';
+        const presets = loadImagePresets();
+        if (presets.length === 0) {
+            list.appendChild(Object.assign(document.createElement('div'), { className: 'slm-empty', textContent: '등록된 프리셋이 없습니다.' }));
+            return;
+        }
+        presets.forEach((preset, i) => {
+            const row = document.createElement('div');
+            row.className = 'slm-input-row';
+            const thumb = document.createElement('img');
+            thumb.src = preset.url;
+            thumb.alt = preset.name;
+            thumb.className = 'slm-preview-img';
+            const name = document.createElement('span');
+            name.className = 'slm-label';
+            name.textContent = preset.name;
+            name.style.flex = '1';
+            const editBtn = document.createElement('button');
+            editBtn.className = 'slm-btn slm-btn-ghost slm-btn-sm';
+            editBtn.textContent = '수정';
+            editBtn.onclick = () => openPresetEditor({ ...preset, index: i }, render);
+            const delBtn = document.createElement('button');
+            delBtn.className = 'slm-btn slm-btn-danger slm-btn-sm';
+            delBtn.textContent = '삭제';
+            delBtn.onclick = () => {
+                const all = loadImagePresets();
+                all.splice(i, 1);
+                saveImagePresets(all);
+                render();
+                onChanged?.();
+            };
+            row.append(thumb, name, editBtn, delBtn);
+            list.appendChild(row);
+        });
+    }
+
+    function openPresetEditor(preset, onDone) {
+        const form = document.createElement('div');
+        form.className = 'slm-form';
+        const nameInput = document.createElement('input');
+        nameInput.className = 'slm-input';
+        nameInput.placeholder = '이름';
+        nameInput.value = preset?.name || '';
+        const urlInput = document.createElement('input');
+        urlInput.className = 'slm-input';
+        urlInput.type = 'url';
+        urlInput.placeholder = '이미지 URL';
+        urlInput.value = preset?.url || '';
+        form.append(nameInput, urlInput);
+
+        const footer = document.createElement('div');
+        footer.className = 'slm-panel-footer';
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'slm-btn slm-btn-primary';
+        saveBtn.textContent = '저장';
+        footer.appendChild(saveBtn);
+
+        const { close } = createPopup({
+            id: 'sns-preset-edit',
+            title: preset ? '🛠️ 프리셋 수정' : '➕ 프리셋 추가',
+            content: form,
+            footer,
+            className: 'slm-sub-panel',
+        });
+        saveBtn.onclick = () => {
+            const name = nameInput.value.trim();
+            const url = urlInput.value.trim();
+            if (!name || !url) return;
+            const all = loadImagePresets();
+            const next = { id: preset?.id || generateId(), name, url };
+            if (typeof preset?.index === 'number') all[preset.index] = next;
+            else all.push(next);
+            saveImagePresets(all);
+            close();
+            onDone();
+            onChanged?.();
+        };
+    }
+
+    render();
+    createPopup({
+        id: 'sns-preset-manager',
+        title: '🖼️ SNS 이미지 프리셋',
+        content: wrapper,
+        className: 'slm-sub-panel',
+    });
+}
+
 /**
  * SNS 프로필 설정 다이얼로그를 연다 (아바타 + 아이디 + 연락처 연동)
  * @param {Function} onUpdate
@@ -880,80 +1007,11 @@ function openAvatarSettingsDialog(onUpdate) {
     presetDesc.style.marginBottom = '6px';
     wrapper.appendChild(presetDesc);
 
-    const presetList = document.createElement('div');
-    presetList.className = 'slm-form';
-    wrapper.appendChild(presetList);
-
-    function renderPresetList() {
-        presetList.innerHTML = '';
-        const presets = loadImagePresets();
-        if (presets.length === 0) {
-            presetList.appendChild(Object.assign(document.createElement('div'), {
-                className: 'slm-empty',
-                textContent: '등록된 프리셋이 없습니다.',
-            }));
-        }
-        presets.forEach((url, i) => {
-            const row = document.createElement('div');
-            row.className = 'slm-input-row';
-            row.style.marginBottom = '4px';
-
-            const urlSpan = document.createElement('span');
-            urlSpan.className = 'slm-label';
-            urlSpan.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px';
-            urlSpan.title = url;
-            urlSpan.textContent = url.length > 36 ? url.slice(0, 36) + '…' : url;
-
-            const delBtn = document.createElement('button');
-            delBtn.className = 'slm-btn slm-btn-danger slm-btn-sm';
-            delBtn.textContent = '🗑️';
-            delBtn.title = '삭제';
-            delBtn.onclick = () => {
-                const p = loadImagePresets();
-                p.splice(i, 1);
-                saveImagePresets(p);
-                renderPresetList();
-                renderContactList();
-            };
-
-            row.appendChild(urlSpan);
-            row.appendChild(delBtn);
-            presetList.appendChild(row);
-        });
-    }
-
-    // 프리셋 추가 행
-    const addPresetRow = document.createElement('div');
-    addPresetRow.className = 'slm-input-row';
-    addPresetRow.style.marginBottom = '4px';
-
-    const addPresetInput = document.createElement('input');
-    addPresetInput.className = 'slm-input';
-    addPresetInput.type = 'url';
-    addPresetInput.placeholder = '새 이미지 URL 추가...';
-
-    const addPresetBtn = document.createElement('button');
-    addPresetBtn.className = 'slm-btn slm-btn-primary slm-btn-sm';
-    addPresetBtn.textContent = '+ 추가';
-    addPresetBtn.onclick = () => {
-        const url = addPresetInput.value.trim();
-        if (!url) return;
-        const p = loadImagePresets();
-        if (!p.includes(url)) {
-            p.push(url);
-            saveImagePresets(p);
-            addPresetInput.value = '';
-            renderPresetList();
-            renderContactList();
-        } else {
-            showToast('이미 등록된 URL입니다.', 'warn', 1500);
-        }
-    };
-
-    addPresetRow.appendChild(addPresetInput);
-    addPresetRow.appendChild(addPresetBtn);
-    wrapper.appendChild(addPresetRow);
-    renderPresetList();
+    const presetManageBtn = document.createElement('button');
+    presetManageBtn.className = 'slm-btn slm-btn-secondary slm-btn-sm';
+    presetManageBtn.textContent = '🖼️ 프리셋 관리 열기';
+    presetManageBtn.onclick = () => openImagePresetManager(() => renderContactList());
+    wrapper.appendChild(presetManageBtn);
 
     wrapper.appendChild(Object.assign(document.createElement('hr'), { className: 'slm-hr' }));
     const desc = document.createElement('div');
@@ -964,14 +1022,20 @@ function openAvatarSettingsDialog(onUpdate) {
     const userIds = loadUserIds();
     const avatars = loadAvatars();
     const defaultImages = loadAuthorDefaultImages();
+    const postingEnabled = loadPostingEnabledMap();
     const contacts = getContacts('chat');
+    const userName = getContext()?.name1 || 'user';
+    const allProfiles = [{ name: userName, avatar: avatars[userName] || '', personality: 'user' }, ...contacts]
+        .filter((c, i, arr) => arr.findIndex(x => x.name === c.name) === i);
 
-    contacts.forEach(c => {
+    allProfiles.forEach(c => {
         if (!userIds[c.name]) userIds[c.name] = '@' + c.name.replace(/\s+/g, '').toLowerCase();
         if (c.avatar && !avatars[c.name]) avatars[c.name] = c.avatar;
+        if (c.name !== userName && postingEnabled[c.name] == null) postingEnabled[c.name] = true;
     });
     saveUserIds(userIds);
     saveAvatars(avatars);
+    savePostingEnabledMap(postingEnabled);
 
     const contactList = document.createElement('div');
     contactList.className = 'slm-form';
@@ -981,13 +1045,24 @@ function openAvatarSettingsDialog(onUpdate) {
         contactList.innerHTML = '';
         const presets = loadImagePresets();
 
-        contacts.forEach(c => {
+        allProfiles.forEach(c => {
             const item = document.createElement('details');
-            item.className = 'slm-settings-row';
+            item.className = 'slm-settings-row slm-sns-profile-item';
             const summary = document.createElement('summary');
-            summary.textContent = c.name;
-            summary.style.cursor = 'pointer';
-            summary.style.fontWeight = '600';
+            summary.className = 'slm-sns-profile-summary';
+            const avatarSpan = document.createElement('span');
+            avatarSpan.className = 'slm-sns-profile-avatar';
+            if (avatars[c.name]) {
+                const img = document.createElement('img');
+                img.src = avatars[c.name];
+                img.alt = c.name;
+                avatarSpan.appendChild(img);
+            } else {
+                avatarSpan.textContent = ((c.name || '?')[0] || '?').toUpperCase();
+            }
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = c.name;
+            summary.append(avatarSpan, nameSpan);
             item.appendChild(summary);
 
             const handleInput = document.createElement('input');
@@ -1020,10 +1095,10 @@ function openAvatarSettingsDialog(onUpdate) {
             noneOpt.value = '';
             noneOpt.textContent = '기본 이미지 미사용';
             presetSelect.appendChild(noneOpt);
-            presets.forEach(url => {
+            presets.forEach(preset => {
                 const opt = document.createElement('option');
-                opt.value = url;
-                opt.textContent = url.length > 40 ? url.slice(0, 40) + '…' : url;
+                opt.value = preset.url;
+                opt.textContent = preset.name;
                 presetSelect.appendChild(opt);
             });
             presetSelect.value = defaultImages[c.name] || '';
@@ -1032,12 +1107,25 @@ function openAvatarSettingsDialog(onUpdate) {
                 saveAuthorDefaultImages(defaultImages);
             };
 
+            const postToggle = document.createElement('label');
+            postToggle.className = 'slm-toggle-label';
+            const postCheck = document.createElement('input');
+            postCheck.type = 'checkbox';
+            postCheck.checked = postingEnabled[c.name] !== false;
+            postCheck.onchange = () => {
+                postingEnabled[c.name] = postCheck.checked;
+                savePostingEnabledMap(postingEnabled);
+            };
+            postToggle.appendChild(postCheck);
+            postToggle.appendChild(document.createTextNode(' 게시물 활성화'));
+
             item.appendChild(Object.assign(document.createElement('label'), { className: 'slm-label', textContent: '아이디(@핸들)' }));
             item.appendChild(handleInput);
             item.appendChild(Object.assign(document.createElement('label'), { className: 'slm-label', textContent: '프로필 이미지 URL' }));
             item.appendChild(avatarInput);
             item.appendChild(Object.assign(document.createElement('label'), { className: 'slm-label', textContent: '게시글 기본 이미지 프리셋' }));
             item.appendChild(presetSelect);
+            if (c.name !== userName) item.appendChild(postToggle);
             contactList.appendChild(item);
         });
     }
