@@ -11,7 +11,7 @@
 import { slashSend } from '../../utils/slash.js';
 import { loadData, saveData, getDefaultBinding, getExtensionSettings } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
-import { showToast } from '../../utils/ui.js';
+import { showToast, generateId } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 import { isCallActive } from '../call/call.js';
 
@@ -166,7 +166,7 @@ function buildEmoticonContent() {
                 imported.forEach(em => {
                     if (em.url && !existingUrls.has(em.url)) {
                         existing.push({
-                            id: crypto.randomUUID(),
+                            id: generateId(),
                             name: em.name || '이모티콘',
                             url: em.url,
                             category: em.category || '기본',
@@ -471,7 +471,7 @@ function openAddEmoticonDialog(onSave, existing = null) {
             }
         } else {
             emoticons.push({
-                id: crypto.randomUUID(),
+                id: generateId(),
                 name, url, category,
                 favorite: false,
                 aiUsable,

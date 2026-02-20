@@ -11,7 +11,7 @@
 
 import { getContext } from '../../utils/st-context.js';
 import { slashSend, slashGen } from '../../utils/slash.js';
-import { showToast, escapeHtml } from '../../utils/ui.js';
+import { showToast, escapeHtml, generateId } from '../../utils/ui.js';
 import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
 
 // 사건 기록 아카이브 저장 키
@@ -318,7 +318,7 @@ async function generateEvent(category) {
 
         const archive = loadData(ARCHIVE_KEY, [], getDefaultBinding());
         archive.push({
-            id: crypto.randomUUID(),
+            id: generateId(),
             date: new Date().toISOString(),
             category,
             includeInContext: false,

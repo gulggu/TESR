@@ -9,7 +9,7 @@
 
 import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
-import { showToast, escapeHtml } from '../../utils/ui.js';
+import { showToast, escapeHtml, generateId } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 import { getContacts } from '../contacts/contacts.js';
 
@@ -377,7 +377,7 @@ function openEventDialog(existing, onSave) {
 
         const c = loadCalendar();
         const eventData = {
-            id: existing?.id || crypto.randomUUID(),
+            id: existing?.id || generateId(),
             day: normalizeDay(day),
             time: timeInput.value,
             title,

@@ -13,7 +13,7 @@
 import { getContext } from '../../utils/st-context.js';
 import { slashSend } from '../../utils/slash.js';
 import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
-import { showToast, escapeHtml } from '../../utils/ui.js';
+import { showToast, escapeHtml, generateId } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 
 const MODULE_KEY = 'call-logs';
@@ -234,7 +234,7 @@ async function endCall() {
     // 통화 기록 저장
     const logs = loadCallLogs();
     logs.push({
-        id: crypto.randomUUID(),
+        id: generateId(),
         contactName: endedContact,
         date: new Date().toISOString(),
         durationSeconds: duration,

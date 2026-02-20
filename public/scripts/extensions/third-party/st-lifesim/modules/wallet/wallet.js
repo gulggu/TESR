@@ -10,7 +10,7 @@
 
 import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
-import { showToast, escapeHtml } from '../../utils/ui.js';
+import { showToast, escapeHtml, generateId } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 import { getContacts } from '../contacts/contacts.js';
 
@@ -402,7 +402,7 @@ function adjustBalance(delta, type, counterpart, onDone) {
     const wallet = loadWallet();
     wallet.balance += delta;
     wallet.history.push({
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: delta > 0 ? 'charge' : 'deduct',
         amount: delta,
         counterpart,
@@ -428,7 +428,7 @@ async function handleSend(recipient, amount, memo) {
     wallet.balance -= amount;
     const now = new Date();
     wallet.history.push({
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: 'send',
         amount: -amount,
         counterpart: recipient,
