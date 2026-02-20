@@ -1597,26 +1597,7 @@ body[data-theme="dark"],
 /* ──────────────────────────────────────────
    버튼 클래스 셀렉터 (ID 셀렉터와 동일 스타일)
 ────────────────────────────────────────── */
-.slm-menu-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  font-size: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.15s, opacity 0.15s;
-  flex-shrink: 0;
-  -webkit-tap-highlight-color: transparent;
-  vertical-align: middle;
-  opacity: 0.75;
-}
-.slm-menu-btn:hover { opacity: 1; background: var(--slm-bg-secondary); }
-.slm-menu-btn:active { transform: scale(0.95); }
-
+.slm-menu-btn,
 .slm-quick-send-btn {
   width: 32px;
   height: 32px;
@@ -1634,5 +1615,7 @@ body[data-theme="dark"],
   vertical-align: middle;
   opacity: 0.75;
 }
+.slm-menu-btn:hover,
 .slm-quick-send-btn:hover { opacity: 1; background: var(--slm-bg-secondary); }
+.slm-menu-btn:active,
 .slm-quick-send-btn:active { transform: scale(0.95); }
