@@ -143,7 +143,7 @@ export function renderTimeDividerUI() {
  * @param {string} timeLabel - 시간 텍스트
  */
 async function insertTimeDivider(timeLabel) {
-    const text = `<hr><p style="text-align:center;color:gray;font-size:0.85em">${timeLabel}</p>`;
+    const text = `<div class="slm-time-divider"><span class="slm-time-divider-label">${escapeHtml(timeLabel)}</span></div>`;
     await slashSend(text);
 }
 
@@ -189,7 +189,6 @@ async function handleReadReceipt() {
     const charName = ctx.name2 || '{{char}}';
 
     try {
-        await slashSend('읽음 ✓✓');
         await slashGen(
             `${charName} has read the message but has not replied yet. Briefly describe the situation in 1-2 sentences.`,
             charName,
@@ -243,7 +242,6 @@ async function handleNoContact() {
     const charName = ctx.name2 || '{{char}}';
 
     try {
-        await slashSend('📵 연결되지 않습니다');
         await slashGen(
             `${charName} tried to reach the user but the user has not seen or responded yet. Briefly describe the situation in 1-2 sentences.`,
             charName,
