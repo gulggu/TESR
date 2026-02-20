@@ -65,6 +65,71 @@ body[data-theme="dark"],
 }
 
 /* ──────────────────────────────────────────
+   수동 주간/야간 토글 — 시스템/ST 테마보다 우선 적용
+   [data-slm-theme] 속성은 specificity (0,1,0) 이므로
+   :root (0,0,1) 와 body 클래스 (0,1,0) 보다 동등하지만
+   CSS 파일 순서상 뒤에 위치하므로 항상 우선됩니다.
+────────────────────────────────────────── */
+[data-slm-theme="light"] {
+  --slm-bg: #ffffff !important;
+  --slm-bg-secondary: #f5f5f7 !important;
+  --slm-bg-tertiary: #e8e8ed !important;
+  --slm-surface: #ffffff !important;
+  --slm-border: #d1d1d6 !important;
+  --slm-text: #1c1c1e !important;
+  --slm-text-secondary: #6d6d72 !important;
+  --slm-overlay-bg: rgba(0, 0, 0, 0.5) !important;
+}
+
+[data-slm-theme="dark"] {
+  --slm-bg: #1c1c1e !important;
+  --slm-bg-secondary: #2c2c2e !important;
+  --slm-bg-tertiary: #3a3a3c !important;
+  --slm-surface: #2c2c2e !important;
+  --slm-border: #48484a !important;
+  --slm-text: #f2f2f7 !important;
+  --slm-text-secondary: #aeaeb2 !important;
+  --slm-overlay-bg: rgba(0, 0, 0, 0.7) !important;
+}
+
+/* ──────────────────────────────────────────
+   테마 토글 버튼 (메인 메뉴 내)
+────────────────────────────────────────── */
+.slm-theme-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.slm-theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1.5px solid var(--slm-border);
+  background: var(--slm-bg-secondary);
+  color: var(--slm-text) !important;
+  font-family: var(--slm-font);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.slm-theme-toggle-btn:hover {
+  background: var(--slm-bg-tertiary);
+  border-color: var(--slm-accent);
+  transform: scale(1.04);
+}
+.slm-theme-toggle-btn:active { transform: scale(0.96); }
+.slm-theme-toggle-icon { font-size: 14px; line-height: 1; }
+.slm-theme-toggle-label { font-size: 11px; }
+
+/* ──────────────────────────────────────────
    오버레이 & 팝업 패널
 ────────────────────────────────────────── */
 .slm-overlay {

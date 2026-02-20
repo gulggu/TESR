@@ -32,6 +32,9 @@ import { initGifticon, openGifticonPopup } from './modules/gifticon/gifticon.js'
 // 설정 키
 const SETTINGS_KEY = 'st-lifesim';
 
+// 주간/야간 테마 저장 키 (localStorage)
+const THEME_STORAGE_KEY = 'st-lifesim:forced-theme';
+
 // 기본 설정
 const DEFAULT_SETTINGS = {
     enabled: true,
@@ -159,6 +162,42 @@ function injectLifeSimMenuButton() {
 function openMainMenuPopup() {
     const wrapper = document.createElement('div');
     wrapper.className = 'slm-main-menu';
+
+    // 주간/야간 토글 (상단 우측)
+    const themeRow = document.createElement('div');
+    themeRow.className = 'slm-theme-toggle-row';
+
+    const themeBtn = document.createElement('button');
+    themeBtn.className = 'slm-theme-toggle-btn';
+
+    function updateThemeBtn() {
+        const t = getForcedTheme();
+        if (t === 'light') {
+            themeBtn.innerHTML = '<span class="slm-theme-toggle-icon">☀️</span><span class="slm-theme-toggle-label">주간</span>';
+            themeBtn.title = '야간 모드로 전환';
+        } else if (t === 'dark') {
+            themeBtn.innerHTML = '<span class="slm-theme-toggle-icon">🌙</span><span class="slm-theme-toggle-label">야간</span>';
+            themeBtn.title = '자동(시스템) 모드로 전환';
+        } else {
+            themeBtn.innerHTML = '<span class="slm-theme-toggle-icon">🔄</span><span class="slm-theme-toggle-label">자동</span>';
+            themeBtn.title = '주간 모드로 전환';
+        }
+    }
+    updateThemeBtn();
+
+    themeBtn.onclick = (e) => {
+        e.stopPropagation();
+        const newTheme = cycleTheme();
+        updateThemeBtn();
+        let label;
+        if (newTheme === 'light') label = '주간 모드';
+        else if (newTheme === 'dark') label = '야간 모드';
+        else label = '자동(시스템) 모드';
+        showToast(`테마: ${label}`, 'success', 1200);
+    };
+
+    themeRow.appendChild(themeBtn);
+    wrapper.appendChild(themeRow);
 
     const grid = document.createElement('div');
     grid.className = 'slm-menu-grid';
@@ -636,6 +675,48 @@ function saveSettings() {
     if (ctx?.saveSettingsDebounced) ctx.saveSettingsDebounced();
 }
 
+// ── 주간/야간 테마 토글 ──────────────────────────────────────────
+/**
+ * 현재 강제 테마를 읽는다 ('light' | 'dark' | null)
+ * @returns {'light'|'dark'|null}
+ */
+function getForcedTheme() {
+    return localStorage.getItem(THEME_STORAGE_KEY) || null;
+}
+
+/**
+ * 강제 테마를 적용한다
+ * @param {'light'|'dark'|null} theme
+ */
+function applyForcedTheme(theme) {
+    if (theme === 'light' || theme === 'dark') {
+        document.documentElement.setAttribute('data-slm-theme', theme);
+        localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } else {
+        document.documentElement.removeAttribute('data-slm-theme');
+        localStorage.removeItem(THEME_STORAGE_KEY);
+    }
+}
+
+/**
+ * 자동 → 주간 → 야간 → 자동 순으로 테마를 순환한다
+ * (null=자동, 'light'=주간, 'dark'=야간)
+ * @returns {'light'|'dark'|null} 새 테마 값
+ */
+function cycleTheme() {
+    const current = getForcedTheme();
+    let next;
+    if (current === null) {
+        next = 'light';      // 자동 → 주간
+    } else if (current === 'light') {
+        next = 'dark';       // 주간 → 야간
+    } else {
+        next = null;         // 야간 → 자동
+    }
+    applyForcedTheme(next);
+    return next;
+}
+
 /**
  * 확장 초기화 - SillyTavern이 준비된 후 실행된다
  */
@@ -652,6 +733,9 @@ async function init() {
 
     // 이모티콘 모서리 반경 CSS 변수 적용
     document.documentElement.style.setProperty('--slm-emoticon-radius', (settings.emoticonRadius ?? 10) + 'px');
+
+    // 저장된 강제 테마 적용 (주간/야간 토글)
+    applyForcedTheme(getForcedTheme());
 
     // 저장된 테마 색상 적용
     if (settings.themeColors) {
