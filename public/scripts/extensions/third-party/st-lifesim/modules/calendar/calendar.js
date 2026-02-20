@@ -16,6 +16,12 @@ import { getContacts } from '../contacts/contacts.js';
 
 const MODULE_KEY = 'calendar';
 let lastAutoScheduleSignature = '';
+let autoScheduleListenerRegistered = false;
+const MIN_AUTO_DAY_OFFSET = 1;
+const MAX_AUTO_DAY_OFFSET = 5;
+const MAX_SIGNATURE_TEXT_LENGTH = 180;
+const SCHEDULE_ACTION_RE = /(만나|보자|보기로|약속|예약|갈게|가자|보기야|보는거야|보기로해)/;
+const SCHEDULE_TIME_RE = /(오늘|내일|모레|이번\s*주|다음\s*주|월요일|화요일|수요일|목요일|금요일|토요일|일요일|\d+\s*시)/;
 
 /**
  * 기본 캘린더 데이터
@@ -87,7 +93,8 @@ export function initCalendar() {
     const ctx = getContext();
     if (!ctx?.eventSource) return;
     const eventTypes = ctx.event_types || ctx.eventTypes;
-    if (!eventTypes?.CHARACTER_MESSAGE_RENDERED) return;
+    if (!eventTypes?.CHARACTER_MESSAGE_RENDERED || autoScheduleListenerRegistered) return;
+    autoScheduleListenerRegistered = true;
     ctx.eventSource.on(eventTypes.CHARACTER_MESSAGE_RENDERED, () => {
         autoRegisterScheduleFromCharacterMessage().catch(e => {
             console.error('[ST-LifeSim] 일정 자동 판별 오류:', e);
@@ -112,7 +119,7 @@ async function autoRegisterScheduleFromCharacterMessage() {
     if (!text) return;
     if (!isLikelyScheduleCandidate(text)) return;
 
-    const signature = `${lastIdx}:${text.slice(0, 180)}`;
+    const signature = `${lastIdx}:${text.slice(0, MAX_SIGNATURE_TEXT_LENGTH)}`;
     if (signature === lastAutoScheduleSignature) return;
     lastAutoScheduleSignature = signature;
 
@@ -129,14 +136,26 @@ Current day: ${cal.today}
 Character message: "${text}"`;
 
     const raw = await ctx.generateQuietPrompt({ quietPrompt: prompt, quietName: ctx.name2 || '{{char}}' }) || '';
+    if (!raw) {
+        console.warn('[ST-LifeSim] 일정 자동판별 AI 응답이 비어 있습니다.');
+        return;
+    }
     const match = raw.match(/\{[\s\S]*?\}/);
-    if (!match) return;
-    const data = JSON.parse(match[0]);
+    if (!match) {
+        console.warn('[ST-LifeSim] 일정 자동판별 JSON 추출 실패');
+        return;
+    }
+    let data;
+    try {
+        data = JSON.parse(match[0]);
+    } catch {
+        return;
+    }
     if (!data?.shouldSchedule) return;
 
     const title = String(data.title || '').trim();
     if (!title) return;
-    const offset = Math.max(1, Math.min(5, parseInt(data.dayOffset) || 1));
+    const offset = Math.max(MIN_AUTO_DAY_OFFSET, Math.min(MAX_AUTO_DAY_OFFSET, parseInt(data.dayOffset) || MIN_AUTO_DAY_OFFSET));
     const day = normalizeDay(cal.today + offset);
     const description = String(data.description || '').trim();
 
@@ -159,8 +178,8 @@ Character message: "${text}"`;
 
 function isLikelyScheduleCandidate(text) {
     const lowered = text.toLowerCase();
-    const hasAction = /(만나|보자|보기로|약속|예약|갈게|가자|보기야|보는거야|보기로해)/.test(lowered);
-    const hasTime = /(오늘|내일|모레|이번\s*주|다음\s*주|월요일|화요일|수요일|목요일|금요일|토요일|일요일|\d+\s*시)/.test(lowered);
+    const hasAction = SCHEDULE_ACTION_RE.test(lowered);
+    const hasTime = SCHEDULE_TIME_RE.test(lowered);
     return hasAction && hasTime;
 }
 
