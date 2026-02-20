@@ -827,7 +827,7 @@ body[data-theme="dark"],
 
 .slm-emoticon-img { width: 56px; height: 56px; object-fit: cover; margin: 4px auto 0; border-radius: calc(var(--slm-emoticon-radius) - 2px); }
 .slm-emoticon-caption {
-  font-size: 7px;
+  font-size: 5px;
   line-height: 1.3;
   padding: 3px 4px 2px;
   color: var(--slm-text-secondary);

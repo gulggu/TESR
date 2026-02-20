@@ -26,6 +26,8 @@ const SNS_REPLY_PROBABILITY = 0.7;
 const SNS_EXTRA_COMMENT_PROBABILITY = 0.35;
 const SNS_REACTION_DELAY_MIN_MS = 1200;
 const SNS_REACTION_DELAY_MAX_MS = 7000;
+const SNS_POST_TEXT_MAX = 280;
+const SNS_IMAGE_DESC_MAX = 220;
 
 /**
  * 관리형 이미지 프리셋 목록을 불러온다
@@ -122,6 +124,56 @@ function getAuthorDefaultImageUrl(authorName) {
     return map[authorName] || getDefaultImageUrl();
 }
 
+/**
+ * 배열에서 임의의 원소를 반환한다.
+ * @template T
+ * @param {T[]} arr
+ * @returns {T|null}
+ */
+function getRandomItem(arr) {
+    if (!Array.isArray(arr) || arr.length === 0) return null;
+    return arr[Math.floor(Math.random() * arr.length)];
+}
+
+/**
+ * SNS 텍스트를 한 줄로 정규화하고 길이를 제한한다.
+ * @param {string} text
+ * @param {number} maxLen
+ * @returns {string}
+ */
+function normalizeSnsText(text, maxLen = SNS_POST_TEXT_MAX) {
+    return String(text || '')
+        .replace(/[\r\n]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .replace(/^["'`]+|["'`]+$/g, '')
+        .trim()
+        .slice(0, maxLen);
+}
+
+/**
+ * 본문에 섞여 나온 캡션 블록([캡션:...], (caption:...))을 제거한다.
+ * @param {string} text
+ * @returns {string}
+ */
+function stripInlineCaptionBlocks(text) {
+    return String(text || '')
+        .replace(/\[\s*(?:캡션|caption|사진설명|사진)\s*:[^\]]*]/gi, '')
+        .replace(/\(\s*(?:캡션|caption|사진설명|사진)\s*:[^)]*\)/gi, '')
+        .trim();
+}
+
+/**
+ * 본문 내 캡션 블록에서 설명 텍스트를 추출한다.
+ * @param {string} text
+ * @returns {string}
+ */
+function extractInlineCaption(text) {
+    const src = String(text || '');
+    const match = src.match(/\[\s*(?:캡션|caption|사진설명|사진)\s*:\s*([^\]]+)]/i)
+        || src.match(/\(\s*(?:캡션|caption|사진설명|사진)\s*:\s*([^)]+)\)/i);
+    return normalizeSnsText(match?.[1] || '', SNS_IMAGE_DESC_MAX);
+}
+
 function getBuiltinUserAvatarUrl() {
     const fromPersona = document.querySelector('#user_avatar_block .avatar.selected img')?.getAttribute('src');
     if (fromPersona) return fromPersona;
@@ -213,33 +265,40 @@ export async function triggerNpcPosting() {
 
     if (candidates.length === 0) return;
 
-    const pick = candidates[Math.floor(Math.random() * candidates.length)];
+    const pick = getRandomItem(candidates);
+    if (!pick) return;
     const prompt = pick.isChar
-        ? `${charName} is posting on social media. Write only one short, natural post text in everyday SNS style that fits the current situation and ${charName}'s personality. Do not include hashtags. Do not use image tags. Never include comments/reactions or other characters' posts. This must be only ${charName}'s own post, not a message to {{user}}.`
-        : `${pick.name} is posting on social media. Personality: ${pick.personality || 'ordinary'}. Write only one short, natural post text in everyday SNS style. Do not include hashtags. Do not use image tags. Never include comments/reactions or other characters' posts. This must be only ${pick.name}'s own post, not a message to {{user}}.`;
+        ? `${charName} is posting on social media. Write only one short, natural post text in everyday SNS style that fits the current situation and ${charName}'s personality. Do not include hashtags. Do not use image tags. Never include comments/reactions or other characters' posts. Do not include image caption blocks like [캡션: ...] or (caption: ...). This must be only ${charName}'s own post, not a message to {{user}}.`
+        : `${pick.name} is posting on social media. Personality: ${pick.personality || 'ordinary'}. Write only one short, natural post text in everyday SNS style. Do not include hashtags. Do not use image tags. Never include comments/reactions or other characters' posts. Do not include image caption blocks like [캡션: ...] or (caption: ...). This must be only ${pick.name}'s own post, not a message to {{user}}.`;
 
     try {
         const freshCtx = getContext();
         if (!freshCtx) return;
-        let postContent;
+        let postContent = '(게시물)';
         try {
             if (typeof freshCtx.generateQuietPrompt === 'function') {
-                postContent = await freshCtx.generateQuietPrompt({ quietPrompt: prompt, quietName: pick.name }) || '(게시물)';
-            } else {
-                postContent = '(게시물)';
+                postContent = await freshCtx.generateQuietPrompt({ quietPrompt: prompt, quietName: pick.name }) || postContent;
             }
         } catch (genErr) {
             console.error('[ST-LifeSim] NPC 포스팅 텍스트 생성 오류:', genErr);
             showToast('NPC 포스팅 생성 실패: ' + genErr.message, 'error');
             return;
         }
+        const inlineCaption = extractInlineCaption(postContent);
+        postContent = normalizeSnsText(stripInlineCaptionBlocks(postContent), SNS_POST_TEXT_MAX) || '(게시물)';
 
         const defaultImg = getAuthorDefaultImageUrl(pick.name);
+        const presets = loadImagePresets().filter(p => p?.url);
+        const presetPick = getRandomItem(presets);
+        const presetImg = presetPick ? presetPick.url : '';
+        // 캐릭터별 기본 이미지가 있으면 우선 사용하고, 없을 때만 프리셋으로 보완한다.
+        const finalImageUrl = defaultImg || presetImg;
         let imageDescription = '';
-        if (defaultImg && typeof freshCtx.generateQuietPrompt === 'function') {
-            const descPrompt = `${pick.name} uploaded a social media photo with this post: "${postContent}". Write one short Korean sentence describing the photo content (not URL, no hashtags, no quotes).`;
-            imageDescription = (await freshCtx.generateQuietPrompt({ quietPrompt: descPrompt, quietName: `${pick.name}-image-desc` }) || '').trim();
+        if (finalImageUrl && typeof freshCtx.generateQuietPrompt === 'function') {
+            const descPrompt = `${pick.name} uploaded a social media photo with this post: "${postContent}". Output one short Korean image description sentence only (what is visible in the photo). No hashtags, no quotes, no brackets, no "캡션:" prefix.`;
+            imageDescription = normalizeSnsText(await freshCtx.generateQuietPrompt({ quietPrompt: descPrompt, quietName: `${pick.name}-image-desc` }), SNS_IMAGE_DESC_MAX);
         }
+        if (!imageDescription && inlineCaption) imageDescription = inlineCaption;
 
         const feed = loadFeed();
         feed.push({
@@ -248,7 +307,7 @@ export async function triggerNpcPosting() {
             authorIsUser: false,
             date: new Date().toISOString(),
             content: postContent,
-            imageUrl: defaultImg,
+            imageUrl: finalImageUrl,
             imageDescription,
             likes: Math.floor(Math.random() * 30),
             likedByUser: false,
