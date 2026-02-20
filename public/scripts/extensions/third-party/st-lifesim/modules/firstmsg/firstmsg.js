@@ -17,6 +17,7 @@ const FIRST_MSG_PROMPT = (charName) =>
 
 // 선톡 타이머 ID
 let firstMsgTimer = null;
+let firstMsgInFlight = false;
 
 /**
  * 선톡 타이머를 시작한다
@@ -28,23 +29,28 @@ export function startFirstMsgTimer(fmSettings) {
 
     const intervalMs = Math.max(MIN_INTERVAL_SEC, Number(fmSettings.intervalSec) || 10) * 1000;
     const probability = Math.min(1, Math.max(0, (Number(fmSettings.probability) || 8) / 100));
-
-    firstMsgTimer = setInterval(async () => {
-        if (!fmSettings.enabled) return;
-        if (Math.random() >= probability) return;
-
-        const ctx = getContext();
-        if (!ctx) return;
-
-        const charName = ctx.name2;
-        if (!charName) return;
-
-        try {
-            await slashGen(FIRST_MSG_PROMPT(charName), charName);
-        } catch (e) {
-            console.error('[ST-LifeSim] 선톡 오류:', e);
+    const runTick = async () => {
+        if (!fmSettings.enabled || firstMsgTimer === null) return;
+        if (!firstMsgInFlight && Math.random() < probability) {
+            const ctx = getContext();
+            const charName = ctx?.name2;
+            if (charName) {
+                firstMsgInFlight = true;
+                try {
+                    await slashGen(FIRST_MSG_PROMPT(charName), charName);
+                } catch (e) {
+                    console.error('[ST-LifeSim] 선톡 오류:', e);
+                } finally {
+                    firstMsgInFlight = false;
+                }
+            }
         }
-    }, intervalMs);
+        if (firstMsgTimer !== null && fmSettings.enabled) {
+            firstMsgTimer = setTimeout(runTick, intervalMs);
+        }
+    };
+
+    firstMsgTimer = setTimeout(runTick, intervalMs);
 }
 
 /**
@@ -52,9 +58,10 @@ export function startFirstMsgTimer(fmSettings) {
  */
 export function stopFirstMsgTimer() {
     if (firstMsgTimer !== null) {
-        clearInterval(firstMsgTimer);
+        clearTimeout(firstMsgTimer);
         firstMsgTimer = null;
     }
+    firstMsgInFlight = false;
 }
 
 /**

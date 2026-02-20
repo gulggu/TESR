@@ -208,22 +208,25 @@ function buildContactsContent() {
             name.className = 'slm-contact-name';
             name.textContent = contact.name;
 
-            const scope = document.createElement('span');
-            scope.className = 'slm-contact-scope';
-            scope.textContent = contact.binding === 'character' ? '캐릭터' : '이 채팅';
-
             const rel = document.createElement('span');
             rel.className = 'slm-contact-rel';
             rel.textContent = contact.relationToUser || contact.description || '';
 
             info.appendChild(name);
-            info.appendChild(scope);
             info.appendChild(rel);
+
+            const avatarWrap = document.createElement('div');
+            avatarWrap.className = 'slm-contact-avatar-wrap';
+            const scope = document.createElement('span');
+            scope.className = 'slm-contact-scope';
+            scope.textContent = contact.binding === 'character' ? '캐릭터' : '이 채팅';
+            avatarWrap.appendChild(avatar);
+            avatarWrap.appendChild(scope);
 
             // 클릭 시 상세 팝업
             const clickArea = document.createElement('div');
             clickArea.style.cssText = 'display:flex;align-items:center;gap:10px;flex:1;min-width:0;cursor:pointer';
-            clickArea.appendChild(avatar);
+            clickArea.appendChild(avatarWrap);
             clickArea.appendChild(info);
             clickArea.onclick = () => openContactDetailPopup(contact);
 
@@ -291,7 +294,6 @@ function openContactDetailPopup(contact) {
 
     const fieldDefs = [
         { label: '관계', value: contact.relationToUser },
-        { label: '{{char}}과의 관계', value: contact.relationToChar },
         { label: '성격/말투', value: contact.personality },
     ];
 

@@ -593,6 +593,16 @@ function openEditPostDialog(post, onUpdate) {
     imgDescInput.value = post.imageDescription || '';
     imgDescInput.placeholder = '이미지 설명...';
 
+    const likesLabel = document.createElement('label');
+    likesLabel.className = 'slm-label';
+    likesLabel.textContent = '기본 좋아요 수';
+    const likesInput = document.createElement('input');
+    likesInput.className = 'slm-input';
+    likesInput.type = 'number';
+    likesInput.min = '0';
+    likesInput.max = '1000000';
+    likesInput.value = String(Math.max(0, Number(post.likes) || 0));
+
     wrapper.appendChild(contentLabel);
     wrapper.appendChild(contentInput);
     wrapper.appendChild(imgLabel);
@@ -600,6 +610,8 @@ function openEditPostDialog(post, onUpdate) {
     wrapper.appendChild(imgInput);
     wrapper.appendChild(imgDescLabel);
     wrapper.appendChild(imgDescInput);
+    wrapper.appendChild(likesLabel);
+    wrapper.appendChild(likesInput);
 
     const footer = document.createElement('div');
     footer.className = 'slm-panel-footer';
@@ -636,6 +648,7 @@ function openEditPostDialog(post, onUpdate) {
             p.content = text;
             p.imageUrl = useDefaultCheck.checked ? (getAuthorDefaultImageUrl(post.authorName) || '') : imgInput.value.trim();
             p.imageDescription = imgDescInput.value.trim();
+            p.likes = Math.max(0, parseInt(likesInput.value) || 0);
             saveFeed(f);
         }
         close();
@@ -716,11 +729,32 @@ function renderComments(container, post, onUpdate) {
 async function postComment(post, text, onUpdate) {
     try {
         const ctx = getContext();
-        const replyPrompt = `${post.authorName}'s social media post: "${post.content}". Someone commented on this post: "${text}". Write a short, natural reply from ${post.authorName}.`;
+        const safePostContent = String(post.content || '').replace(/[{}\n\r]/g, ' ').slice(0, 300);
+        const safeComment = String(text || '').replace(/[{}\n\r]/g, ' ').slice(0, 200);
+        const replyPrompt = `${post.authorName}'s social media post: "${safePostContent}". Someone commented: "${safeComment}". Reply as ${post.authorName} only, in one short Korean SNS comment. Do not speak as {{user}} or narrator.`;
         let replyText = '';
+        let extraContactComment = null;
         try {
             if (ctx && typeof ctx.generateQuietPrompt === 'function') {
                 replyText = await ctx.generateQuietPrompt({ quietPrompt: replyPrompt, quietName: post.authorName }) || '';
+                const charName = ctx?.name2 || '';
+                if (charName && post.authorName === charName) {
+                    const contactCandidates = getContacts('chat').filter(c => c.name && c.name !== charName);
+                    if (contactCandidates.length > 0) {
+                        const picker = contactCandidates[Math.floor(Math.random() * contactCandidates.length)];
+                        const contactPrompt = `${picker.name} is leaving a short comment on ${charName}'s SNS post "${safePostContent}". Personality: ${picker.personality || 'ordinary'}. Write one short Korean SNS comment as ${picker.name} only.`;
+                        const generated = await ctx.generateQuietPrompt({ quietPrompt: contactPrompt, quietName: picker.name }) || '';
+                        if (generated.trim()) {
+                            extraContactComment = {
+                                id: generateId(),
+                                author: picker.name,
+                                text: generated.trim(),
+                                date: new Date().toISOString(),
+                                replies: [],
+                            };
+                        }
+                    }
+                }
             }
         } catch (genErr) {
             console.error('[ST-LifeSim] 댓글 답글 생성 오류:', genErr);
@@ -741,6 +775,7 @@ async function postComment(post, text, onUpdate) {
                     date: new Date().toISOString(),
                 }] : [],
             });
+            if (extraContactComment) p.comments.push(extraContactComment);
             saveFeed(feed);
         }
     } catch (e) {

@@ -18,6 +18,7 @@ import { createPopup } from '../../utils/popup.js';
 import { getContacts } from '../contacts/contacts.js';
 
 const MODULE_KEY = 'call-logs';
+const COLLAPSED_KEY = 'call-log-collapsed';
 
 // 통화 감지 키워드 설정 저장 키
 const KEYWORDS_KEY = 'call-keywords';
@@ -63,7 +64,7 @@ function isCallModuleEnabled() {
  * @returns {Object[]}
  */
 function loadCallLogs() {
-    return loadData(MODULE_KEY, [], getDefaultBinding());
+    return loadData(MODULE_KEY, [], 'chat');
 }
 
 /**
@@ -71,7 +72,15 @@ function loadCallLogs() {
  * @param {Object[]} logs
  */
 function saveCallLogs(logs) {
-    saveData(MODULE_KEY, logs, getDefaultBinding());
+    saveData(MODULE_KEY, logs, 'chat');
+}
+
+function loadCollapsedState() {
+    return loadData(COLLAPSED_KEY, {}, 'chat');
+}
+
+function saveCollapsedState(state) {
+    saveData(COLLAPSED_KEY, state, 'chat');
 }
 
 /**
@@ -645,6 +654,7 @@ function buildCallLogsContent() {
     wrapper.appendChild(hr0);
 
     const logs = loadCallLogs();
+    const collapsedState = loadCollapsedState();
 
     if (logs.length === 0) {
         const empty = document.createElement('div');
@@ -673,17 +683,20 @@ function buildCallLogsContent() {
         filtered.slice().reverse().forEach(log => {
             const row = document.createElement('div');
             row.className = 'slm-call-row';
-            row.classList.remove('slm-call-collapsed');
+            const isCollapsed = collapsedState[log.id] === true;
+            row.classList.toggle('slm-call-collapsed', isCollapsed);
 
             const toggleBtn = document.createElement('button');
             toggleBtn.className = 'slm-call-row-close';
             toggleBtn.type = 'button';
-            toggleBtn.title = '접기';
-            toggleBtn.textContent = '▾';
+            toggleBtn.title = isCollapsed ? '펼치기' : '접기';
+            toggleBtn.textContent = isCollapsed ? '▸' : '▾';
             toggleBtn.onclick = () => {
                 const collapsed = row.classList.toggle('slm-call-collapsed');
                 toggleBtn.title = collapsed ? '펼치기' : '접기';
                 toggleBtn.textContent = collapsed ? '▸' : '▾';
+                collapsedState[log.id] = collapsed;
+                saveCollapsedState(collapsedState);
             };
             row.appendChild(toggleBtn);
 
