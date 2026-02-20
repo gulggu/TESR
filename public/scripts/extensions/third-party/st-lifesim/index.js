@@ -617,7 +617,7 @@ async function init() {
     const ctx = getContext();
     if (!ctx) {
         console.error('[ST-LifeSim] 컨텍스트를 가져올 수 없습니다.');
-        return;
+        return false;
     }
 
     const settings = getSettings();
@@ -687,9 +687,19 @@ async function init() {
     }
 
     console.log('[ST-LifeSim] 초기화 완료');
+    return true;
 }
 
-// SillyTavern APP_READY 이벤트에서 초기화 실행
-eventSource.on(event_types.APP_READY, async () => {
-    try { await init(); } catch (e) { console.error('[ST-LifeSim] 초기화 오류:', e); }
-});
+let initialized = false;
+let initializing = false;
+async function initIfNeeded() {
+    if (initialized || initializing) return;
+    initializing = true;
+    try { initialized = await init(); } catch (e) { console.error('[ST-LifeSim] 초기화 오류:', e); } finally { initializing = false; }
+}
+
+// SillyTavern APP_READY 이벤트에서 초기화 실행 (호환성 위해 즉시 시도도 함께 수행)
+if (eventSource?.on && event_types?.APP_READY) {
+    eventSource.on(event_types.APP_READY, initIfNeeded);
+}
+void initIfNeeded();
