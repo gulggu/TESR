@@ -925,6 +925,16 @@ body[data-theme="dark"],
 
 .slm-contact-info { flex: 1; min-width: 0; }
 .slm-contact-name { display: block; font-size: 14px; font-weight: 600; color: var(--slm-text); }
+.slm-contact-scope {
+  display: inline-block;
+  font-size: 11px;
+  line-height: 1.4;
+  margin-top: 2px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--slm-bg-tertiary);
+  color: var(--slm-text-secondary);
+}
 .slm-contact-rel { display: block; font-size: 12px; color: var(--slm-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .slm-binding-row {
@@ -947,6 +957,7 @@ body[data-theme="dark"],
 .slm-call-list { display: flex; flex-direction: column; gap: 6px; max-height: 250px; overflow-y: auto; }
 
 .slm-call-row {
+  position: relative;
   padding: 12px;
   background: var(--slm-bg-secondary);
   border-radius: 12px;
@@ -954,6 +965,20 @@ body[data-theme="dark"],
   transition: border-color 0.15s;
 }
 .slm-call-row:hover { border-color: var(--slm-border); }
+.slm-call-row-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--slm-text-secondary);
+  background: transparent;
+}
+.slm-call-row-close:hover { background: var(--slm-bg-tertiary); color: var(--slm-danger); }
 .slm-call-info { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--slm-text); flex-wrap: wrap; }
 .slm-call-icon { font-size: 18px; }
 .slm-call-name { font-weight: 600; }

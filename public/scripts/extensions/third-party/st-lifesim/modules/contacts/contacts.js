@@ -137,9 +137,6 @@ function buildContactsContent() {
     const wrapper = document.createElement('div');
     wrapper.className = 'slm-contacts-wrapper';
 
-    // 바인딩 타입 상태
-    let binding = 'chat';
-
     // 검색창
     const searchInput = document.createElement('input');
     searchInput.className = 'slm-input slm-search';
@@ -155,11 +152,11 @@ function buildContactsContent() {
     const addBtn = document.createElement('button');
     addBtn.className = 'slm-btn slm-btn-primary slm-btn-sm';
     addBtn.textContent = '+ 새 연락처';
-    addBtn.onclick = () => openContactDialog(null, binding, renderList);
+    addBtn.onclick = () => openContactDialog(null, 'chat', renderList);
     const aiAddBtn = document.createElement('button');
     aiAddBtn.className = 'slm-btn slm-btn-secondary slm-btn-sm';
     aiAddBtn.textContent = '🤖 AI 생성';
-    aiAddBtn.onclick = () => openAiContactDialog(binding, renderList);
+    aiAddBtn.onclick = () => openAiContactDialog('chat', renderList);
     actionRow.appendChild(addBtn);
     actionRow.appendChild(aiAddBtn);
     wrapper.appendChild(actionRow);
@@ -169,22 +166,9 @@ function buildContactsContent() {
     list.className = 'slm-contacts-list';
     wrapper.appendChild(list);
 
-    // 바인딩 전환
-    const bindingRow = document.createElement('div');
-    bindingRow.className = 'slm-binding-row';
-    bindingRow.innerHTML = `
-        <span class="slm-label">저장 방식:</span>
-        <label><input type="radio" name="slm-binding" value="chat" checked> 이 채팅</label>
-        <label><input type="radio" name="slm-binding" value="character"> 이 캐릭터</label>
-    `;
-    bindingRow.querySelectorAll('input[name="slm-binding"]').forEach(r => {
-        r.onchange = () => { binding = r.value; renderList(); };
-    });
-    wrapper.appendChild(bindingRow);
-
     function renderList() {
         list.innerHTML = '';
-        const contacts = loadContacts(binding);
+        const contacts = [...loadContacts('chat'), ...loadContacts('character')];
         const query = searchInput.value.toLowerCase();
         const filtered = query
             ? contacts.filter(c => c.name.toLowerCase().includes(query) || (c.description || '').toLowerCase().includes(query))
@@ -224,11 +208,16 @@ function buildContactsContent() {
             name.className = 'slm-contact-name';
             name.textContent = contact.name;
 
+            const scope = document.createElement('span');
+            scope.className = 'slm-contact-scope';
+            scope.textContent = contact.binding === 'character' ? '채팅 유지' : '이 채팅';
+
             const rel = document.createElement('span');
             rel.className = 'slm-contact-rel';
             rel.textContent = contact.relationToUser || contact.description || '';
 
             info.appendChild(name);
+            info.appendChild(scope);
             info.appendChild(rel);
 
             // 클릭 시 상세 팝업
@@ -242,7 +231,7 @@ function buildContactsContent() {
             const editBtn = document.createElement('button');
             editBtn.className = 'slm-btn slm-btn-ghost slm-btn-sm';
             editBtn.textContent = '편집';
-            editBtn.onclick = (e) => { e.stopPropagation(); openContactDialog(contact, binding, renderList); };
+            editBtn.onclick = (e) => { e.stopPropagation(); openContactDialog(contact, contact.binding || 'chat', renderList); };
 
             // 삭제 버튼
             const delBtn = document.createElement('button');
@@ -250,8 +239,9 @@ function buildContactsContent() {
             delBtn.textContent = '삭제';
             delBtn.onclick = (e) => {
                 e.stopPropagation();
-                const updated = loadContacts(binding).filter(c => c.id !== contact.id);
-                saveContacts(updated, binding);
+                const targetBinding = contact.binding || 'chat';
+                const updated = loadContacts(targetBinding).filter(c => c.id !== contact.id);
+                saveContacts(updated, targetBinding);
                 renderList();
                 showToast('연락처 삭제', 'success', 1500);
             };
@@ -330,10 +320,10 @@ function openContactDetailPopup(contact) {
 /**
  * 연락처 등록/편집 서브창을 연다
  * @param {Contact|null} existing
- * @param {'chat'|'character'} binding
+ * @param {'chat'|'character'} defaultBinding
  * @param {Function} onSave
  */
-function openContactDialog(existing, binding, onSave) {
+function openContactDialog(existing, defaultBinding, onSave) {
     const isEdit = !!existing;
     const wrapper = document.createElement('div');
     wrapper.className = 'slm-form';
@@ -346,6 +336,20 @@ function openContactDialog(existing, binding, onSave) {
         relationToChar: createFormField(wrapper, '{{char}}와의 관계', 'text', existing?.relationToChar || ''),
         personality: createFormField(wrapper, '성격/말투', 'text', existing?.personality || ''),
     };
+    let selectedBinding = existing?.binding || defaultBinding || 'chat';
+    if (!existing?.isCharAuto) {
+        const bindingLbl = document.createElement('label');
+        bindingLbl.className = 'slm-label';
+        bindingLbl.textContent = '저장 범위';
+        const bindingSelect = document.createElement('select');
+        bindingSelect.className = 'slm-select';
+        bindingSelect.innerHTML = `
+            <option value="chat"${selectedBinding === 'chat' ? ' selected' : ''}>이 채팅에만 저장</option>
+            <option value="character"${selectedBinding === 'character' ? ' selected' : ''}>채팅을 새로 파도 유지</option>
+        `;
+        bindingSelect.onchange = () => { selectedBinding = bindingSelect.value; };
+        wrapper.append(bindingLbl, bindingSelect);
+    }
 
     const footer = document.createElement('div');
     footer.className = 'slm-panel-footer';
@@ -380,7 +384,10 @@ function openContactDialog(existing, binding, onSave) {
             return;
         }
 
-        const contacts = loadContacts(binding);
+        const sourceBinding = existing?.binding || defaultBinding || 'chat';
+        const targetBinding = selectedBinding;
+        const sourceContacts = loadContacts(sourceBinding);
+        const targetContacts = targetBinding === sourceBinding ? sourceContacts : loadContacts(targetBinding);
         const data = {
             id: existing?.id || generateId(),
             name,
@@ -391,17 +398,18 @@ function openContactDialog(existing, binding, onSave) {
             personality: fields.personality.value.trim(),
             phone: '',
             tags: existing?.tags || [],
-            binding,
+            binding: targetBinding,
         };
 
         if (isEdit) {
-            const idx = contacts.findIndex(c => c.id === existing.id);
-            if (idx !== -1) contacts[idx] = data;
-        } else {
-            contacts.push(data);
+            const idx = sourceContacts.findIndex(c => c.id === existing.id);
+            if (idx !== -1) sourceContacts.splice(idx, 1);
         }
-
-        saveContacts(contacts, binding);
+        targetContacts.push(data);
+        if (targetBinding !== sourceBinding) {
+            saveContacts(sourceContacts, sourceBinding);
+        }
+        saveContacts(targetContacts, targetBinding);
         close();
         onSave();
         showToast(isEdit ? '연락처 수정 완료' : '연락처 추가 완료', 'success');
