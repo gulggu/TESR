@@ -954,6 +954,24 @@ body[data-theme="dark"],
   transition: border-color 0.15s;
 }
 .slm-call-row:hover { border-color: var(--slm-border); }
+.slm-call-quick-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--slm-text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.slm-call-quick-delete:hover {
+  background: var(--slm-bg-tertiary);
+  color: var(--slm-danger);
+}
 .slm-call-info { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--slm-text); flex-wrap: wrap; }
 .slm-call-icon { font-size: 18px; }
 .slm-call-name { font-weight: 600; }

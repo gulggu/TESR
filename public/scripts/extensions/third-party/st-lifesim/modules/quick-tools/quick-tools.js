@@ -351,7 +351,8 @@ async function generateEvent(category) {
             const contentPrompt = `사건 카테고리: "${category}", 사건 제목: "${eventTitle}". 현재 상황에 맞는 사건 내용을 한국어 2~4문장으로 작성하세요.
 - 반드시 한국어만 사용하세요.
 - 출력은 사건 설명 본문만 작성하세요.
-- 제3자/전지적 작가 시점의 시스템 안내문 톤으로 작성하고, 절대 ${ctx?.name2 || '{{char}}'}로 롤플레잉하지 마세요.`;
+- 제3자/전지적 작가 시점의 시스템 안내문 톤으로 작성하고, 절대 ${ctx?.name2 || '{{char}}'}로 롤플레잉하지 마세요.
+- 해당 요청은 {{user}}와 {{char}} 사이의 메시지 주고받기를 더 재미있게 변화구를 주기 위한 것이며, 현실에서 만나게 된다 등 메신저 형식의 룰을 깨트리려는 내용은 일체 금지합니다.`;
             const contentResult = await ctx.generateQuietPrompt({ quietPrompt: contentPrompt, quietName: '이벤트' });
             if (contentResult) eventContent = contentResult.trim();
         }

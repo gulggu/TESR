@@ -13,7 +13,7 @@
 import { getContext } from '../../utils/st-context.js';
 import { slashSend, slashSendAs, slashGen } from '../../utils/slash.js';
 import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
-import { showToast, escapeHtml, generateId } from '../../utils/ui.js';
+import { showToast, showConfirm, escapeHtml, generateId } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 import { getContacts } from '../contacts/contacts.js';
 
@@ -27,6 +27,7 @@ const CALL_INJECT_TAG = 'st-lifesim-call';
 const CALL_POLICY_TAG = 'st-lifesim-call-policy';
 const INCOMING_CALL_CONFIDENCE_THRESHOLD = 0.5;
 const PROACTIVE_CALL_COOLDOWN_MS = 30000;
+const PROACTIVE_CALL_DELAY_MS = 12000;
 
 // 통화 감지 키워드 (설정에서 변경 가능)
 const DEFAULT_KEYWORDS = ['전화할게', '전화 걸게', '전화해도 돼', '전화 줄게', 'call', 'phone'];
@@ -122,8 +123,10 @@ export function initCall() {
             isReinjectingCallMessage = true;
             try {
                 await slashSendAs('전화', content);
-                const latestIdx = (getContext()?.chat?.length ?? 1) - 1;
-                const cutIdx = beforeSendLen > 0 ? Math.min(latestIdx - 1, beforeSendLen - 1) : -1;
+                const latestChatLen = getContext()?.chat?.length ?? 0;
+                const latestIdx = latestChatLen - 1;
+                const maxSafeIdx = Math.max(0, latestChatLen - 1);
+                const cutIdx = beforeSendLen > 0 ? Math.min(Math.max(0, latestIdx - 1), Math.min(beforeSendLen - 1, maxSafeIdx)) : -1;
                 if (cutIdx >= 0) {
                     await freshCtx.executeSlashCommandsWithOptions(`/cut ${cutIdx}`, { showOutput: false });
                 }
@@ -148,7 +151,7 @@ export async function triggerProactiveIncomingCall(probabilityPercent) {
     const charName = getContext()?.name2;
     if (!charName) return;
     lastProactiveCallAt = Date.now();
-    await new Promise(resolve => setTimeout(resolve, 6000));
+    await new Promise(resolve => setTimeout(resolve, PROACTIVE_CALL_DELAY_MS));
     if (callActive || incomingCallUiOpen) return;
     await showIncomingCallDialog(charName);
 }
@@ -658,6 +661,7 @@ function buildCallLogsContent() {
         filtered.slice().reverse().forEach(log => {
             const row = document.createElement('div');
             row.className = 'slm-call-row';
+            row.style.position = 'relative';
 
             const mMin = Math.floor(log.durationSeconds / 60);
             const sSec = log.durationSeconds % 60;
@@ -671,6 +675,21 @@ function buildCallLogsContent() {
                 <span class="slm-call-dur">${escapeHtml(durStr)}</span>
             `;
             row.appendChild(infoDiv);
+
+            const quickDeleteBtn = document.createElement('button');
+            quickDeleteBtn.className = 'slm-call-quick-delete';
+            quickDeleteBtn.type = 'button';
+            quickDeleteBtn.title = '기록만 삭제';
+            quickDeleteBtn.textContent = '✕';
+            quickDeleteBtn.onclick = () => {
+                const all = loadCallLogs().filter(x => x.id !== log.id);
+                saveCallLogs(all);
+                const idx = logs.findIndex(x => x.id === log.id);
+                if (idx !== -1) logs.splice(idx, 1);
+                renderLogs();
+                showToast('통화 기록 삭제됨', 'success', 1400);
+            };
+            row.appendChild(quickDeleteBtn);
 
             // 요약 표시 (인라인 수정 가능)
             const sumDiv = document.createElement('div');
@@ -730,18 +749,38 @@ function buildCallLogsContent() {
             };
             actionRow.appendChild(editBtn);
 
-            const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'slm-btn slm-btn-danger slm-btn-sm';
-            deleteBtn.textContent = '🗑️ 로그 삭제';
-            deleteBtn.onclick = async () => {
-                const all = loadCallLogs().filter(x => x.id !== log.id);
-                saveCallLogs(all);
-                const idx = logs.findIndex(x => x.id === log.id);
-                if (idx !== -1) logs.splice(idx, 1);
-                renderLogs();
-                showToast('통화 기록 삭제됨', 'success', 1400);
+            const hardDeleteBtn = document.createElement('button');
+            hardDeleteBtn.className = 'slm-btn slm-btn-danger slm-btn-sm';
+            hardDeleteBtn.textContent = '🧹 완전삭제';
+            hardDeleteBtn.onclick = async () => {
+                const hasRange = Number.isInteger(log.startMessageIdx)
+                    && Number.isInteger(log.endMessageIdx)
+                    && log.startMessageIdx >= 0
+                    && log.endMessageIdx >= log.startMessageIdx;
+                if (!hasRange) {
+                    quickDeleteBtn.click();
+                    return;
+                }
+                const confirmed = await showConfirm('정말로 삭제하시겠습니까?', '예', '아니오');
+                if (!confirmed) return;
+                const ctx = getContext();
+                if (!ctx?.executeSlashCommandsWithOptions) {
+                    showToast('완전삭제를 실행할 수 없습니다.', 'error', 1800);
+                    return;
+                }
+                const chatLen = ctx.chat?.length ?? 0;
+                const startIdx = Math.max(0, Math.min(log.startMessageIdx, Math.max(0, chatLen - 1)));
+                const endIdx = Math.max(startIdx, Math.min(log.endMessageIdx, Math.max(0, chatLen - 1)));
+                try {
+                    await ctx.executeSlashCommandsWithOptions(`/cut ${startIdx}-${endIdx}`, { showOutput: false });
+                } catch (e) {
+                    console.error('[ST-LifeSim] 통화 완전삭제 오류:', e);
+                    showToast('대화 삭제 실패', 'error', 1800);
+                    return;
+                }
+                quickDeleteBtn.click();
             };
-            actionRow.appendChild(deleteBtn);
+            actionRow.appendChild(hardDeleteBtn);
             row.appendChild(actionRow);
 
             logList.appendChild(row);
