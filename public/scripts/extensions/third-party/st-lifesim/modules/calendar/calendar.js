@@ -233,6 +233,7 @@ function buildCalendarContent() {
                 <span class="slm-event-label">${escapeHtml(label)}(${ev.day}일)</span>
                 <span class="slm-event-time">${escapeHtml(ev.time || '')}</span>
                 <span class="slm-event-title">${escapeHtml(ev.title)}</span>
+                ${ev.description ? `<span class="slm-event-desc">${escapeHtml(ev.description)}</span>` : ''}
             `;
 
             const btnRow = document.createElement('div');

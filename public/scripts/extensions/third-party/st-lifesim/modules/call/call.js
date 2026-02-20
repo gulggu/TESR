@@ -250,8 +250,61 @@ async function endCall() {
 }
 
 /**
- * 통화 기록 팝업을 연다
+ * 발신 시 AI가 착신/거부를 결정한다
+ * 거부 시 부재중 처리, 착신 시 통화 시작
+ * @param {string} charName
  */
+async function initiateCallWithAiDecision(charName) {
+    // 발신 중 메시지 삽입
+    try {
+        await slashSend(`📱 발신 중... ${charName}`);
+    } catch (e) {
+        console.error('[ST-LifeSim] 발신 메시지 오류:', e);
+    }
+
+    // AI에게 착신 여부를 결정하게 한다
+    let acceptCall = true;
+    try {
+        const ctx = getContext();
+        if (ctx && typeof ctx.generateQuietPrompt === 'function') {
+            const userName = ctx.name1 || 'the user';
+            const decisionPrompt = `${charName} is receiving a phone call from ${userName}. Based on the current situation and ${charName}'s personality and mood, decide whether to ACCEPT or REJECT the call. Reply with only one word: "ACCEPT" or "REJECT".`;
+            const decision = await ctx.generateQuietPrompt({ quietPrompt: decisionPrompt, quietName: charName }) || 'ACCEPT';
+            acceptCall = !decision.toUpperCase().includes('REJECT');
+        }
+    } catch (e) {
+        console.error('[ST-LifeSim] 착신 결정 오류:', e);
+    }
+
+    if (!acceptCall) {
+        // 거부: 부재중 처리
+        try {
+            await slashSend(`📵 부재중 전화 — ${charName} (착신 거부)`);
+        } catch (e) {
+            console.error('[ST-LifeSim] 착신 거부 메시지 오류:', e);
+        }
+        // 부재중 로그 저장
+        const logs = loadCallLogs();
+        logs.push({
+            id: generateId(),
+            contactName: charName,
+            date: new Date().toISOString(),
+            durationSeconds: 0,
+            summary: '착신 거부',
+            startMessageIdx: -1,
+            includeInContext: false,
+            missed: true,
+            binding: getDefaultBinding(),
+        });
+        saveCallLogs(logs);
+        showToast(`${charName}이(가) 전화를 거부했습니다.`, 'warn', 3000);
+    } else {
+        // 착신 수락: 통화 시작
+        await startCall(charName);
+    }
+}
+
+
 export function openCallLogsPopup(onBack) {
     const content = buildCallLogsContent();
     createPopup({
@@ -299,10 +352,10 @@ function buildCallLogsContent() {
         const name = dialInput.value.trim();
         if (!name) { showToast('이름을 입력해주세요.', 'warn'); return; }
         if (callActive) { showToast('이미 통화 중입니다.', 'warn'); return; }
-        // 팝업 닫고 통화 시작
+        // 팝업 닫고 AI 착신 여부 판단
         const overlay = document.getElementById('slm-overlay-call-logs');
         if (overlay) overlay.remove();
-        await startCall(name);
+        await initiateCallWithAiDecision(name);
     };
 
     dialRow.appendChild(dialInput);

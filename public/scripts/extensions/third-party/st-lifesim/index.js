@@ -55,6 +55,7 @@ const DEFAULT_SETTINGS = {
         intervalSec: 10,
         probability: 8,
     },
+    snsPostingProbability: 10, // % (0~100)
 };
 
 /**
@@ -89,6 +90,9 @@ function getSettings() {
     if (ext[SETTINGS_KEY].modules?.gifticon == null) {
         if (!ext[SETTINGS_KEY].modules) ext[SETTINGS_KEY].modules = {};
         ext[SETTINGS_KEY].modules.gifticon = true;
+    }
+    if (ext[SETTINGS_KEY].snsPostingProbability == null) {
+        ext[SETTINGS_KEY].snsPostingProbability = DEFAULT_SETTINGS.snsPostingProbability;
     }
     return ext[SETTINGS_KEY];
 }
@@ -477,6 +481,29 @@ function openSettingsPanel(onBack) {
 
         wrapper.appendChild(Object.assign(document.createElement('hr'), { className: 'slm-hr' }));
 
+        // SNS 자동 포스팅 확률
+        const snsProbRow = document.createElement('div');
+        snsProbRow.className = 'slm-input-row';
+        const snsProbLbl = Object.assign(document.createElement('label'), { className: 'slm-label', textContent: 'SNS 자동 포스팅 확률:' });
+        const snsProbInput = Object.assign(document.createElement('input'), {
+            className: 'slm-input slm-input-sm', type: 'number', min: '0', max: '100',
+            value: String(settings.snsPostingProbability ?? 10),
+        });
+        snsProbInput.style.width = '70px';
+        const snsProbPctLbl = Object.assign(document.createElement('span'), { className: 'slm-label', textContent: '%' });
+        const snsProbApplyBtn = document.createElement('button');
+        snsProbApplyBtn.className = 'slm-btn slm-btn-primary slm-btn-sm';
+        snsProbApplyBtn.textContent = '적용';
+        snsProbApplyBtn.onclick = () => {
+            const val = parseInt(snsProbInput.value);
+            settings.snsPostingProbability = Math.max(0, Math.min(100, isNaN(val) ? 10 : val));
+            snsProbInput.value = String(settings.snsPostingProbability);
+            saveSettings();
+            showToast(`SNS 포스팅 확률: ${settings.snsPostingProbability}%`, 'success', 1500);
+        };
+        snsProbRow.append(snsProbLbl, snsProbInput, snsProbPctLbl, snsProbApplyBtn);
+        wrapper.appendChild(snsProbRow);
+
         // SNS 기본 이미지 URL
         const snsImgLbl = Object.assign(document.createElement('label'), { className: 'slm-label', textContent: 'SNS 기본 이미지 URL:' });
         const snsImgInput = Object.assign(document.createElement('input'), {
@@ -681,10 +708,11 @@ async function init() {
         });
     }
 
-    // 유저 메시지 전송 시 10% 확률로 SNS 포스팅 트리거
+    // 유저 메시지 전송 시 설정된 확률로 SNS 포스팅 트리거
     if (isModuleEnabled('sns') && evSrc && eventTypes?.MESSAGE_SENT) {
         evSrc.on(eventTypes.MESSAGE_SENT, () => {
-            if (isEnabled() && Math.random() < 0.10) {
+            const prob = (getSettings().snsPostingProbability ?? 10) / 100;
+            if (isEnabled() && Math.random() < prob) {
                 triggerNpcPosting().catch(e => console.error('[ST-LifeSim] SNS 자동 포스팅 오류:', e));
             }
         });

@@ -453,11 +453,11 @@ async function handleVoiceMemo(seconds, hint) {
     const timeStr = `${m}:${String(s).padStart(2, '0')}`;
 
     try {
-        // 호버 시 내용 힌트 노출 방식으로 출력
+        // 음성메세지 본문 + 내용힌트 (<br> 구분, 이탤릭 처리)
         const hintHtml = hint
-            ? `<span class="slm-voice-hint">${escapeHtml(hint)}</span>`
+            ? `<br><em>*${escapeHtml(hint)}*</em>`
             : '';
-        const voiceHtml = `<span class="slm-voice-msg">🎤 음성메시지 (${timeStr})${hintHtml}</span>`;
+        const voiceHtml = `🎤 음성메시지 (${timeStr})${hintHtml}`;
         await slashSend(voiceHtml);
 
         if (hint) {

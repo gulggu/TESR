@@ -189,7 +189,7 @@ function buildEmoticonContent() {
     const exportBtn = document.createElement('button');
     exportBtn.className = 'slm-btn slm-btn-secondary slm-btn-sm';
     exportBtn.textContent = '📤 내보내기';
-    exportBtn.title = '이모티콘 프리셋을 JSON 파일로 저장 (가져오기로 공유 가능)';
+    exportBtn.title = '이모티콘 프리셋을 JSON 파일로 저장 (카테고리 선택 가능)';
     exportBtn.onclick = () => {
         try {
             const emoticons = loadEmoticons();
@@ -197,17 +197,65 @@ function buildEmoticonContent() {
                 showToast('내보낼 이모티콘이 없습니다.', 'warn');
                 return;
             }
-            const data = { emoticons };
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `emoticon-preset-${new Date().toISOString().slice(0, 10)}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            showToast(`이모티콘 ${emoticons.length}개 내보내기 완료`, 'success');
+            // 카테고리 목록 생성
+            const categories = ['전체', ...new Set(emoticons.map(e => e.category).filter(Boolean))];
+
+            // 카테고리 선택 다이얼로그
+            const dlgWrapper = document.createElement('div');
+            dlgWrapper.className = 'slm-form';
+            const dlgLabel = Object.assign(document.createElement('label'), { className: 'slm-label', textContent: '내보낼 카테고리 선택:' });
+            const catSelect = document.createElement('select');
+            catSelect.className = 'slm-select';
+            categories.forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat;
+                opt.textContent = cat;
+                catSelect.appendChild(opt);
+            });
+            dlgWrapper.appendChild(dlgLabel);
+            dlgWrapper.appendChild(catSelect);
+
+            const dlgFooter = document.createElement('div');
+            dlgFooter.className = 'slm-panel-footer';
+            const dlgCancelBtn = document.createElement('button');
+            dlgCancelBtn.className = 'slm-btn slm-btn-secondary';
+            dlgCancelBtn.textContent = '취소';
+            const dlgExportBtn = document.createElement('button');
+            dlgExportBtn.className = 'slm-btn slm-btn-primary';
+            dlgExportBtn.textContent = '내보내기';
+            dlgFooter.appendChild(dlgCancelBtn);
+            dlgFooter.appendChild(dlgExportBtn);
+
+            const { close: dlgClose } = createPopup({
+                id: 'emoticon-export',
+                title: '📤 카테고리별 내보내기',
+                content: dlgWrapper,
+                footer: dlgFooter,
+                className: 'slm-sub-panel',
+            });
+
+            dlgCancelBtn.onclick = () => dlgClose();
+            dlgExportBtn.onclick = () => {
+                const selectedCat = catSelect.value;
+                const filtered = selectedCat === '전체' ? emoticons : emoticons.filter(e => e.category === selectedCat);
+                if (filtered.length === 0) {
+                    showToast('해당 카테고리에 이모티콘이 없습니다.', 'warn');
+                    return;
+                }
+                const data = { emoticons: filtered };
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const catSlug = selectedCat === '전체' ? 'all' : selectedCat.replace(/[/\\?%*:|"<>]/g, '-').replace(/\s+/g, '_');
+                a.download = `emoticon-preset-${catSlug}-${new Date().toISOString().slice(0, 10)}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                dlgClose();
+                showToast(`이모티콘 ${filtered.length}개 내보내기 완료`, 'success');
+            };
         } catch (err) {
             showToast('내보내기 실패: ' + err.message, 'error');
         }
@@ -338,6 +386,21 @@ function buildEmoticonContent() {
 
             cell.appendChild(img);
             cell.appendChild(lockIcon);
+
+            // 삭제 버튼 오버레이 (hover 시 표시)
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'slm-emoticon-delete-btn';
+            deleteBtn.textContent = '✕';
+            deleteBtn.title = '이모티콘 삭제';
+            deleteBtn.onclick = (ev) => {
+                ev.stopPropagation();
+                const list = loadEmoticons().filter(em => em.id !== e.id);
+                saveEmoticons(list);
+                renderAll();
+                showToast(`이모티콘 삭제: ${e.name}`, 'success', 1200);
+            };
+            cell.appendChild(deleteBtn);
+
             grid.appendChild(cell);
         });
     }
