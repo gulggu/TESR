@@ -25,7 +25,7 @@ import { initEmoticon, openEmoticonPopup } from './modules/emoticon/emoticon.js'
 import { initContacts, openContactsPopup } from './modules/contacts/contacts.js';
 import { initCall, onCharacterMessageRenderedForProactiveCall, openCallLogsPopup, triggerProactiveIncomingCall } from './modules/call/call.js';
 import { initWallet, openWalletPopup } from './modules/wallet/wallet.js';
-import { initSns, openSnsPopup, triggerNpcPosting, triggerPendingCommentReaction } from './modules/sns/sns.js';
+import { initSns, openSnsPopup, triggerNpcPosting, triggerPendingCommentReaction, hasPendingCommentReaction } from './modules/sns/sns.js';
 import { initCalendar, openCalendarPopup } from './modules/calendar/calendar.js';
 import { initGifticon, openGifticonPopup } from './modules/gifticon/gifticon.js';
 
@@ -914,7 +914,7 @@ async function init() {
                         .catch(e => console.error('[ST-LifeSim] SNS 자동 포스팅 오류:', e))
                         .finally(() => { snsTriggerInFlight = false; });
                 }
-                if (!snsReactionInFlight && Math.random() < prob) {
+                if (!snsReactionInFlight && Math.random() < prob && hasPendingCommentReaction()) {
                     snsReactionInFlight = true;
                     triggerPendingCommentReaction()
                         .catch(e => console.error('[ST-LifeSim] SNS 댓글 반응 생성 오류:', e))

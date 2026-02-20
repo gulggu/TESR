@@ -26,7 +26,9 @@ const SNS_REPLY_PROBABILITY = 0.7;
 const SNS_EXTRA_COMMENT_PROBABILITY = 0.35;
 const SNS_POST_TEXT_MAX = 280;
 const SNS_IMAGE_DESC_MAX = 220;
+// 댓글 직후 즉시 생성하지 않고, 유저 메시지 이벤트에서 확률적으로 하나씩 처리하는 큐다.
 const PENDING_COMMENT_REACTIONS = [];
+let pendingReactionInFlight = false;
 
 /**
  * 관리형 이미지 프리셋 목록을 불러온다
@@ -840,9 +842,22 @@ async function postComment(post, text, onUpdate) {
 }
 
 export async function triggerPendingCommentReaction() {
+    if (pendingReactionInFlight) return;
+    pendingReactionInFlight = true;
     const pending = PENDING_COMMENT_REACTIONS.shift();
-    if (!pending) return;
-    await runDeferredCommentGeneration(pending);
+    if (!pending) {
+        pendingReactionInFlight = false;
+        return;
+    }
+    try {
+        await runDeferredCommentGeneration(pending);
+    } finally {
+        pendingReactionInFlight = false;
+    }
+}
+
+export function hasPendingCommentReaction() {
+    return PENDING_COMMENT_REACTIONS.length > 0;
 }
 
 async function runDeferredCommentGeneration({ postId, commentId, text, userName, onUpdate }) {
