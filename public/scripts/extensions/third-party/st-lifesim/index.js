@@ -422,7 +422,7 @@ function openSettingsPanel(onBack) {
             }
             saveSettings();
             showToast('ST-LifeSim 설정/데이터가 초기화되었습니다. 새로고침합니다.', 'success', 1800);
-            setTimeout(() => location.reload(), 500);
+            setTimeout(() => location.reload(), 2000);
         };
         wrapper.appendChild(resetBtn);
 

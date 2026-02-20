@@ -26,6 +26,7 @@ const KEYWORDS_KEY = 'call-keywords';
 const CALL_INJECT_TAG = 'st-lifesim-call';
 const CALL_POLICY_TAG = 'st-lifesim-call-policy';
 const INCOMING_CALL_CONFIDENCE_THRESHOLD = 0.5;
+const PROACTIVE_CALL_COOLDOWN_MS = 30000;
 
 // 통화 감지 키워드 (설정에서 변경 가능)
 const DEFAULT_KEYWORDS = ['전화할게', '전화 걸게', '전화해도 돼', '전화 줄게', 'call', 'phone'];
@@ -143,7 +144,7 @@ export async function triggerProactiveIncomingCall(probabilityPercent) {
     if (callActive || incomingCallUiOpen) return;
     const chance = Math.max(0, Math.min(100, Number(probabilityPercent) || 0)) / 100;
     if (chance <= 0 || Math.random() >= chance) return;
-    if (Date.now() - lastProactiveCallAt < 30000) return;
+    if (Date.now() - lastProactiveCallAt < PROACTIVE_CALL_COOLDOWN_MS) return;
     const charName = getContext()?.name2;
     if (!charName) return;
     lastProactiveCallAt = Date.now();

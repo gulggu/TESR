@@ -16,6 +16,8 @@ import { loadData, saveData, getDefaultBinding, getExtensionSettings } from '../
 
 // 사건 기록 아카이브 저장 키
 const ARCHIVE_KEY = 'event-archive';
+const DEFAULT_EMOTICON_RADIUS = 10;
+const MAX_EMOTICON_RADIUS = 50;
 
 /**
  * 퀵 센드 버튼을 sendform의 전송 버튼(#send_but) 바로 앞에 삽입한다
@@ -529,7 +531,7 @@ export function renderVoiceMemoUI() {
     imageBtn.onclick = async () => {
         const url = imageInput.value.trim();
         if (!url) return;
-        const radius = Math.max(0, Math.min(50, Number(getExtensionSettings()?.['st-lifesim']?.emoticonRadius ?? 10)));
+        const radius = Math.max(0, Math.min(MAX_EMOTICON_RADIUS, Number(getExtensionSettings()?.['st-lifesim']?.emoticonRadius ?? DEFAULT_EMOTICON_RADIUS)));
         const desc = imageDescInput.value.trim();
         const descHtml = desc ? `<br><em class="slm-quick-image-desc">${escapeHtml(desc)}</em>` : '';
         await slashSend(`<img src="${escapeHtml(url)}" alt="이미지" class="slm-quick-image" style="border-radius:${radius}px">${descHtml}`);
