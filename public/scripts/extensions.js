@@ -510,7 +510,7 @@ async function activateExtensions() {
                     .then(() => activeExtensions.add(name))
                     .catch(err => {
                         console.log('Could not activate extension', name, err);
-                        const errMsg = err instanceof Error ? err.message : String(err);
+                        const errMsg = err instanceof Event ? `Script ${err.type}` : err instanceof Error ? err.message : String(err);
                         extensionLoadErrors.add(t`Extension "${displayName}" failed to load: ${errMsg}`);
                     });
                 promises.push(promise);
