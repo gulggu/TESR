@@ -11,7 +11,7 @@
 import { slashSend } from '../../utils/slash.js';
 import { loadData, saveData, getDefaultBinding, getExtensionSettings } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
-import { showToast, generateId } from '../../utils/ui.js';
+import { showToast, generateId, escapeHtml } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 import { isCallActive } from '../call/call.js';
 
@@ -317,12 +317,17 @@ function buildEmoticonContent() {
             const cell = document.createElement('div');
             cell.className = 'slm-emoticon-cell';
             cell.title = `${e.name}${e.aiUsable ? '' : ' 🔒'}`;
+            cell.style.flexDirection = 'column';
 
             const img = document.createElement('img');
             img.src = e.url;
             img.alt = e.name;
             img.className = 'slm-emoticon-img';
             img.onerror = () => { img.style.display = 'none'; };
+
+            const caption = document.createElement('span');
+            caption.className = 'slm-emoticon-caption';
+            caption.textContent = e.name;
 
             const lockIcon = document.createElement('span');
             lockIcon.className = 'slm-emoticon-lock';
@@ -334,9 +339,9 @@ function buildEmoticonContent() {
                     const size = getEmoticonSize();
                     const radius = getEmoticonRadius();
                     // HTML img 태그로 크기/모서리 지정 (URL/이름 이스케이프)
-                    const safeName = e.name.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    const safeName = escapeHtml(e.name);
                     const safeUrl = e.url.replace(/"/g, '&quot;');
-                    const html = `<img src="${safeUrl}" alt="${safeName}" style="width:${size}px;height:${size}px;object-fit:contain;display:inline-block;vertical-align:middle;border-radius:${radius}px">`;
+                    const html = `<img src="${safeUrl}" alt="${safeName}" style="width:${size}px;height:${size}px;object-fit:contain;display:inline-block;vertical-align:middle;border-radius:${radius}px"><br><small style="opacity:.75;font-size:11px">${safeName}</small>`;
                     await slashSend(html);
                     showToast(`이모티콘 전송: ${e.name}`, 'success', 1000);
                 } catch (err) {
@@ -351,7 +356,18 @@ function buildEmoticonContent() {
             };
 
             cell.appendChild(img);
+            cell.appendChild(caption);
             cell.appendChild(lockIcon);
+
+            const editBtn = document.createElement('button');
+            editBtn.className = 'slm-emoticon-edit-btn';
+            editBtn.textContent = '✎';
+            editBtn.title = '이모티콘 수정';
+            editBtn.onclick = (ev) => {
+                ev.stopPropagation();
+                openAddEmoticonDialog(renderAll, e);
+            };
+            cell.appendChild(editBtn);
 
             // 삭제 버튼 오버레이 (hover 시 표시)
             const deleteBtn = document.createElement('button');

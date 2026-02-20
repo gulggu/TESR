@@ -880,7 +880,7 @@ function openImagePresetManager(onChanged) {
     const wrapper = document.createElement('div');
     wrapper.className = 'slm-form';
     const list = document.createElement('div');
-    list.className = 'slm-form';
+    list.className = 'slm-sns-preset-grid';
     wrapper.appendChild(list);
 
     const addBtn = document.createElement('button');
@@ -898,15 +898,14 @@ function openImagePresetManager(onChanged) {
         }
         presets.forEach((preset, i) => {
             const row = document.createElement('div');
-            row.className = 'slm-input-row';
+            row.className = 'slm-sns-preset-card';
             const thumb = document.createElement('img');
             thumb.src = preset.url;
             thumb.alt = preset.name;
             thumb.className = 'slm-preview-img';
             const name = document.createElement('span');
-            name.className = 'slm-label';
+            name.className = 'slm-sns-preset-name';
             name.textContent = preset.name;
-            name.style.flex = '1';
             const editBtn = document.createElement('button');
             editBtn.className = 'slm-btn slm-btn-ghost slm-btn-sm';
             editBtn.textContent = '수정';
@@ -921,7 +920,10 @@ function openImagePresetManager(onChanged) {
                 render();
                 onChanged?.();
             };
-            row.append(thumb, name, editBtn, delBtn);
+            const btnRow = document.createElement('div');
+            btnRow.className = 'slm-btn-row';
+            btnRow.append(editBtn, delBtn);
+            row.append(thumb, name, btnRow);
             list.appendChild(row);
         });
     }
@@ -1061,7 +1063,7 @@ function openAvatarSettingsDialog(onUpdate) {
 
         allProfiles.forEach(c => {
             const item = document.createElement('details');
-            item.className = 'slm-settings-row slm-sns-profile-item';
+            item.className = 'slm-sns-profile-item';
             const summary = document.createElement('summary');
             summary.className = 'slm-sns-profile-summary';
             const avatarSpan = document.createElement('span');

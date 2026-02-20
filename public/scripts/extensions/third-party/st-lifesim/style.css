@@ -464,7 +464,7 @@ body[data-theme="dark"],
 ────────────────────────────────────────── */
 #slm-toast-container {
   position: fixed;
-  top: 16px;
+  top: var(--slm-toast-top, 16px);
   left: 50%;
   transform: translateX(-50%);
   z-index: calc(var(--slm-z) + 100);
@@ -491,10 +491,10 @@ body[data-theme="dark"],
   text-align: center;
   word-break: keep-all;
 }
-.slm-toast-info { background: #1c1c1e; }
-.slm-toast-success { background: var(--slm-success); }
-.slm-toast-warn { background: var(--slm-warning); color: #1c1c1e !important; }
-.slm-toast-error { background: var(--slm-danger); }
+.slm-toast-info { background: var(--slm-toast-info, #1c1c1e); }
+.slm-toast-success { background: var(--slm-toast-success, var(--slm-success)); }
+.slm-toast-warn { background: var(--slm-toast-warn, var(--slm-warning)); color: #1c1c1e !important; }
+.slm-toast-error { background: var(--slm-toast-error, var(--slm-danger)); }
 .slm-toast-hide { animation: slm-toast-out 0.35s ease forwards; }
 
 /* 통화 감지 토스트 (버튼 포함) */
@@ -802,20 +802,30 @@ body[data-theme="dark"],
 
 .slm-emoticon-cell {
   position: relative;
-  aspect-ratio: 1;
+  min-height: 86px;
   border-radius: var(--slm-emoticon-radius);
   background: var(--slm-bg-secondary);
   border: 1.5px solid transparent;
   cursor: pointer;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
   overflow: hidden;
   transition: border-color 0.15s, background 0.15s;
 }
 .slm-emoticon-cell:hover { border-color: var(--slm-accent); background: var(--slm-bg-tertiary); }
 
-.slm-emoticon-img { width: 100%; height: 100%; object-fit: cover; }
+.slm-emoticon-img { width: 100%; height: 68px; object-fit: cover; border-radius: calc(var(--slm-emoticon-radius) - 2px); }
+.slm-emoticon-caption {
+  font-size: 11px;
+  line-height: 1.3;
+  padding: 3px 4px 2px;
+  color: var(--slm-text-secondary);
+  text-align: center;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
 .slm-emoticon-lock {
   position: absolute;
   bottom: 2px;
@@ -845,6 +855,28 @@ body[data-theme="dark"],
   line-height: 1;
 }
 .slm-emoticon-cell:hover .slm-emoticon-delete-btn { opacity: 1; }
+.slm-emoticon-edit-btn {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: var(--slm-accent);
+  color: #fff;
+  font-size: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 2;
+  padding: 0;
+  line-height: 1;
+}
+.slm-emoticon-cell:hover .slm-emoticon-edit-btn { opacity: 1; }
 
 .slm-preview-img {
   max-width: 80px;
@@ -925,6 +957,16 @@ body[data-theme="dark"],
 
 .slm-contact-info { flex: 1; min-width: 0; }
 .slm-contact-name { display: block; font-size: 14px; font-weight: 600; color: var(--slm-text); }
+.slm-contact-scope {
+  display: inline-block;
+  font-size: 11px;
+  line-height: 1.4;
+  margin-top: 2px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--slm-bg-tertiary);
+  color: var(--slm-text-secondary);
+}
 .slm-contact-rel { display: block; font-size: 12px; color: var(--slm-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .slm-binding-row {
@@ -947,6 +989,7 @@ body[data-theme="dark"],
 .slm-call-list { display: flex; flex-direction: column; gap: 6px; max-height: 250px; overflow-y: auto; }
 
 .slm-call-row {
+  position: relative;
   padding: 12px;
   background: var(--slm-bg-secondary);
   border-radius: 12px;
@@ -954,6 +997,21 @@ body[data-theme="dark"],
   transition: border-color 0.15s;
 }
 .slm-call-row:hover { border-color: var(--slm-border); }
+.slm-call-row-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--slm-text-secondary);
+  background: transparent;
+}
+.slm-call-row-close:hover { background: var(--slm-bg-tertiary); color: var(--slm-danger); }
+.slm-call-row.slm-call-collapsed .slm-call-detail { display: none; }
 .slm-call-info { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--slm-text); flex-wrap: wrap; }
 .slm-call-icon { font-size: 18px; }
 .slm-call-name { font-weight: 600; }
@@ -1758,7 +1816,12 @@ body[data-theme="dark"],
   font-style: italic;
 }
 
-.slm-sns-profile-item { border: 1px solid var(--slm-border); border-radius: 10px; padding: 8px; }
+.slm-sns-profile-item {
+  border: 1px solid var(--slm-border);
+  border-radius: 10px;
+  padding: 8px;
+  display: block;
+}
 .slm-sns-profile-summary { display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; }
 .slm-sns-profile-avatar {
   width: 24px;
@@ -1771,6 +1834,30 @@ body[data-theme="dark"],
   background: var(--slm-bg-secondary);
 }
 .slm-sns-profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.slm-sns-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 8px;
+}
+.slm-sns-preset-card {
+  border: 1px solid var(--slm-border);
+  border-radius: 10px;
+  background: var(--slm-bg-secondary);
+  padding: 6px;
+}
+.slm-sns-preset-card .slm-preview-img {
+  width: 100%;
+  max-width: 100%;
+  height: 84px;
+  object-fit: cover;
+}
+.slm-sns-preset-name {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--slm-text-secondary);
+  text-align: center;
+}
 
 /* ──────────────────────────────────────────
    시간 구분선 (채팅 내 삽입)
