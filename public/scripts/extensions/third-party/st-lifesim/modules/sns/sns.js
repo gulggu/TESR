@@ -96,7 +96,11 @@ function saveUserIds(ids) {
 }
 
 function makeDefaultHandle(name) {
-    return `@${String(name || '').replace(/\s+/g, '').toLowerCase()}`;
+    const normalized = String(name || '')
+        .toLowerCase()
+        .replace(/\s+/g, '')
+        .replace(/[^a-z0-9._]/g, '');
+    return `@${normalized || 'user'}`;
 }
 
 function getAuthorHandle(authorName, userIds = loadUserIds()) {
