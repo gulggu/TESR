@@ -1547,3 +1547,27 @@ body[data-theme="dark"],
 .slm-voice-msg:hover .slm-voice-hint {
   display: block;
 }
+
+/* ──────────────────────────────────────────
+   시간 구분선 (채팅 내 삽입)
+────────────────────────────────────────── */
+.slm-time-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0;
+  width: 100%;
+}
+.slm-time-divider::before,
+.slm-time-divider::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid var(--slm-border, #c7c7cc);
+}
+.slm-time-divider-label {
+  font-size: 0.8em;
+  color: var(--slm-text-secondary, #6d6d72);
+  white-space: nowrap;
+  padding: 0 6px;
+  font-style: italic;
+}

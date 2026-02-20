@@ -15,6 +15,7 @@
 
 import { getContext } from '../../../st-context.js';
 import { extension_settings } from '../../../extensions.js';
+import { eventSource, event_types } from '../../../../script.js';
 import { injectContext, clearContext } from './utils/context-inject.js';
 import { createPopup, createTabs, closePopup } from './utils/popup.js';
 import { showToast } from './utils/ui.js';
@@ -659,47 +660,36 @@ async function init() {
     try { startFirstMsgTimer(settings.firstMsg); } catch (e) { console.error('[ST-LifeSim] 선톡 타이머 오류:', e); }
 
     // AI 응답 후 컨텍스트 주입
-    const eventSource = ctx.eventSource;
-    const eventTypes = ctx.event_types || ctx.eventTypes;
-    if (eventSource && eventTypes) {
-        if (eventTypes.CHARACTER_MESSAGE_RENDERED) {
-            eventSource.on(eventTypes.CHARACTER_MESSAGE_RENDERED, async () => {
-                if (isEnabled()) {
-                    await injectContext().catch(e => console.error('[ST-LifeSim] 컨텍스트 주입 오류:', e));
-                }
-            });
-        }
+    if (event_types.CHARACTER_MESSAGE_RENDERED) {
+        eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, async () => {
+            if (isEnabled()) {
+                await injectContext().catch(e => console.error('[ST-LifeSim] 컨텍스트 주입 오류:', e));
+            }
+        });
+    }
 
-        // 채팅 로드 시 컨텍스트 주입
-        if (eventTypes.CHAT_CHANGED) {
-            eventSource.on(eventTypes.CHAT_CHANGED, async () => {
-                if (isEnabled()) {
-                    await injectContext().catch(e => console.error('[ST-LifeSim] 컨텍스트 주입 오류:', e));
-                }
-            });
-        }
+    // 채팅 로드 시 컨텍스트 주입
+    if (event_types.CHAT_CHANGED) {
+        eventSource.on(event_types.CHAT_CHANGED, async () => {
+            if (isEnabled()) {
+                await injectContext().catch(e => console.error('[ST-LifeSim] 컨텍스트 주입 오류:', e));
+            }
+        });
+    }
 
-        // 유저 메시지 전송 시 10% 확률로 SNS 포스팅 트리거
-        if (isModuleEnabled('sns') && eventTypes.MESSAGE_SENT) {
-            eventSource.on(eventTypes.MESSAGE_SENT, () => {
-                if (isEnabled() && Math.random() < 0.10) {
-                    triggerNpcPosting().catch(e => console.error('[ST-LifeSim] SNS 자동 포스팅 오류:', e));
-                }
-            });
-        }
+    // 유저 메시지 전송 시 10% 확률로 SNS 포스팅 트리거
+    if (isModuleEnabled('sns') && event_types.MESSAGE_SENT) {
+        eventSource.on(event_types.MESSAGE_SENT, () => {
+            if (isEnabled() && Math.random() < 0.10) {
+                triggerNpcPosting().catch(e => console.error('[ST-LifeSim] SNS 자동 포스팅 오류:', e));
+            }
+        });
     }
 
     console.log('[ST-LifeSim] 초기화 완료');
 }
 
-// SillyTavern이 준비되면 초기화 실행
-// jQuery가 없는 환경에서도 동작하도록 대응
-if (typeof jQuery !== 'undefined') {
-    jQuery(async () => {
-        try { await init(); } catch (e) { console.error('[ST-LifeSim] 초기화 오류:', e); }
-    });
-} else {
-    document.addEventListener('DOMContentLoaded', async () => {
-        try { await init(); } catch (e) { console.error('[ST-LifeSim] 초기화 오류:', e); }
-    });
-}
+// SillyTavern APP_READY 이벤트에서 초기화 실행
+eventSource.on(event_types.APP_READY, async () => {
+    try { await init(); } catch (e) { console.error('[ST-LifeSim] 초기화 오류:', e); }
+});
