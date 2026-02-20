@@ -15,5 +15,6 @@ export function getContext() {
         return globalThis.getContext();
     }
 
+    console.warn('[ST-LifeSim] Context API is not available. Ensure SillyTavern is fully initialized.');
     return null;
 }
