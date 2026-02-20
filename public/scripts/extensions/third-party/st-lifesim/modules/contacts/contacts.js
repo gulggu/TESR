@@ -11,7 +11,7 @@
 import { getContext } from '../../utils/st-context.js';
 import { loadData, saveData } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
-import { showToast, escapeHtml } from '../../utils/ui.js';
+import { showToast, escapeHtml, generateId } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 
 const MODULE_KEY = 'contacts';
@@ -63,7 +63,7 @@ function ensureCharContact() {
     if (exists) return;
 
     contacts.push({
-        id: crypto.randomUUID(),
+        id: generateId(),
         name: charName,
         avatar: ctx.characters?.[ctx.characterId]?.avatar
             ? `/characters/${ctx.characters?.[ctx.characterId]?.avatar}`
@@ -373,7 +373,7 @@ function openContactDialog(existing, binding, onSave) {
 
         const contacts = loadContacts(binding);
         const data = {
-            id: existing?.id || crypto.randomUUID(),
+            id: existing?.id || generateId(),
             name,
             avatar: fields.avatar.value.trim(),
             description: fields.description.value.trim(),

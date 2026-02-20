@@ -13,7 +13,7 @@
 import { getContext } from '../../utils/st-context.js';
 import { slashSend } from '../../utils/slash.js';
 import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
-import { showToast, escapeHtml } from '../../utils/ui.js';
+import { showToast, escapeHtml, generateId } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 
 const MODULE_KEY = 'call-logs';
@@ -79,6 +79,7 @@ function detectCallKeywords(data) {
 
     // 마지막 AI 메시지 텍스트 가져오기
     const ctx = getContext();
+    if (!ctx) return;
     const lastMsg = ctx.chat?.[ctx.chat.length - 1];
     if (!lastMsg || lastMsg.is_user) return;
 
@@ -108,7 +109,7 @@ function detectCallKeywords(data) {
     toast.querySelector('#slm-call-confirm').onclick = async () => {
         toast.remove();
         const freshCtx = getContext();
-        const charName = freshCtx.name2 || '{{char}}';
+        const charName = freshCtx?.name2 || '{{char}}';
         await startCall(charName);
     };
     toast.querySelector('#slm-call-ignore').onclick = () => toast.remove();
@@ -172,7 +173,7 @@ async function startCall(charName) {
 
     // 통화 시작 직전 채팅 메시지 인덱스 기록
     const ctx = getContext();
-    callStartMessageIdx = (ctx.chat?.length ?? 1) - 1;
+    callStartMessageIdx = (ctx?.chat?.length ?? 1) - 1;
 
     try {
         await slashSend(`📞 통화 시작 — ${charName}`);
@@ -234,7 +235,7 @@ async function endCall() {
     // 통화 기록 저장
     const logs = loadCallLogs();
     logs.push({
-        id: crypto.randomUUID(),
+        id: generateId(),
         contactName: endedContact,
         date: new Date().toISOString(),
         durationSeconds: duration,
@@ -418,8 +419,12 @@ function buildCallLogsContent() {
     missedBtn.onclick = async () => {
         const name = missedInput.value.trim();
         if (!name) { showToast('이름을 입력해주세요.', 'warn'); return; }
-        await slashSend(`📵 부재중 전화 — ${name} (3회)`);
-        showToast('부재중 전화 삽입', 'success', 1500);
+        try {
+            await slashSend(`📵 부재중 전화 — ${name} (3회)`);
+            showToast('부재중 전화 삽입', 'success', 1500);
+        } catch (e) {
+            showToast('부재중 전화 삽입 실패', 'error');
+        }
     };
 
     missedRow.appendChild(missedInput);

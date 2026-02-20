@@ -11,7 +11,7 @@
 
 import { getContext } from '../../utils/st-context.js';
 import { slashSend, slashGen } from '../../utils/slash.js';
-import { showToast, escapeHtml } from '../../utils/ui.js';
+import { showToast, escapeHtml, generateId } from '../../utils/ui.js';
 import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
 
 // 사건 기록 아카이브 저장 키
@@ -186,7 +186,7 @@ export function renderReadReceiptUI() {
  */
 async function handleReadReceipt() {
     const ctx = getContext();
-    const charName = ctx.name2 || '{{char}}';
+    const charName = ctx?.name2 || '{{char}}';
 
     try {
         await slashGen(
@@ -239,7 +239,7 @@ export function renderNoContactUI() {
  */
 async function handleNoContact() {
     const ctx = getContext();
-    const charName = ctx.name2 || '{{char}}';
+    const charName = ctx?.name2 || '{{char}}';
 
     try {
         await slashGen(
@@ -310,7 +310,7 @@ export function renderEventGeneratorUI() {
  */
 async function generateEvent(category) {
     const ctx = getContext();
-    const charName = ctx.name2 || '{{char}}';
+    const charName = ctx?.name2 || '{{char}}';
 
     try {
         const prompt = `An unexpected event in the "${category}" category has just occurred. Clearly and concisely describe a specific event that fits naturally into the current situation.`;
@@ -318,7 +318,7 @@ async function generateEvent(category) {
 
         const archive = loadData(ARCHIVE_KEY, [], getDefaultBinding());
         archive.push({
-            id: crypto.randomUUID(),
+            id: generateId(),
             date: new Date().toISOString(),
             category,
             includeInContext: false,
@@ -446,7 +446,7 @@ export function renderVoiceMemoUI() {
  */
 async function handleVoiceMemo(seconds, hint) {
     const ctx = getContext();
-    const charName = ctx.name2 || '{{char}}';
+    const charName = ctx?.name2 || '{{char}}';
 
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;

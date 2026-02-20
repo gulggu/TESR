@@ -4,6 +4,21 @@
  */
 
 /**
+ * 고유 ID를 생성한다. crypto.randomUUID() 사용이 불가능한 환경(비HTTPS 등)에서는 폴백을 사용한다.
+ * @returns {string}
+ */
+export function generateId() {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    // 폴백: 타임스탬프 + 랜덤 문자열
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+    });
+}
+
+/**
  * HTML 특수 문자를 이스케이프하여 XSS를 방지한다
  * @param {string} str - 이스케이프할 문자열
  * @returns {string} 안전한 HTML 문자열

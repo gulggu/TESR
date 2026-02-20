@@ -1571,3 +1571,51 @@ body[data-theme="dark"],
   padding: 0 6px;
   font-style: italic;
 }
+
+/* ──────────────────────────────────────────
+   패널별 커스텀 클래스 (모듈별 최대 폭/스타일 지정)
+────────────────────────────────────────── */
+.slm-quick-panel { max-width: 440px; }
+.slm-settings-panel { max-width: 420px; }
+.slm-call-panel { max-width: 420px; }
+.slm-emoticon-panel { max-width: 400px; }
+.slm-contacts-panel { max-width: 400px; }
+.slm-wallet-panel { max-width: 400px; }
+.slm-calendar-panel { max-width: 420px; }
+.slm-gifticon-panel { max-width: 420px; }
+
+/* ──────────────────────────────────────────
+   기프티콘 상태별 스타일
+────────────────────────────────────────── */
+.slm-gifticon-card.slm-gifticon-received {
+  border-left: 3px solid var(--slm-success);
+}
+.slm-gifticon-card.slm-gifticon-sent {
+  border-left: 3px solid var(--slm-accent);
+}
+
+/* ──────────────────────────────────────────
+   버튼 클래스 셀렉터 (ID 셀렉터와 동일 스타일)
+────────────────────────────────────────── */
+.slm-menu-btn,
+.slm-quick-send-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, opacity 0.15s;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  vertical-align: middle;
+  opacity: 0.75;
+}
+.slm-menu-btn:hover,
+.slm-quick-send-btn:hover { opacity: 1; background: var(--slm-bg-secondary); }
+.slm-menu-btn:active,
+.slm-quick-send-btn:active { transform: scale(0.95); }

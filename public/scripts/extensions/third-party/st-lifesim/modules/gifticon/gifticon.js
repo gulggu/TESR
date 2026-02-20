@@ -11,7 +11,7 @@ import { getContext } from '../../utils/st-context.js';
 import { slashSend } from '../../utils/slash.js';
 import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
-import { showToast, escapeHtml } from '../../utils/ui.js';
+import { showToast, escapeHtml, generateId } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 import { getContacts } from '../contacts/contacts.js';
 
@@ -308,7 +308,7 @@ function renderSendForm() {
         sendBtn.disabled = true;
         try {
             const g = {
-                id: crypto.randomUUID(),
+                id: generateId(),
                 name,
                 brand: brandInput.value.trim(),
                 imageUrl: imgInput.value.trim(),
@@ -380,7 +380,7 @@ function renderReceiveForm() {
         if (!name) { showToast('기프티콘 이름을 입력해주세요.', 'warn'); return; }
 
         const g = {
-            id: crypto.randomUUID(),
+            id: generateId(),
             name,
             brand: brandInput.value.trim(),
             imageUrl: imgInput.value.trim(),

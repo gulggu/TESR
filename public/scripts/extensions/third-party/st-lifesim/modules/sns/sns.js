@@ -9,12 +9,11 @@
  */
 
 import { getContext } from '../../utils/st-context.js';
-import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
+import { loadData, saveData, getDefaultBinding, getExtensionSettings } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
-import { showToast } from '../../utils/ui.js';
+import { showToast, generateId } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 import { getContacts } from '../contacts/contacts.js';
-import { extension_settings } from '../../../../../extensions.js';
 
 const MODULE_KEY = 'sns-feed';
 const AVATARS_KEY = 'sns-avatars';
@@ -24,7 +23,8 @@ const AVATARS_KEY = 'sns-avatars';
  * @returns {string}
  */
 function getDefaultImageUrl() {
-    return extension_settings?.['st-lifesim']?.defaultSnsImageUrl || '';
+    const ext = getExtensionSettings();
+    return ext?.['st-lifesim']?.defaultSnsImageUrl || '';
 }
 
 /**
@@ -116,7 +116,7 @@ export async function triggerNpcPosting() {
         const feed = loadFeed();
         const defaultImg = getDefaultImageUrl();
         feed.push({
-            id: crypto.randomUUID(),
+            id: generateId(),
             authorName: pick.name,
             authorIsUser: false,
             date: new Date().toISOString(),
@@ -606,7 +606,7 @@ async function postComment(post, text, onUpdate) {
         const p = feed.find(p => p.id === post.id);
         if (p) {
             p.comments.push({
-                id: crypto.randomUUID(),
+                id: generateId(),
                 author: 'user',
                 text,
                 date: new Date().toISOString(),
@@ -624,7 +624,7 @@ async function postComment(post, text, onUpdate) {
         const p = feed.find(p => p.id === post.id);
         if (p) {
             p.comments.push({
-                id: crypto.randomUUID(),
+                id: generateId(),
                 author: 'user',
                 text,
                 date: new Date().toISOString(),
@@ -730,7 +730,7 @@ function openWritePostDialog(onSave) {
 
         const feed = loadFeed();
         feed.push({
-            id: crypto.randomUUID(),
+            id: generateId(),
             authorName: freshCtx?.name1 || 'user',
             authorIsUser: true,
             date: new Date().toISOString(),
