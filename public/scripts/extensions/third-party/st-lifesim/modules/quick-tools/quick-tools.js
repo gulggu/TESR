@@ -10,7 +10,7 @@
  */
 
 import { getContext } from '../../utils/st-context.js';
-import { slashSend, slashGen } from '../../utils/slash.js';
+import { slashSend, slashGen, slashSendAs } from '../../utils/slash.js';
 import { showToast, escapeHtml, generateId } from '../../utils/ui.js';
 import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
 
@@ -35,6 +35,7 @@ export function injectQuickSendButton() {
         return;
     }
 
+    // 퀵 센드 버튼
     const btn = document.createElement('div');
     btn.id = 'slm-quick-send-btn';
     btn.className = 'slm-quick-send-btn interactable';
@@ -42,14 +43,27 @@ export function injectQuickSendButton() {
     btn.innerHTML = '📨';
     btn.setAttribute('aria-label', '퀵 센드');
     btn.setAttribute('tabindex', '0');
-
     btn.addEventListener('click', async (e) => {
         e.preventDefault();
         e.stopPropagation();
         await handleQuickSend();
     });
-
     sendBtn.parentNode.insertBefore(btn, sendBtn);
+
+    // 삭제된 메세지 버튼
+    const delBtn = document.createElement('div');
+    delBtn.id = 'slm-deleted-msg-btn';
+    delBtn.className = 'slm-quick-send-btn interactable';
+    delBtn.title = '삭제된 메세지 전송';
+    delBtn.innerHTML = '🚫';
+    delBtn.setAttribute('aria-label', '삭제된 메세지');
+    delBtn.setAttribute('tabindex', '0');
+    delBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        await handleDeletedMessage();
+    });
+    sendBtn.parentNode.insertBefore(delBtn, sendBtn);
 }
 
 /**
@@ -69,6 +83,18 @@ async function handleQuickSend() {
         await slashSend(text);
         textarea.value = '';
         textarea.dispatchEvent(new Event('input'));
+    } catch (e) {
+        showToast('전송 실패: ' + e.message, 'error');
+    }
+}
+
+/**
+ * 삭제된 메세지 전송: 유저가 삭제된 메세지를 보낸 것처럼 연출한다
+ */
+async function handleDeletedMessage() {
+    try {
+        await slashSend('<span class="slm-deleted-msg">🚫 삭제된 메세지입니다.</span>');
+        showToast('삭제된 메세지 전송', 'success', 1200);
     } catch (e) {
         showToast('전송 실패: ' + e.message, 'error');
     }
@@ -316,11 +342,21 @@ async function generateEvent(category) {
         const prompt = `An unexpected event in the "${category}" category has just occurred. Clearly and concisely describe a specific event that fits naturally into the current situation.`;
         await slashGen(prompt, charName);
 
+        // AI로 방금 생성된 사건 내용을 짧게 요약한다
+        let summary = '';
+        if (ctx && typeof ctx.generateQuietPrompt === 'function') {
+            const summaryPrompt = `Summarize the last ${charName}'s message as a single short sentence (under 30 words) in Korean, third-person narrative style, prefixed with "[${category}] ". Example: "[좋은 일] 치아키가 타쿠야에게 합동 라이브 이벤트 소식을 전했습니다."`;
+            summary = await ctx.generateQuietPrompt({ quietPrompt: summaryPrompt, quietName: charName }) || '';
+            summary = summary.trim();
+        }
+
+        if (!summary) summary = `[${category}] 사건이 발생했습니다.`;
+
         const archive = loadData(ARCHIVE_KEY, [], getDefaultBinding());
         archive.push({
             id: generateId(),
-            date: new Date().toISOString(),
             category,
+            summary,
             includeInContext: false,
         });
         saveData(ARCHIVE_KEY, archive, getDefaultBinding());
@@ -350,8 +386,8 @@ function showEventArchive(container) {
         archive.slice().reverse().forEach(item => {
             const row = document.createElement('div');
             row.className = 'slm-archive-row';
-            const d = new Date(item.date);
-            row.textContent = `${d.toLocaleDateString('ko-KR')} [${item.category}]`;
+            // 날짜 제거, 요약 내용 표시
+            row.textContent = item.summary || `[${item.category}] 사건 발생`;
             archiveDiv.appendChild(row);
         });
     }
@@ -418,23 +454,42 @@ export function renderVoiceMemoUI() {
         hintChevron.classList.toggle('open', !isOpen);
     };
 
-    // 실행 버튼
+    // 실행 버튼 (user → 유저가 보내는 음성메모)
     const btn = document.createElement('button');
     btn.className = 'slm-btn slm-btn-primary';
     btn.style.marginTop = '8px';
-    btn.textContent = '음성메모 삽입';
+    btn.textContent = '🎤 음성메모 삽입 (유저)';
     btn.onclick = async () => {
         btn.disabled = true;
         try {
             const secs = parseInt(durationInput.value) || 23;
             const hint = hintInput.value.trim();
-            await handleVoiceMemo(secs, hint);
+            await handleVoiceMemo(secs, hint, false);
             hintInput.value = '';
         } finally {
             btn.disabled = false;
         }
     };
     container.appendChild(btn);
+
+    // AI(캐릭터)가 보내는 음성메세지 버튼
+    const aiVoiceBtn = document.createElement('button');
+    aiVoiceBtn.className = 'slm-btn slm-btn-secondary';
+    aiVoiceBtn.style.marginTop = '6px';
+    aiVoiceBtn.textContent = '🤖 AI 음성메세지 (캐릭터)';
+    aiVoiceBtn.title = 'AI(캐릭터)가 음성메세지를 보내는 상황을 연출합니다';
+    aiVoiceBtn.onclick = async () => {
+        aiVoiceBtn.disabled = true;
+        try {
+            const secs = parseInt(durationInput.value) || 23;
+            const hint = hintInput.value.trim();
+            await handleVoiceMemo(secs, hint, true);
+            hintInput.value = '';
+        } finally {
+            aiVoiceBtn.disabled = false;
+        }
+    };
+    container.appendChild(aiVoiceBtn);
 
     return container;
 }
@@ -443,8 +498,9 @@ export function renderVoiceMemoUI() {
  * 음성메모 연출 실행
  * @param {number} seconds - 음성메시지 길이(초)
  * @param {string} hint - 내용 힌트 (선택)
+ * @param {boolean} aiMode - true면 AI(캐릭터)가 보내는 모드
  */
-async function handleVoiceMemo(seconds, hint) {
+async function handleVoiceMemo(seconds, hint, aiMode = false) {
     const ctx = getContext();
     const charName = ctx?.name2 || '{{char}}';
 
@@ -453,21 +509,25 @@ async function handleVoiceMemo(seconds, hint) {
     const timeStr = `${m}:${String(s).padStart(2, '0')}`;
 
     try {
-        // 음성메세지 본문 + 내용힌트 (<br> 구분, 이탤릭 처리)
         const hintHtml = hint
             ? `<br><em>*${escapeHtml(hint)}*</em>`
             : '';
         const voiceHtml = `🎤 음성메시지 (${timeStr})${hintHtml}`;
-        await slashSend(voiceHtml);
 
-        if (hint) {
-            await slashGen(
-                `A voice message has arrived for ${charName}. Content hint: ${hint}. React naturally to this voice message.`,
-                charName,
-            );
+        if (aiMode) {
+            // 캐릭터 이름으로 음성메세지 삽입
+            await slashSendAs(charName, voiceHtml);
+            showToast(`${charName}의 음성메세지 삽입 완료`, 'success', 1500);
+        } else {
+            await slashSend(voiceHtml);
+            if (hint) {
+                await slashGen(
+                    `A voice message has arrived for ${charName}. Content hint: ${hint}. React naturally to this voice message.`,
+                    charName,
+                );
+            }
+            showToast('음성메모 삽입 완료', 'success', 1500);
         }
-
-        showToast('음성메모 삽입 완료', 'success', 1500);
     } catch (e) {
         showToast('음성메모 삽입 실패: ' + e.message, 'error');
     }

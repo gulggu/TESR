@@ -26,7 +26,7 @@ import { initContacts, openContactsPopup } from './modules/contacts/contacts.js'
 import { initCall, openCallLogsPopup } from './modules/call/call.js';
 import { initWallet, openWalletPopup } from './modules/wallet/wallet.js';
 import { initSns, openSnsPopup, triggerNpcPosting } from './modules/sns/sns.js';
-import { initCalendar, openCalendarPopup } from './modules/calendar/calendar.js';
+import { initCalendar, openCalendarPopup, triggerAiSchedule } from './modules/calendar/calendar.js';
 import { initGifticon, openGifticonPopup } from './modules/gifticon/gifticon.js';
 
 // 설정 키
@@ -798,6 +798,15 @@ async function init() {
             const prob = (getSettings().snsPostingProbability ?? 10) / 100;
             if (isEnabled() && Math.random() < prob) {
                 triggerNpcPosting().catch(e => console.error('[ST-LifeSim] SNS 자동 포스팅 오류:', e));
+            }
+        });
+    }
+
+    // AI 응답 수신 시 5% 확률로 char가 일정 자동 등록 시도
+    if (isModuleEnabled('calendar') && evSrc && eventTypes?.MESSAGE_RECEIVED) {
+        evSrc.on(eventTypes.MESSAGE_RECEIVED, () => {
+            if (isEnabled() && Math.random() < 0.05) {
+                triggerAiSchedule(null).catch(e => console.error('[ST-LifeSim] AI 일정 등록 오류:', e));
             }
         });
     }
