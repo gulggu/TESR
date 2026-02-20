@@ -387,7 +387,7 @@ function buildEmoticonContent() {
                     // HTML img 태그로 크기/모서리 지정 (URL/이름 이스케이프)
                     const safeName = escapeHtml(e.name);
                     const safeUrl = e.url.replace(/"/g, '&quot;');
-                    const html = `<img src="${safeUrl}" alt="${safeName}" aria-label="${safeName}이모티콘" style="width:${size}px;height:${size}px;object-fit:contain;display:inline-block;vertical-align:middle;border-radius:${radius}px"><small style="font-size:0px;opacity:0">${safeName}이모티콘</small>`;
+                    const html = `<img src="${safeUrl}" alt="${safeName}" aria-label="${safeName}이모티콘" style="width:${size}px;height:${size}px;object-fit:contain;display:inline-block;vertical-align:middle;border-radius:${radius}px">`;
                     await slashSend(html);
                     showToast(`이모티콘 전송: ${e.name}`, 'success', 1000);
                 } catch (err) {
