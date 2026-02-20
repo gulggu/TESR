@@ -40,7 +40,7 @@ function getBindingKey(binding) {
         return `char:${charId}`;
     }
     // 채팅별 저장 (기본): 현재 채팅 ID를 키로 사용
-    const chatId = ctx.getCurrentChatId ? ctx.getCurrentChatId() : (ctx.chatId ?? 'default');
+    const chatId = ctx.chatId ?? (ctx.getCurrentChatId ? ctx.getCurrentChatId() : 'default');
     return `chat:${chatId}`;
 }
 

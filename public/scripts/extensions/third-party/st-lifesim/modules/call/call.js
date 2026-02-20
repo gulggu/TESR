@@ -148,6 +148,8 @@ export async function triggerProactiveIncomingCall(probabilityPercent) {
     const charName = getContext()?.name2;
     if (!charName) return;
     lastProactiveCallAt = Date.now();
+    await new Promise(resolve => setTimeout(resolve, 6000));
+    if (callActive || incomingCallUiOpen) return;
     await showIncomingCallDialog(charName);
 }
 
@@ -249,10 +251,7 @@ async function showIncomingCallDialog(charName) {
     const rejectBtn = document.createElement('button');
     rejectBtn.className = 'slm-btn slm-btn-danger';
     rejectBtn.textContent = '❌ 거절';
-    const missedBtn = document.createElement('button');
-    missedBtn.className = 'slm-btn slm-btn-secondary';
-    missedBtn.textContent = '📵 부재중';
-    row.append(acceptBtn, rejectBtn, missedBtn);
+    row.append(acceptBtn, rejectBtn);
 
     card.append(title, caller, row);
     overlay.appendChild(card);
@@ -283,15 +282,6 @@ async function showIncomingCallDialog(charName) {
         );
     };
 
-    missedBtn.onclick = async () => {
-        cleanup();
-        await slashSend(`📵 부재중 전화 — ${charName}`);
-        appendMissedCallLog(charName, '부재중');
-        await slashGen(
-            `${charName} could not reach {{user}} because the call was missed. Generate one short follow-up reaction as a normal chat message.`,
-            charName,
-        );
-    };
 }
 
 function appendMissedCallLog(charName, summary) {
@@ -715,13 +705,13 @@ function buildCallLogsContent() {
                 hideBtn.onclick = async () => {
                     try {
                         const ctx = getContext();
-                        const shouldInclude = !!log.includeInContext;
-                        await ctx.executeSlashCommandsWithOptions(`/${shouldInclude ? 'unhide' : 'hide'} ${log.startMessageIdx}-${log.endMessageIdx}`, { showOutput: false });
+                        const isCurrentlyIncluded = !!log.includeInContext;
+                        await ctx.executeSlashCommandsWithOptions(`/${isCurrentlyIncluded ? 'hide' : 'unhide'} ${log.startMessageIdx}-${log.endMessageIdx}`, { showOutput: false });
                         const all = loadCallLogs();
                         const hit = all.find(x => x.id === log.id);
-                        if (hit) hit.includeInContext = !shouldInclude;
+                        if (hit) hit.includeInContext = !isCurrentlyIncluded;
                         saveCallLogs(all);
-                        log.includeInContext = !shouldInclude;
+                        log.includeInContext = !isCurrentlyIncluded;
                         hideBtn.textContent = log.includeInContext ? '🙈 컨텍스트 제외' : '🙉 컨텍스트 포함';
                         showToast(log.includeInContext ? '통화 구간을 컨텍스트에 포함했습니다.' : '통화 구간을 컨텍스트에서 제외했습니다.', 'success', 1600);
                     } catch (e) {
@@ -742,18 +732,8 @@ function buildCallLogsContent() {
 
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'slm-btn slm-btn-danger slm-btn-sm';
-            deleteBtn.textContent = '🗑️ 삭제';
+            deleteBtn.textContent = '🗑️ 로그 삭제';
             deleteBtn.onclick = async () => {
-                // /cut 명령으로 채팅 구간 삭제
-                if (typeof log.startMessageIdx === 'number' && typeof log.endMessageIdx === 'number'
-                    && log.startMessageIdx >= 0 && log.endMessageIdx >= log.startMessageIdx) {
-                    try {
-                        const ctx = getContext();
-                        await ctx.executeSlashCommandsWithOptions(`/cut ${log.startMessageIdx}-${log.endMessageIdx}`, { showOutput: false });
-                    } catch (e) {
-                        console.error('[ST-LifeSim] /cut 오류:', e);
-                    }
-                }
                 const all = loadCallLogs().filter(x => x.id !== log.id);
                 saveCallLogs(all);
                 const idx = logs.findIndex(x => x.id === log.id);
@@ -783,33 +763,6 @@ function buildCallLogsContent() {
 
     wrapper.appendChild(tabBar);
     wrapper.appendChild(logList);
-
-    // 부재중 전화 연출 버튼
-    const missedRow = document.createElement('div');
-    missedRow.className = 'slm-missed-row';
-
-    const missedInput = document.createElement('input');
-    missedInput.className = 'slm-input';
-    missedInput.type = 'text';
-    missedInput.placeholder = '상대방 이름';
-
-    const missedBtn = document.createElement('button');
-    missedBtn.className = 'slm-btn slm-btn-secondary slm-btn-sm';
-    missedBtn.textContent = '📵 부재중 연출';
-    missedBtn.onclick = async () => {
-        const name = missedInput.value.trim();
-        if (!name) { showToast('이름을 입력해주세요.', 'warn'); return; }
-        try {
-            await slashSend(`📵 부재중 전화 — ${name} (3회)`);
-            showToast('부재중 전화 삽입', 'success', 1500);
-        } catch (e) {
-            showToast('부재중 전화 삽입 실패', 'error');
-        }
-    };
-
-    missedRow.appendChild(missedInput);
-    missedRow.appendChild(missedBtn);
-    wrapper.appendChild(missedRow);
 
     renderLogs();
     return wrapper;
