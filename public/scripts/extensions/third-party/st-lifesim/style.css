@@ -170,7 +170,7 @@ body[data-theme="dark"],
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, var(--slm-accent), #5856d6, #ff2d55);
+  background: var(--slm-accent);
   border-radius: var(--slm-panel-radius) var(--slm-panel-radius) 0 0;
   z-index: 1;
 }
@@ -676,7 +676,6 @@ body[data-theme="dark"],
   position: absolute;
   inset: 0;
   border-radius: 20px;
-  background: linear-gradient(135deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0) 60%);
   pointer-events: none;
 }
 .slm-menu-item:hover {
@@ -969,12 +968,12 @@ body[data-theme="dark"],
 .slm-wallet-wrapper { display: flex; flex-direction: column; gap: 12px; }
 
 .slm-wallet-balance {
-  background: linear-gradient(135deg, var(--slm-accent) 0%, #5856d6 50%, #ff2d55 100%);
+  background: var(--slm-accent);
   border-radius: 18px;
   padding: 24px 20px;
   text-align: center;
   color: #ffffff;
-  box-shadow: 0 8px 24px rgba(0,122,255,0.3);
+  box-shadow: 0 8px 24px rgba(0,122,255,0.2);
   position: relative;
   overflow: hidden;
 }
@@ -1251,15 +1250,15 @@ body[data-theme="dark"],
 ────────────────────────────────────────── */
 .slm-sns-wrapper { display: flex; flex-direction: column; gap: 10px; }
 
-/* 상단 헤더 (그라디언트) */
+/* 상단 헤더 */
 .slm-sns-header {
-  background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+  background: var(--slm-accent);
   border-radius: 14px;
   padding: 14px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow: 0 4px 16px rgba(220,39,67,0.3);
+  box-shadow: 0 4px 16px rgba(0,122,255,0.18);
 }
 .slm-sns-logo {
   font-size: 20px;
@@ -1295,7 +1294,7 @@ body[data-theme="dark"],
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: linear-gradient(45deg, #f09433, #bc1888);
+  background: var(--slm-border);
   padding: 2px;
   flex-shrink: 0;
 }

@@ -537,26 +537,6 @@ function openSettingsPanel(onBack) {
         snsProbRow.append(snsProbLbl, snsProbInput, snsProbPctLbl, snsProbApplyBtn);
         wrapper.appendChild(snsProbRow);
 
-        // SNS 기본 이미지 URL
-        const snsImgLbl = Object.assign(document.createElement('label'), { className: 'slm-label', textContent: 'SNS 기본 이미지 URL:' });
-        const snsImgInput = Object.assign(document.createElement('input'), {
-            className: 'slm-input', type: 'url',
-            placeholder: 'https://... (게시글에 URL 미지정 시 이 이미지 사용)',
-            value: settings.defaultSnsImageUrl || '',
-        });
-        const snsImgApplyBtn = document.createElement('button');
-        snsImgApplyBtn.className = 'slm-btn slm-btn-primary slm-btn-sm';
-        snsImgApplyBtn.style.marginTop = '4px';
-        snsImgApplyBtn.textContent = '저장';
-        snsImgApplyBtn.onclick = () => {
-            settings.defaultSnsImageUrl = snsImgInput.value.trim();
-            saveSettings();
-            showToast('SNS 기본 이미지 저장됨', 'success', 1500);
-        };
-        wrapper.appendChild(snsImgLbl);
-        wrapper.appendChild(snsImgInput);
-        wrapper.appendChild(snsImgApplyBtn);
-
         return wrapper;
     }
 

@@ -336,22 +336,25 @@ export function renderEventGeneratorUI() {
  */
 async function generateEvent(category) {
     const ctx = getContext();
-    const charName = ctx?.name2 || '{{char}}';
+
+    let eventTitle = `${category} 이벤트`;
+    let eventContent = `${category} 카테고리의 사건이 발생했습니다.`;
 
     try {
-        const prompt = `An unexpected event in the "${category}" category has just occurred. Clearly and concisely describe a specific event that fits naturally into the current situation.`;
-        await slashGen(prompt, charName);
-
-        // AI로 방금 생성된 사건 내용을 짧게 요약한다
-        let summary = '';
         if (ctx && typeof ctx.generateQuietPrompt === 'function') {
-            const summaryPrompt = `Summarize the last ${charName}'s message as a single short sentence (under 30 words) in Korean, third-person narrative style, prefixed with "[${category}] ". Example: "[좋은 일] 치아키가 타쿠야에게 합동 라이브 이벤트 소식을 전했습니다."`;
-            summary = await ctx.generateQuietPrompt({ quietPrompt: summaryPrompt, quietName: charName }) || '';
-            summary = summary.trim();
+            const titlePrompt = `Generate a SHORT title (under 10 words, in Korean) for an unexpected "${category}" category event that fits naturally into the current story context. Return ONLY the title text, nothing else.`;
+            const titleResult = await ctx.generateQuietPrompt({ quietPrompt: titlePrompt, quietName: '이벤트' });
+            if (titleResult) eventTitle = titleResult.trim();
+
+            const contentPrompt = `An unexpected event has just occurred: "${eventTitle}" (category: ${category}). Clearly and naturally describe what happened in 2-4 Korean sentences that fit the current situation.`;
+            const contentResult = await ctx.generateQuietPrompt({ quietPrompt: contentPrompt, quietName: '이벤트' });
+            if (contentResult) eventContent = contentResult.trim();
         }
 
-        if (!summary) summary = `[${category}] 사건이 발생했습니다.`;
+        const formatted = `\`\`\`\n## ${eventTitle}\n\n${eventContent}\n\`\`\``;
+        await slashSendAs('이벤트', formatted);
 
+        const summary = `[${category}] ${eventTitle}`;
         const archive = loadData(ARCHIVE_KEY, [], getDefaultBinding());
         archive.push({
             id: generateId(),
