@@ -186,7 +186,7 @@ export function renderReadReceiptUI() {
  */
 async function handleReadReceipt() {
     const ctx = getContext();
-    const charName = ctx.name2 || '{{char}}';
+    const charName = ctx?.name2 || '{{char}}';
 
     try {
         await slashGen(
@@ -239,7 +239,7 @@ export function renderNoContactUI() {
  */
 async function handleNoContact() {
     const ctx = getContext();
-    const charName = ctx.name2 || '{{char}}';
+    const charName = ctx?.name2 || '{{char}}';
 
     try {
         await slashGen(
@@ -310,7 +310,7 @@ export function renderEventGeneratorUI() {
  */
 async function generateEvent(category) {
     const ctx = getContext();
-    const charName = ctx.name2 || '{{char}}';
+    const charName = ctx?.name2 || '{{char}}';
 
     try {
         const prompt = `An unexpected event in the "${category}" category has just occurred. Clearly and concisely describe a specific event that fits naturally into the current situation.`;
@@ -446,7 +446,7 @@ export function renderVoiceMemoUI() {
  */
 async function handleVoiceMemo(seconds, hint) {
     const ctx = getContext();
-    const charName = ctx.name2 || '{{char}}';
+    const charName = ctx?.name2 || '{{char}}';
 
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
