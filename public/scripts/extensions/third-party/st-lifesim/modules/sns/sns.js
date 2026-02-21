@@ -28,11 +28,11 @@ const SNS_EXTRA_COMMENT_PROBABILITY = 0.35;
 const SNS_POST_TEXT_MAX = 280;
 const SNS_IMAGE_DESC_MAX = 220;
 const DEFAULT_SNS_PROMPTS = {
-    postChar: '{{charName}}의 SNS 게시글을 1개만 작성하세요. {{charName}}의 국적/배경에 자연스러운 언어와 말투를 사용하고, 성격/현재 상황에 맞는 일상 문장 한두 줄만 작성하세요. 최근 게시글과 주제/표현이 겹치지 않게 완전히 다른 일상 주제를 선택하세요. 해시태그, 이미지 태그, 인용부호, 타인 반응/댓글, [캡션: ...] 같은 블록은 금지합니다. {{charName}} 본인 글만 출력하세요.',
-    postContact: '{{authorName}}의 SNS 게시글을 1개만 작성하세요. 성격: {{personality}}. {{authorName}}의 국적/배경에 자연스러운 언어와 말투를 사용하고, 최근 게시글과 주제/표현이 겹치지 않게 다른 일상 주제를 선택하세요. 해시태그, 이미지 태그, 인용부호, 타인 반응/댓글, [캡션: ...] 같은 블록은 금지합니다. {{authorName}} 본인 글만 출력하세요.',
-    imageDescription: '{{authorName}}의 SNS 게시글 "{{postContent}}"에 첨부된 사진 설명을 한 문장으로만 작성하세요. 사진에 실제로 보이는 내용만 간단히 말하고, 해시태그/따옴표/괄호/"캡션:" 접두어는 금지합니다.',
-    reply: '다음 SNS 상황에 대한 답글 1개를 작성하세요.\n게시글 작성자: {{postAuthorName}} ({{postAuthorHandle}})\n게시글: "{{postContent}}"\n대상 댓글 작성자: {{commentAuthorName}} ({{commentAuthorHandle}})\n대상 댓글: "{{commentText}}"\n답글 작성자: {{replyAuthorName}} ({{replyAuthorHandle}})\n규칙: 답글은 반드시 {{replyAuthorName}} 시점으로 한 문장만 작성. 필요하면 @멘션은 위의 고정 핸들만 사용. {{replyAuthorName}}의 배경에 자연스러운 언어를 사용하고 해설/따옴표/해시태그 금지. 성격 단서: {{replyPersonality}}.',
-    extraComment: '다음 SNS 게시글에 대한 추가 댓글 1개를 작성하세요.\n게시글 작성자: {{postAuthorName}} ({{postAuthorHandle}})\n게시글: "{{postContent}}"\n댓글 작성자: {{extraAuthorName}} ({{extraAuthorHandle}})\n규칙: {{extraAuthorName}} 관점의 짧은 SNS 댓글 한 문장만 출력. 필요하면 @멘션은 고정 핸들만 사용. {{extraAuthorName}}의 배경에 자연스러운 언어를 사용하고 해설/따옴표/해시태그 금지. 성격 단서: {{extraPersonality}}.',
+    postChar: 'Write exactly one SNS post for {{charName}}. Use natural language and tone that fit {{charName}}\'s nationality/background, personality, and current situation. Keep it 1-2 casual daily-life sentences. Avoid repeating topics or phrasing from recent posts. Do not include hashtags, image tags, quotation marks, other people\'s reactions/comments, or [caption: ...] blocks. Output only {{charName}}\'s own post text.',
+    postContact: 'Write exactly one SNS post for {{authorName}}. Personality: {{personality}}. Use natural language and tone that fit {{authorName}}\'s nationality/background and daily context. Keep it 1-2 casual daily-life sentences and avoid repeating recent topics/phrasing. Do not include hashtags, image tags, quotation marks, other people\'s reactions/comments, or [caption: ...] blocks. Output only {{authorName}}\'s own post text.',
+    imageDescription: 'For {{authorName}}\'s SNS post "{{postContent}}", write exactly one short sentence describing the attached image. Mention only visible content. Do not use hashtags, quotes, parentheses, or any "caption:" prefix.',
+    reply: 'Write exactly one SNS reply for this thread.\nPost author: {{postAuthorName}} ({{postAuthorHandle}})\nPost: "{{postContent}}"\nTarget comment author: {{commentAuthorName}} ({{commentAuthorHandle}})\nTarget comment: "{{commentText}}"\nReply author: {{replyAuthorName}} ({{replyAuthorHandle}})\nRules: one sentence only from {{replyAuthorName}}\'s perspective; use only fixed @handles if needed; use natural language fitting {{replyAuthorName}}\'s background; no explanations, quotes, or hashtags. Personality hint: {{replyPersonality}}.',
+    extraComment: 'Write exactly one additional SNS comment for this post.\nPost author: {{postAuthorName}} ({{postAuthorHandle}})\nPost: "{{postContent}}"\nComment author: {{extraAuthorName}} ({{extraAuthorHandle}})\nRules: one short sentence from {{extraAuthorName}}\'s perspective; use only fixed @handles if needed; use natural language fitting {{extraAuthorName}}\'s background; no explanations, quotes, or hashtags. Personality hint: {{extraPersonality}}.',
 };
 const SNS_PRESET_BINDING = 'character';
 const MODEL_KEY_BY_SOURCE = {
@@ -124,15 +124,8 @@ function getDefaultImageUrl() {
 function getSnsPromptSettings() {
     const ext = getExtensionSettings()?.['st-lifesim'];
     const prompts = ext?.snsPrompts || {};
-    const templates = { ...DEFAULT_SNS_PROMPTS, ...prompts };
-    ['postChar', 'postContact', 'reply', 'extraComment'].forEach((key) => {
-        templates[key] = String(templates[key] || '')
-            .replace(/반드시 한국어만 사용하고?/g, '')
-            .replace(/한국어만 출력하고?/g, '')
-            .replace(/한국어로 작성하세요\./g, '작성자의 국적/배경에 맞는 언어로 작성하세요.');
-    });
     return {
-        templates,
+        templates: { ...DEFAULT_SNS_PROMPTS, ...prompts },
         externalApiUrl: String(ext?.snsExternalApiUrl || '').trim(),
         externalApiTimeoutMs: Math.max(1000, Math.min(60000, Number(ext?.snsExternalApiTimeoutMs) || 12000)),
     };
@@ -1314,7 +1307,7 @@ function openWritePostDialog(onSave) {
             likedByUser: false,
             comments: [],
             isStory: false,
-            includeInContext: false,
+            includeInContext: true,
         });
         saveFeed(feed);
 
