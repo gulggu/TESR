@@ -1,5 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
+import sanitize from 'sanitize-filename';
 
 /**
  * Copies extension files from nested `public/scripts/extensions/third-party/<name>` layout
@@ -29,4 +30,17 @@ export function normalizeNestedExtensionRepo(extensionPath) {
         }
         fs.cpSync(path.join(candidates[0], item), targetPath, { recursive: true });
     }
+}
+
+/**
+ * Resolves a stable extension directory name.
+ * Uses manifest key when provided, falling back to repository URL basename.
+ * @param {string} repositoryUrl Extension repository URL
+ * @param {Record<string, any>} manifest Extension manifest
+ * @returns {string} Sanitized directory name
+ */
+export function resolveExtensionDirectoryName(repositoryUrl, manifest = {}) {
+    const manifestKey = typeof manifest.name === 'string' ? manifest.name.trim() : '';
+    const fallbackKey = path.basename(repositoryUrl, '.git');
+    return sanitize(manifestKey || fallbackKey);
 }

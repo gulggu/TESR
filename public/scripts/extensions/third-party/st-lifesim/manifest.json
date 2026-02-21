@@ -1,4 +1,5 @@
 {
+    "name": "st-lifesim",
     "display_name": "ST-LifeSim",
     "loading_order": 50,
     "requires": [],

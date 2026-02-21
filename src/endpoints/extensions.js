@@ -6,7 +6,7 @@ import sanitize from 'sanitize-filename';
 import { CheckRepoActions, default as simpleGit } from 'simple-git';
 
 import { PUBLIC_DIRECTORIES } from '../constants.js';
-import { normalizeNestedExtensionRepo } from './extensions-util.js';
+import { normalizeNestedExtensionRepo, resolveExtensionDirectoryName } from './extensions-util.js';
 
 /**
  * @type {Partial<import('simple-git').SimpleGitOptions>}
@@ -114,9 +114,20 @@ router.post('/install', async (request, response) => {
         await git.clone(url, extensionPath, cloneOptions);
         console.info(`Extension has been cloned to ${extensionPath} from ${url} at ${branch || '(default)'} branch`);
 
-        const { version, author, display_name } = await getManifest(extensionPath);
+        const manifest = await getManifest(extensionPath);
+        const { version, author, display_name } = manifest;
+        const stableDirectoryName = resolveExtensionDirectoryName(url, manifest);
+        const stableExtensionPath = path.join(basePath, stableDirectoryName);
 
-        return response.send({ version, author, display_name, extensionPath });
+        if (stableExtensionPath !== extensionPath) {
+            if (fs.existsSync(stableExtensionPath)) {
+                fs.rmSync(extensionPath, { recursive: true, force: true });
+                return response.status(409).send(`Directory already exists at ${stableExtensionPath}`);
+            }
+            fs.renameSync(extensionPath, stableExtensionPath);
+        }
+
+        return response.send({ version, author, display_name, extensionPath: stableExtensionPath });
     } catch (error) {
         console.error('Importing custom content failed', error);
         return response.status(500).send(`Server Error: ${error.message}`);
