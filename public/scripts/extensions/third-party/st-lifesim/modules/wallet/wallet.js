@@ -493,11 +493,14 @@ async function handleSend(sender, recipient, amount, memo) {
     showToast(`💸 ${sender} → ${recipient} ${formatCurrency(amount, wallet.currencySymbol)} 송금 완료`, 'success');
     // '|'는 slash 체인 구분자로 해석될 수 있어 함께 정리한다.
     const safeMemo = String(memo || '').replace(/[|\r\n]/g, ' ').trim();
-    const historyEntry = wallet.history[wallet.history.length - 1];
-    const marker = getWalletMarker(historyEntry.id);
-    historyEntry.messageMarker = marker;
-    saveWallet(wallet);
-    await slashSend(`💸 **송금 완료**\n- 보내는 사람: ${escapeHtml(sender)}\n- 받는 사람: ${escapeHtml(recipient)}\n- 금액: ${escapeHtml(formatCurrency(amount, wallet.currencySymbol))}${safeMemo ? `\n- 메모: ${escapeHtml(safeMemo)}` : ''}\n<!--${marker}-->`);
+    let marker = '';
+    if (wallet.history.length > 0) {
+        const historyEntry = wallet.history[wallet.history.length - 1];
+        marker = getWalletMarker(historyEntry.id);
+        historyEntry.messageMarker = marker;
+        saveWallet(wallet);
+    }
+    await slashSend(`💸 **송금 완료**\n- 보내는 사람: ${escapeHtml(sender)}\n- 받는 사람: ${escapeHtml(recipient)}\n- 금액: ${escapeHtml(formatCurrency(amount, wallet.currencySymbol))}${safeMemo ? `\n- 메모: ${escapeHtml(safeMemo)}` : ''}${marker ? `\n<!--${marker}-->` : ''}`);
 }
 
 /**

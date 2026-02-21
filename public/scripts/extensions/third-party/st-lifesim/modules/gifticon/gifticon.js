@@ -340,8 +340,9 @@ function renderSendForm() {
 
         sendBtn.disabled = true;
         try {
+            const gifticonId = generateId();
             const g = {
-                id: generateId(),
+                id: gifticonId,
                 name,
                 emoji,
                 brand: brandInput.value.trim(),
@@ -350,8 +351,8 @@ function renderSendForm() {
                 counterpart: recipient,
                 date: new Date().toISOString(),
                 memo: memoInput.value.trim(),
+                messageMarker: getGifticonMarker(gifticonId),
             };
-            g.messageMarker = getGifticonMarker(g.id);
             const list = loadGifticons();
             list.push(g);
             saveGifticons(list);
