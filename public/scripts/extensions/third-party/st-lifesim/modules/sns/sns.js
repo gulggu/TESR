@@ -26,6 +26,40 @@ const SNS_REPLY_PROBABILITY = 0.7;
 const SNS_EXTRA_COMMENT_PROBABILITY = 0.35;
 const SNS_POST_TEXT_MAX = 280;
 const SNS_IMAGE_DESC_MAX = 220;
+const DEFAULT_SNS_PROMPTS = {
+    postChar: '{{charName}}의 SNS 게시글을 1개만 작성하세요. 반드시 한국어만 사용하고 {{charName}}의 성격/현재 상황에 맞는 자연스러운 일상 말투 한두 문장으로 작성하세요. 해시태그, 이미지 태그, 인용부호, 영어, 타인 반응/댓글, [캡션: ...] 같은 블록은 금지합니다. {{charName}} 본인 글만 출력하세요.',
+    postContact: '{{authorName}}의 SNS 게시글을 1개만 작성하세요. 성격: {{personality}}. 반드시 한국어만 사용하고 자연스러운 일상 SNS 말투 한두 문장으로 작성하세요. 해시태그, 이미지 태그, 인용부호, 영어, 타인 반응/댓글, [캡션: ...] 같은 블록은 금지합니다. {{authorName}} 본인 글만 출력하세요.',
+    imageDescription: '{{authorName}}의 SNS 게시글 "{{postContent}}"에 첨부된 사진 설명을 한국어 한 문장으로만 작성하세요. 사진에 실제로 보이는 내용만 간단히 말하고, 해시태그/따옴표/괄호/"캡션:" 접두어/영어는 금지합니다.',
+    reply: '다음 SNS 상황에 대한 답글 1개만 한국어로 작성하세요.\n게시글 작성자: {{postAuthorName}} ({{postAuthorHandle}})\n게시글: "{{postContent}}"\n대상 댓글 작성자: {{commentAuthorName}} ({{commentAuthorHandle}})\n대상 댓글: "{{commentText}}"\n답글 작성자: {{replyAuthorName}} ({{replyAuthorHandle}})\n규칙: 답글은 반드시 {{replyAuthorName}} 시점으로 한 문장만 작성. 필요하면 @멘션은 위의 고정 핸들만 사용. 한국어만 출력하고 영어/해설/따옴표/해시태그 금지. 성격 단서: {{replyPersonality}}.',
+    extraComment: '다음 SNS 게시글에 대한 추가 댓글 1개만 한국어로 작성하세요.\n게시글 작성자: {{postAuthorName}} ({{postAuthorHandle}})\n게시글: "{{postContent}}"\n댓글 작성자: {{extraAuthorName}} ({{extraAuthorHandle}})\n규칙: {{extraAuthorName}} 관점의 짧은 SNS 댓글 한 문장만 출력. 필요하면 @멘션은 고정 핸들만 사용. 한국어만 출력하고 영어/해설/따옴표/해시태그 금지. 성격 단서: {{extraPersonality}}.',
+};
+const SNS_PRESET_BINDING = 'character';
+const MODEL_KEY_BY_SOURCE = {
+    openai: 'openai_model',
+    claude: 'claude_model',
+    makersuite: 'google_model',
+    vertexai: 'vertexai_model',
+    openrouter: 'openrouter_model',
+    ai21: 'ai21_model',
+    mistralai: 'mistralai_model',
+    cohere: 'cohere_model',
+    perplexity: 'perplexity_model',
+    groq: 'groq_model',
+    chutes: 'chutes_model',
+    siliconflow: 'siliconflow_model',
+    electronhub: 'electronhub_model',
+    nanogpt: 'nanogpt_model',
+    deepseek: 'deepseek_model',
+    aimlapi: 'aimlapi_model',
+    xai: 'xai_model',
+    pollinations: 'pollinations_model',
+    cometapi: 'cometapi_model',
+    moonshot: 'moonshot_model',
+    fireworks: 'fireworks_model',
+    azure_openai: 'azure_openai_model',
+    custom: 'custom_model',
+    zai: 'zai_model',
+};
 // 댓글 직후 즉시 생성하지 않고, 유저 메시지 이벤트에서 확률적으로 하나씩 처리하는 큐다.
 const PENDING_COMMENT_REACTIONS = [];
 let pendingReactionInFlight = false;
@@ -35,7 +69,14 @@ let pendingReactionInFlight = false;
  * @returns {string[]}
  */
 function loadImagePresets() {
-    const raw = loadData(IMAGE_PRESETS_KEY, [], getDefaultBinding());
+    let raw = loadData(IMAGE_PRESETS_KEY, null, SNS_PRESET_BINDING);
+    if (!Array.isArray(raw)) {
+        const legacy = loadData(IMAGE_PRESETS_KEY, [], getDefaultBinding());
+        raw = Array.isArray(legacy) ? legacy : [];
+        if (raw.length > 0) {
+            saveData(IMAGE_PRESETS_KEY, raw, SNS_PRESET_BINDING);
+        }
+    }
     if (!Array.isArray(raw)) return [];
     return raw
         .map((item, i) => {
@@ -59,7 +100,7 @@ function loadImagePresets() {
  * @param {string[]} presets
  */
 function saveImagePresets(presets) {
-    saveData(IMAGE_PRESETS_KEY, presets, getDefaultBinding());
+    saveData(IMAGE_PRESETS_KEY, presets, SNS_PRESET_BINDING);
 }
 
 function loadPostingEnabledMap() {
@@ -79,6 +120,35 @@ function getDefaultImageUrl() {
     return ext?.['st-lifesim']?.defaultSnsImageUrl || '';
 }
 
+function getSnsPromptSettings() {
+    const ext = getExtensionSettings()?.['st-lifesim'];
+    const prompts = ext?.snsPrompts || {};
+    return {
+        templates: { ...DEFAULT_SNS_PROMPTS, ...prompts },
+        externalApiUrl: String(ext?.snsExternalApiUrl || '').trim(),
+        externalApiTimeoutMs: Math.max(1000, Math.min(60000, Number(ext?.snsExternalApiTimeoutMs) || 12000)),
+    };
+}
+
+function getSnsAiRouteSettings() {
+    const ext = getExtensionSettings()?.['st-lifesim'];
+    const route = ext?.aiRoutes?.sns || {};
+    return {
+        api: String(route.api || '').trim(),
+        chatSource: String(route.chatSource || '').trim(),
+        modelSettingKey: String(route.modelSettingKey || '').trim(),
+        model: String(route.model || '').trim(),
+    };
+}
+
+function inferModelSettingKey(source) {
+    return MODEL_KEY_BY_SOURCE[String(source || '').toLowerCase()] || '';
+}
+
+function applyPromptTemplate(template, vars) {
+    return String(template || '').replace(/\{\{(\w+)}}/g, (_, key) => String(vars?.[key] ?? ''));
+}
+
 /**
  * SNS 유저 아이디(핸들) 목록을 불러온다
  * @returns {Object}
@@ -93,6 +163,22 @@ function loadUserIds() {
  */
 function saveUserIds(ids) {
     saveData(USER_IDS_KEY, ids, getDefaultBinding());
+}
+
+function makeDefaultHandle(name) {
+    const normalized = String(name || '')
+        .toLowerCase()
+        .replace(/\s+/g, '')
+        .replace(/[^a-z0-9._]/g, '');
+    return `@${normalized || 'user'}`;
+}
+
+function getAuthorHandle(authorName, userIds = loadUserIds()) {
+    const key = String(authorName || '').trim();
+    if (!key) return '@user';
+    const existing = String(userIds[key] || '').trim();
+    if (existing) return existing.startsWith('@') ? existing : `@${existing}`;
+    return makeDefaultHandle(key) || '@user';
 }
 
 /**
@@ -120,9 +206,9 @@ function saveAuthorDefaultImages(map) {
     saveData(AUTHOR_DEFAULT_IMAGE_KEY, map, getDefaultBinding());
 }
 
-function getAuthorDefaultImageUrl(authorName) {
+function getAuthorDefaultImageUrl(authorName, includeLegacy = true) {
     const map = loadAuthorDefaultImages();
-    return map[authorName] || getDefaultImageUrl();
+    return map[authorName] || (includeLegacy ? getDefaultImageUrl() : '');
 }
 
 /**
@@ -268,18 +354,20 @@ export async function triggerNpcPosting() {
 
     const pick = getRandomItem(candidates);
     if (!pick) return;
-    const prompt = pick.isChar
-        ? `${charName} is posting on social media. Write only one short, natural post text in everyday SNS style that fits the current situation and ${charName}'s personality. Do not include hashtags. Do not use image tags. Never include comments/reactions or other characters' posts. Do not include image caption blocks like [캡션: ...] or (caption: ...). This must be only ${charName}'s own post, not a message to {{user}}.`
-        : `${pick.name} is posting on social media. Personality: ${pick.personality || 'ordinary'}. Write only one short, natural post text in everyday SNS style. Do not include hashtags. Do not use image tags. Never include comments/reactions or other characters' posts. Do not include image caption blocks like [캡션: ...] or (caption: ...). This must be only ${pick.name}'s own post, not a message to {{user}}.`;
+    const promptSettings = getSnsPromptSettings();
+    const promptTemplate = pick.isChar ? promptSettings.templates.postChar : promptSettings.templates.postContact;
+    const prompt = applyPromptTemplate(promptTemplate, {
+        charName,
+        authorName: pick.name,
+        personality: pick.personality || '평범함',
+    });
 
     try {
         const freshCtx = getContext();
         if (!freshCtx) return;
         let postContent = '(게시물)';
         try {
-            if (typeof freshCtx.generateQuietPrompt === 'function') {
-                postContent = await freshCtx.generateQuietPrompt({ quietPrompt: prompt, quietName: pick.name }) || postContent;
-            }
+            postContent = await generateSnsText(freshCtx, prompt, pick.name) || postContent;
         } catch (genErr) {
             console.error('[ST-LifeSim] NPC 포스팅 텍스트 생성 오류:', genErr);
             showToast('NPC 포스팅 생성 실패: ' + genErr.message, 'error');
@@ -288,16 +376,19 @@ export async function triggerNpcPosting() {
         const inlineCaption = extractInlineCaption(postContent);
         postContent = normalizeSnsText(stripInlineCaptionBlocks(postContent), SNS_POST_TEXT_MAX) || '(게시물)';
 
-        const defaultImg = getAuthorDefaultImageUrl(pick.name);
+        const defaultImg = getAuthorDefaultImageUrl(pick.name, false);
         const presets = loadImagePresets().filter(p => p?.url);
         const presetPick = getRandomItem(presets);
         const presetImg = presetPick ? presetPick.url : '';
         // 캐릭터별 기본 이미지가 있으면 우선 사용하고, 없을 때만 프리셋으로 보완한다.
         const finalImageUrl = defaultImg || presetImg;
         let imageDescription = '';
-        if (finalImageUrl && typeof freshCtx.generateQuietPrompt === 'function') {
-            const descPrompt = `${pick.name} uploaded a social media photo with this post: "${postContent}". Output one short Korean image description sentence only (what is visible in the photo). No hashtags, no quotes, no brackets, no "캡션:" prefix.`;
-            imageDescription = normalizeSnsText(await freshCtx.generateQuietPrompt({ quietPrompt: descPrompt, quietName: `${pick.name}-image-desc` }), SNS_IMAGE_DESC_MAX);
+        if (finalImageUrl && (typeof freshCtx.generateQuietPrompt === 'function' || typeof freshCtx.generateRaw === 'function')) {
+            const descPrompt = applyPromptTemplate(promptSettings.templates.imageDescription, {
+                authorName: pick.name,
+                postContent,
+            });
+            imageDescription = normalizeSnsText(await generateSnsText(freshCtx, descPrompt, `${pick.name}-image-desc`), SNS_IMAGE_DESC_MAX);
         }
         if (!imageDescription && inlineCaption) imageDescription = inlineCaption;
 
@@ -460,7 +551,7 @@ function buildPostCard(post, onUpdate) {
     const avatars = loadAvatars();
     const avatarUrl = resolveAvatar(post.authorName, avatars);
     const userIds = loadUserIds();
-    const displayId = userIds[post.authorName] ? userIds[post.authorName] : `@${post.authorName}`;
+    const displayId = getAuthorHandle(post.authorName, userIds);
 
     // 헤더 (아바타 + 이름 + 메뉴) — 시간 제거
     const header = document.createElement('div');
@@ -759,13 +850,15 @@ function openEditPostDialog(post, onUpdate) {
  */
 function renderComments(container, post, onUpdate) {
     container.innerHTML = '';
+    const userIds = loadUserIds();
 
     const renderCommentNode = (parent, node, isReply = false) => {
         const commentDiv = document.createElement('div');
         commentDiv.className = isReply ? 'slm-reply' : 'slm-comment';
         const authorSpan = document.createElement('span');
         authorSpan.className = 'slm-comment-author';
-        authorSpan.textContent = isReply ? `└ ${node.author}` : node.author;
+        const displayId = getAuthorHandle(node.author, userIds);
+        authorSpan.textContent = isReply ? `└ ${displayId}` : displayId;
         const textSpan = document.createElement('span');
         textSpan.className = 'slm-comment-text';
         textSpan.textContent = isReply ? ` ${node.text}` : node.text;
@@ -818,6 +911,11 @@ async function postComment(post, text, onUpdate) {
     const ctx = getContext();
     const userProfileName = loadFeed().slice().reverse().find(item => item?.authorIsUser && item?.authorName)?.authorName;
     const userName = ctx?.name1 || userProfileName || 'user';
+    const userIds = loadUserIds();
+    if (!userIds[userName]) {
+        userIds[userName] = makeDefaultHandle(userName);
+        saveUserIds(userIds);
+    }
     const feed = loadFeed();
     const p = feed.find(p => p.id === post.id);
     if (!p) return;
@@ -860,17 +958,102 @@ export function hasPendingCommentReaction() {
     return PENDING_COMMENT_REACTIONS.length > 0;
 }
 
+function findCommentNodeById(nodes, id) {
+    for (const node of (Array.isArray(nodes) ? nodes : [])) {
+        if (node?.id === id) return node;
+        const found = findCommentNodeById(node?.replies, id);
+        if (found) return found;
+    }
+    return null;
+}
+
+async function generateSnsText(ctx, quietPrompt, quietName) {
+    if (!ctx) return '';
+    const promptSettings = getSnsPromptSettings();
+    if (promptSettings.externalApiUrl) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), promptSettings.externalApiTimeoutMs);
+        try {
+            const headers = { 'Content-Type': 'application/json' };
+            if (typeof ctx.getRequestHeaders === 'function') {
+                Object.assign(headers, ctx.getRequestHeaders());
+            }
+            const response = await fetch(promptSettings.externalApiUrl, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ prompt: quietPrompt, quietName, module: 'st-lifesim-sns' }),
+                signal: controller.signal,
+            });
+            if (response.ok) {
+                const rawText = await response.text();
+                try {
+                    const json = JSON.parse(rawText || 'null');
+                    if (typeof json === 'string') return json.trim();
+                    if (typeof json?.text === 'string') return json.text.trim();
+                } catch { /* non-JSON 응답은 그대로 사용 */ }
+                if (rawText) return rawText.trim();
+            } else {
+                console.warn('[ST-LifeSim] SNS 외부 API 응답 오류:', response.status);
+            }
+        } catch (error) {
+            console.warn('[ST-LifeSim] SNS 외부 API 호출 실패, 내부 생성으로 폴백:', error);
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+    if (typeof ctx.generateRaw === 'function') {
+        const aiRoute = getSnsAiRouteSettings();
+        const chatSettings = ctx.chatCompletionSettings;
+        const sourceBefore = chatSettings?.chat_completion_source;
+        let modelKey = '';
+        let modelBefore;
+        if (chatSettings && aiRoute.chatSource) {
+            chatSettings.chat_completion_source = aiRoute.chatSource;
+        }
+        if (chatSettings) {
+            modelKey = aiRoute.modelSettingKey || inferModelSettingKey(aiRoute.chatSource || sourceBefore);
+            if (modelKey && typeof aiRoute.model === 'string' && aiRoute.model.length > 0) {
+                modelBefore = chatSettings[modelKey];
+                chatSettings[modelKey] = aiRoute.model;
+            }
+        }
+        try {
+            return (await ctx.generateRaw({
+                prompt: quietPrompt,
+                quietToLoud: false,
+                trimNames: true,
+                api: aiRoute.api || null,
+            }) || '').trim();
+        } finally {
+            if (chatSettings && aiRoute.chatSource) {
+                chatSettings.chat_completion_source = sourceBefore;
+            }
+            if (chatSettings && modelKey && typeof aiRoute.model === 'string' && aiRoute.model.length > 0) {
+                chatSettings[modelKey] = modelBefore;
+            }
+        }
+    }
+    if (typeof ctx.generateQuietPrompt === 'function') {
+        return (await ctx.generateQuietPrompt({ quietPrompt, quietName }) || '').trim();
+    }
+    return '';
+}
+
 async function runDeferredCommentGeneration({ postId, commentId, text, userName, onUpdate }) {
     try {
         const ctx = getContext();
-        if (!ctx || typeof ctx.generateQuietPrompt !== 'function') return;
+        if (!ctx || (typeof ctx.generateQuietPrompt !== 'function' && typeof ctx.generateRaw !== 'function')) return;
         const feed = loadFeed();
         const p = feed.find(item => item.id === postId);
-        const comment = p?.comments?.find(c => c.id === commentId);
+        const comment = findCommentNodeById(p?.comments, commentId);
         if (!p || !comment) return;
 
         const safePostContent = String(p.content || '').replace(/[{}\n\r]/g, ' ').slice(0, 300);
         const safeComment = String(text || '').replace(/[{}\n\r]/g, ' ').slice(0, 200);
+        const promptSettings = getSnsPromptSettings();
+        const userIds = loadUserIds();
+        const postAuthorHandle = getAuthorHandle(p.authorName, userIds);
+        const userHandle = getAuthorHandle(userName, userIds);
         const charName = ctx?.name2 || '';
         const contacts = getContacts('chat');
         const postAuthorContact = contacts.find(c => c?.name === p.authorName);
@@ -894,16 +1077,37 @@ async function runDeferredCommentGeneration({ postId, commentId, text, userName,
 
         if (shouldReply && replyAuthorCandidates.length > 0) {
             const replyAuthor = replyAuthorCandidates[Math.floor(Math.random() * replyAuthorCandidates.length)];
-            const replyPrompt = `${p.authorName}'s social media post: "${safePostContent}". ${userName} commented: "${safeComment}". Reply as ${replyAuthor.name} only, in one short Korean SNS comment. Mention with @id when needed. Keep the tone consistent with ${replyAuthor.name}'s personality.`;
-            replyText = (await ctx.generateQuietPrompt({ quietPrompt: replyPrompt, quietName: replyAuthor.name }) || '').trim();
+            const replyAuthorHandle = getAuthorHandle(replyAuthor.name, userIds);
+            const replyPrompt = applyPromptTemplate(promptSettings.templates.reply, {
+                postAuthorName: p.authorName,
+                postAuthorHandle,
+                postContent: safePostContent,
+                commentAuthorName: userName,
+                commentAuthorHandle: userHandle,
+                commentText: safeComment,
+                replyAuthorName: replyAuthor.name,
+                replyAuthorHandle,
+                replyPersonality: replyAuthor.personality || '평범하고 자연스러운 말투',
+            });
+            replyText = await generateSnsText(ctx, replyPrompt, replyAuthor.name);
             if (replyText) {
+                const replyId = generateId();
                 comment.replies.push({
-                    id: generateId(),
+                    id: replyId,
                     author: replyAuthor.name,
                     text: replyText,
                     date: new Date().toISOString(),
                     replies: [],
                 });
+                if (Math.random() < SNS_REPLY_PROBABILITY) {
+                    PENDING_COMMENT_REACTIONS.push({
+                        postId: p.id,
+                        commentId: replyId,
+                        text: replyText,
+                        userName: replyAuthor.name,
+                        onUpdate,
+                    });
+                }
             }
         }
 
@@ -911,8 +1115,16 @@ async function runDeferredCommentGeneration({ postId, commentId, text, userName,
             const candidates = contacts.filter(c => c?.name && c.name !== userName && c.name !== p.authorName);
             if (candidates.length > 0) {
                 const picker = candidates[Math.floor(Math.random() * candidates.length)];
-                const contactPrompt = `${picker.name} is leaving a short comment on ${p.authorName}'s SNS post "${safePostContent}". Personality: ${picker.personality || 'ordinary'}. Write one short Korean SNS comment as ${picker.name} only. Mention with @id when needed.`;
-                const generated = (await ctx.generateQuietPrompt({ quietPrompt: contactPrompt, quietName: picker.name }) || '').trim();
+                const pickerHandle = getAuthorHandle(picker.name, userIds);
+                const contactPrompt = applyPromptTemplate(promptSettings.templates.extraComment, {
+                    postAuthorName: p.authorName,
+                    postAuthorHandle,
+                    postContent: safePostContent,
+                    extraAuthorName: picker.name,
+                    extraAuthorHandle: pickerHandle,
+                    extraPersonality: picker.personality || '평범하고 자연스러운 말투',
+                });
+                const generated = await generateSnsText(ctx, contactPrompt, picker.name);
                 if (generated) {
                     extraContactComment = {
                         id: generateId(),
@@ -1218,7 +1430,7 @@ function openAvatarSettingsDialog(onUpdate) {
         .filter((c, i, arr) => arr.findIndex(x => x.name === c.name) === i);
 
     allProfiles.forEach(c => {
-        if (!userIds[c.name]) userIds[c.name] = '@' + c.name.replace(/\s+/g, '').toLowerCase();
+        if (!userIds[c.name]) userIds[c.name] = makeDefaultHandle(c.name);
         if (c.avatar && !avatars[c.name]) avatars[c.name] = c.avatar;
         if (c.name !== userName && postingEnabled[c.name] == null) postingEnabled[c.name] = true;
     });
