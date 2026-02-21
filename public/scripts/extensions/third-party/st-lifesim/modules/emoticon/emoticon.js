@@ -483,8 +483,27 @@ function openAddEmoticonDialog(onSave, existing = null) {
     wrapper.appendChild(urlInput);
     wrapper.appendChild(preview);
 
-    // 카테고리 입력
-    const catInput = createFormField(wrapper, '카테고리', 'text', existing?.category || '기본');
+    // 카테고리 입력 (기존 카테고리 드롭다운 + 직접 입력)
+    const catLabel = document.createElement('label');
+    catLabel.className = 'slm-label';
+    catLabel.textContent = '카테고리';
+    const catInput = document.createElement('input');
+    catInput.className = 'slm-input';
+    catInput.type = 'text';
+    catInput.value = existing?.category || '기본';
+    const catDatalistId = 'slm-category-datalist';
+    catInput.setAttribute('list', catDatalistId);
+    const catDatalist = document.createElement('datalist');
+    catDatalist.id = catDatalistId;
+    const existingCategories = [...new Set(loadEmoticons().map(e => e.category).filter(Boolean))];
+    existingCategories.forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat;
+        catDatalist.appendChild(opt);
+    });
+    wrapper.appendChild(catLabel);
+    wrapper.appendChild(catInput);
+    wrapper.appendChild(catDatalist);
 
     // AI 사용 여부
     const aiRow = document.createElement('div');
