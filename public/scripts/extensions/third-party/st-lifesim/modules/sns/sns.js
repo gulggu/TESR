@@ -14,7 +14,6 @@ import { registerContextBuilder } from '../../utils/context-inject.js';
 import { showToast, generateId } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 import { getContacts } from '../contacts/contacts.js';
-import { translate } from '../../../../translate/index.js';
 
 const MODULE_KEY = 'sns-feed';
 const AVATARS_KEY = 'sns-avatars';
@@ -1038,7 +1037,12 @@ function createTranslateButton(text, parent, findExisting, translationClass, com
             if (ctx && (typeof ctx.generateRaw === 'function' || typeof ctx.generateQuietPrompt === 'function')) {
                 translated = await generateSnsText(ctx, customPrompt, 'sns-translation', 'snsTranslation');
             }
-            if (!translated) translated = await translate(String(text || ''), 'ko');
+            if (!translated) {
+                const translateFn = typeof globalThis.translate === 'function'
+                    ? globalThis.translate
+                    : (await import('../../../../translate/index.js')).translate;
+                translated = await translateFn(String(text || ''), 'ko');
+            }
             const line = document.createElement('div');
             line.className = translationClass;
             line.textContent = `🇰🇷 ${translated || ''}`.trim();
