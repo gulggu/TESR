@@ -1473,6 +1473,12 @@ body[data-theme="dark"],
   background: none; border: none; cursor: pointer;
   font-size: 16px; color: var(--slm-text-secondary); padding: 4px;
 }
+.slm-post-collapse-btn {
+  background: none; border: none; cursor: pointer;
+  font-size: 13px; color: var(--slm-text-secondary); padding: 2px 6px;
+  border-radius: 4px; margin-left: auto; transition: color 0.15s;
+}
+.slm-post-collapse-btn:hover { color: var(--slm-primary); }
 .slm-post-date { font-size: 11px; color: var(--slm-text-secondary); }
 
 .slm-post-img { width: 100%; max-height: 300px; object-fit: cover; display: block; }

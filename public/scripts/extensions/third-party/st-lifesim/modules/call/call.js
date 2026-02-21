@@ -273,7 +273,7 @@ export async function triggerProactiveIncomingCall(probabilityPercent, options =
     const chance = Math.max(0, Math.min(100, Number(probabilityPercent) || 0)) / 100;
     const force = options?.force === true;
     if (!force && (chance <= 0 || Math.random() >= chance)) return;
-    if (Date.now() - lastProactiveCallAt < PROACTIVE_CALL_COOLDOWN_MS) return;
+    if (!force && Date.now() - lastProactiveCallAt < PROACTIVE_CALL_COOLDOWN_MS) return;
     const charName = getContext()?.name2;
     if (!charName) return;
     proactiveCallPending = true;

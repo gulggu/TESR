@@ -66,6 +66,28 @@ const MODEL_KEY_BY_SOURCE = {
 const PENDING_COMMENT_REACTIONS = [];
 let pendingReactionInFlight = false;
 
+// SNS 포스트 카드 접힘 상태 (session 유지, localStorage 기반)
+const SNS_CARDS_COLLAPSED_LS_KEY = 'slm:sns-cards-collapsed';
+let _collapsedCardIds = null;
+
+function loadCollapsedCardIds() {
+    if (_collapsedCardIds) return _collapsedCardIds;
+    try {
+        const raw = localStorage.getItem(SNS_CARDS_COLLAPSED_LS_KEY);
+        _collapsedCardIds = new Set(JSON.parse(raw || '[]'));
+    } catch (e) {
+        console.warn('[ST-LifeSim] SNS 카드 접힘 상태 로드 실패:', e);
+        _collapsedCardIds = new Set();
+    }
+    return _collapsedCardIds;
+}
+
+function saveCollapsedCardIds() {
+    try {
+        localStorage.setItem(SNS_CARDS_COLLAPSED_LS_KEY, JSON.stringify([..._collapsedCardIds]));
+    } catch { /* localStorage not available */ }
+}
+
 /**
  * 관리형 이미지 프리셋 목록을 불러온다
  * @returns {string[]}
@@ -596,12 +618,15 @@ function buildPostCard(post, onUpdate) {
     const card = document.createElement('div');
     card.className = 'slm-post-card';
 
+    const collapsedIds = loadCollapsedCardIds();
+    const isCollapsed = collapsedIds.has(post.id);
+
     const avatars = loadAvatars();
     const avatarUrl = resolveAvatar(post.authorName, avatars);
     const userIds = loadUserIds();
     const displayId = getAuthorHandle(post.authorName, userIds);
 
-    // 헤더 (아바타 + 이름 + 메뉴) — 시간 제거
+    // 헤더 (아바타 + 이름 + 접기 버튼 + 메뉴) — 시간 제거
     const header = document.createElement('div');
     header.className = 'slm-post-header';
 
@@ -628,6 +653,12 @@ function buildPostCard(post, onUpdate) {
     authorEl.className = 'slm-post-author';
     authorEl.textContent = displayId;
 
+    // 접기/펼치기 버튼
+    const collapseBtn = document.createElement('button');
+    collapseBtn.className = 'slm-post-collapse-btn';
+    collapseBtn.textContent = isCollapsed ? '▸' : '▾';
+    collapseBtn.title = isCollapsed ? '펼치기' : '접기';
+
     const moreBtn = document.createElement('button');
     moreBtn.className = 'slm-post-more-btn';
     moreBtn.textContent = '···';
@@ -635,8 +666,24 @@ function buildPostCard(post, onUpdate) {
 
     header.appendChild(avatarWrap);
     header.appendChild(authorEl);
+    header.appendChild(collapseBtn);
     header.appendChild(moreBtn);
     card.appendChild(header);
+
+    // 접을 수 있는 본문 영역
+    const body = document.createElement('div');
+    body.className = 'slm-post-body';
+    if (isCollapsed) body.style.display = 'none';
+
+    collapseBtn.onclick = () => {
+        const nowCollapsed = body.style.display !== 'none';
+        body.style.display = nowCollapsed ? 'none' : '';
+        collapseBtn.textContent = nowCollapsed ? '▸' : '▾';
+        collapseBtn.title = nowCollapsed ? '펼치기' : '접기';
+        if (nowCollapsed) collapsedIds.add(post.id);
+        else collapsedIds.delete(post.id);
+        saveCollapsedCardIds();
+    };
 
     // 이미지 (설명을 hover 툴팁으로)
     if (post.imageUrl) {
@@ -657,7 +704,7 @@ function buildPostCard(post, onUpdate) {
             tooltip.textContent = post.imageDescription;
             imgWrap.appendChild(tooltip);
         }
-        card.appendChild(imgWrap);
+        body.appendChild(imgWrap);
     }
 
     // 액션 버튼 행
@@ -703,20 +750,20 @@ function buildPostCard(post, onUpdate) {
     actions.appendChild(commentBtn);
     const translatePostBtn = createTranslateButton(
         post.content,
-        card,
-        () => card.querySelector('.slm-post-translation'),
+        body,
+        () => body.querySelector('.slm-post-translation'),
         'slm-post-translation',
     );
     actions.appendChild(translatePostBtn);
     actions.appendChild(contextLabel);
-    card.appendChild(actions);
+    body.appendChild(actions);
 
     // 좋아요 수
     if (post.likes > 0) {
         const likesEl = document.createElement('div');
         likesEl.className = 'slm-post-likes';
         likesEl.textContent = `좋아요 ${post.likes}개`;
-        card.appendChild(likesEl);
+        body.appendChild(likesEl);
     }
 
     // 본문
@@ -727,7 +774,7 @@ function buildPostCard(post, onUpdate) {
     authorSpan.textContent = displayId;
     contentEl.appendChild(authorSpan);
     contentEl.appendChild(document.createTextNode(post.content));
-    card.appendChild(contentEl);
+    body.appendChild(contentEl);
 
     // 댓글 수 표시
     if (post.comments.length > 0) {
@@ -737,7 +784,7 @@ function buildPostCard(post, onUpdate) {
         commentsLink.onclick = () => {
             commentSection.style.display = commentSection.style.display === 'none' ? 'block' : 'none';
         };
-        card.appendChild(commentsLink);
+        body.appendChild(commentsLink);
     }
 
     // 댓글 섹션 (기본 닫힘)
@@ -745,7 +792,9 @@ function buildPostCard(post, onUpdate) {
     commentSection.className = 'slm-comment-section';
     commentSection.style.display = 'none';
     renderComments(commentSection, post, onUpdate);
-    card.appendChild(commentSection);
+    body.appendChild(commentSection);
+
+    card.appendChild(body);
 
     return card;
 }
