@@ -6,6 +6,7 @@ import sanitize from 'sanitize-filename';
 import { CheckRepoActions, default as simpleGit } from 'simple-git';
 
 import { PUBLIC_DIRECTORIES } from '../constants.js';
+import { normalizeNestedExtensionRepo } from './extensions-util.js';
 
 /**
  * @type {Partial<import('simple-git').SimpleGitOptions>}
@@ -18,11 +19,15 @@ const OPTIONS = Object.freeze({ timeout: { block: 5 * 60 * 1000 } });
  * @returns {Promise<Object>} - Returns the manifest data as an object
  */
 async function getManifest(extensionPath) {
-    const manifestPath = path.join(extensionPath, 'manifest.json');
+    let manifestPath = path.join(extensionPath, 'manifest.json');
 
     // Check if manifest.json exists
     if (!fs.existsSync(manifestPath)) {
-        throw new Error(`Manifest file not found at ${manifestPath}`);
+        normalizeNestedExtensionRepo(extensionPath);
+        manifestPath = path.join(extensionPath, 'manifest.json');
+        if (!fs.existsSync(manifestPath)) {
+            throw new Error(`Manifest file not found at ${manifestPath}`);
+        }
     }
 
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
