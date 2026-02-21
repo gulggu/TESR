@@ -385,6 +385,18 @@ function openContactDialog(existing, defaultBinding, onSave) {
     if (existing?.isCharAuto) {
         fields.name.disabled = true;
         fields.description.disabled = true;
+        const restoreAvatarBtn = document.createElement('button');
+        restoreAvatarBtn.type = 'button';
+        restoreAvatarBtn.className = 'slm-btn slm-btn-ghost slm-btn-sm';
+        restoreAvatarBtn.textContent = '🔄 기본값으로 복원';
+        restoreAvatarBtn.style.marginTop = '2px';
+        restoreAvatarBtn.onclick = () => {
+            const ctx = getContext();
+            fields.avatar.value = ctx?.characters?.[ctx?.characterId]?.avatar
+                ? `/characters/${ctx?.characters?.[ctx?.characterId]?.avatar}`
+                : '';
+        };
+        fields.avatar.insertAdjacentElement('afterend', restoreAvatarBtn);
     }
     let selectedBinding = existing?.binding || defaultBinding || 'chat';
     if (!existing?.isCharAuto) {

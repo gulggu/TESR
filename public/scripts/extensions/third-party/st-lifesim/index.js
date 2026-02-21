@@ -885,14 +885,39 @@ function openSettingsPanel(onBack) {
             const validSources = PROVIDER_OPTIONS.map(o => o.value);
             sourceSelect.value = validSources.includes(route.chatSource) ? route.chatSource : '';
 
+            // Model preset dropdown
+            const modelSelect = document.createElement('select');
+            modelSelect.className = 'slm-select';
+
+            // Direct-input field (shown when '✏️ 직접 입력' is chosen)
             const modelInput = document.createElement('input');
             modelInput.className = 'slm-input';
             modelInput.type = 'text';
+            modelInput.placeholder = '모델명 직접 입력';
+            modelInput.style.display = 'none';
 
-            function refreshModelInput() {
+            function refreshModelSelect() {
                 const presets = PROVIDER_OPTIONS.find(o => o.value === sourceSelect.value)?.models || [];
+                modelSelect.innerHTML = '';
+                modelSelect.appendChild(Object.assign(document.createElement('option'), { value: '', textContent: '-- 모델 선택 (전역 기본) --' }));
+                presets.forEach(m => {
+                    modelSelect.appendChild(Object.assign(document.createElement('option'), { value: m, textContent: m }));
+                });
+                modelSelect.appendChild(Object.assign(document.createElement('option'), { value: '__custom__', textContent: '✏️ 직접 입력' }));
                 modelInput.placeholder = presets.length > 0 ? `예: ${presets[0]}` : '모델명 입력 (예: gpt-4o-mini)';
-                modelInput.value = route.model || '';
+
+                const currentModel = route.model || '';
+                if (!currentModel) {
+                    modelSelect.value = '';
+                    modelInput.style.display = 'none';
+                } else if (presets.includes(currentModel)) {
+                    modelSelect.value = currentModel;
+                    modelInput.style.display = 'none';
+                } else {
+                    modelSelect.value = '__custom__';
+                    modelInput.value = currentModel;
+                    modelInput.style.display = '';
+                }
             }
 
             sourceSelect.onchange = () => {
@@ -900,13 +925,25 @@ function openSettingsPanel(onBack) {
                 route.api = '';
                 route.modelSettingKey = ROUTE_MODEL_KEY_BY_SOURCE[route.chatSource] || '';
                 route.model = '';
-                refreshModelInput();
+                refreshModelSelect();
                 saveSettings();
             };
             group.appendChild(sourceSelect);
 
-            refreshModelInput();
+            modelSelect.onchange = () => {
+                if (modelSelect.value === '__custom__') {
+                    modelInput.style.display = '';
+                    modelInput.focus();
+                } else {
+                    modelInput.style.display = 'none';
+                    route.model = modelSelect.value;
+                }
+                saveSettings();
+            };
+
+            refreshModelSelect();
             modelInput.oninput = () => { route.model = modelInput.value.trim(); saveSettings(); };
+            group.appendChild(modelSelect);
             group.appendChild(modelInput);
 
             wrapper.appendChild(group);
