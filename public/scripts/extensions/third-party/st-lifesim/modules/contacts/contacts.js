@@ -293,7 +293,9 @@ function buildContactsContent() {
 
             row.appendChild(clickArea);
             row.appendChild(editBtn);
-            row.appendChild(delBtn);
+            if (!contact.isCharAuto) {
+                row.appendChild(delBtn);
+            }
             list.appendChild(row);
         });
     }
@@ -380,6 +382,10 @@ function openContactDialog(existing, defaultBinding, onSave) {
         relationToChar: createFormField(wrapper, '{{char}}와의 관계', 'text', existing?.relationToChar || ''),
         personality: createFormField(wrapper, '성격/말투', 'text', existing?.personality || ''),
     };
+    if (existing?.isCharAuto) {
+        fields.name.disabled = true;
+        fields.description.disabled = true;
+    }
     let selectedBinding = existing?.binding || defaultBinding || 'chat';
     if (!existing?.isCharAuto) {
         const bindingLbl = document.createElement('label');
@@ -421,7 +427,8 @@ function openContactDialog(existing, defaultBinding, onSave) {
     cancelBtn.onclick = () => close();
 
     saveBtn.onclick = () => {
-        const name = fields.name.value.trim();
+        const isCharAuto = existing?.isCharAuto === true;
+        const name = isCharAuto ? (existing?.displayName || existing?.name || '').trim() : fields.name.value.trim();
         const relationToUser = fields.relationToUser.value.trim();
         if (!name || !relationToUser) {
             showToast('이름과 관계는 필수입니다.', 'warn');
@@ -432,7 +439,6 @@ function openContactDialog(existing, defaultBinding, onSave) {
         const targetBinding = selectedBinding;
         const sourceContacts = loadContacts(sourceBinding);
         const targetContacts = targetBinding === sourceBinding ? sourceContacts : loadContacts(targetBinding);
-        const isCharAuto = existing?.isCharAuto === true;
         const canonicalName = isCharAuto ? (existing?.name || getContext()?.name2 || name) : name;
         const displayName = isCharAuto && name !== canonicalName ? name : '';
         const data = {
@@ -440,7 +446,7 @@ function openContactDialog(existing, defaultBinding, onSave) {
             name: canonicalName,
             displayName,
             avatar: fields.avatar.value.trim(),
-            description: fields.description.value.trim(),
+            description: isCharAuto ? (existing?.description || '') : fields.description.value.trim(),
             relationToUser,
             relationToChar: fields.relationToChar.value.trim(),
             personality: fields.personality.value.trim(),

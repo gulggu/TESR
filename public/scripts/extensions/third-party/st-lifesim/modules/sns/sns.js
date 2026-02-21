@@ -23,6 +23,7 @@ const CONTACT_LINK_KEY = 'sns-contact-link'; // boolean: link avatars to contact
 const AUTHOR_DEFAULT_IMAGE_KEY = 'sns-author-default-images'; // { authorName: imageUrl }
 const IMAGE_PRESETS_KEY = 'sns-image-presets'; // {id,name,url}[]
 const POSTING_ENABLED_KEY = 'sns-posting-enabled'; // { authorName: boolean }
+const AUTHOR_LANGUAGE_KEY = 'sns-author-languages'; // { authorName: ko|en|ja|zh }
 const SNS_REPLY_PROBABILITY = 0.7;
 const SNS_EXTRA_COMMENT_PROBABILITY = 0.35;
 const SNS_POST_TEXT_MAX = 280;
@@ -124,8 +125,13 @@ function getDefaultImageUrl() {
 function getSnsPromptSettings() {
     const ext = getExtensionSettings()?.['st-lifesim'];
     const prompts = ext?.snsPrompts || {};
+    const templates = { ...DEFAULT_SNS_PROMPTS };
+    Object.keys(templates).forEach((key) => {
+        const incoming = String(prompts?.[key] ?? '').trim();
+        if (incoming) templates[key] = incoming;
+    });
     return {
-        templates: { ...DEFAULT_SNS_PROMPTS, ...prompts },
+        templates,
         externalApiUrl: String(ext?.snsExternalApiUrl || '').trim(),
         externalApiTimeoutMs: Math.max(1000, Math.min(60000, Number(ext?.snsExternalApiTimeoutMs) || 12000)),
         language: ['ko', 'en', 'ja', 'zh'].includes(ext?.snsLanguage) ? ext.snsLanguage : 'ko',
@@ -133,9 +139,9 @@ function getSnsPromptSettings() {
     };
 }
 
-function getSnsAiRouteSettings() {
+function getSnsAiRouteSettings(routeKey = 'sns') {
     const ext = getExtensionSettings()?.['st-lifesim'];
-    const route = ext?.aiRoutes?.sns || {};
+    const route = ext?.aiRoutes?.[routeKey] || {};
     return {
         api: String(route.api || '').trim(),
         chatSource: String(route.chatSource || '').trim(),
@@ -217,6 +223,19 @@ function loadAuthorDefaultImages() {
 
 function saveAuthorDefaultImages(map) {
     saveData(AUTHOR_DEFAULT_IMAGE_KEY, map, getDefaultBinding());
+}
+
+function loadAuthorLanguages() {
+    return loadData(AUTHOR_LANGUAGE_KEY, {}, getDefaultBinding());
+}
+
+function saveAuthorLanguages(map) {
+    saveData(AUTHOR_LANGUAGE_KEY, map, getDefaultBinding());
+}
+
+function getAuthorLanguage(authorName, fallbackLanguage) {
+    const lang = loadAuthorLanguages()?.[authorName];
+    return ['ko', 'en', 'ja', 'zh'].includes(lang) ? lang : fallbackLanguage;
 }
 
 function getAuthorDefaultImageUrl(authorName, includeLegacy = true) {
@@ -388,7 +407,8 @@ export async function triggerNpcPosting() {
     const finalPrompt = recentPosts
         ? `${prompt}\n최근 ${pick.name} 게시글 요약:\n${recentPosts}\n위 내용과 주제/표현을 반복하지 말고 새 일상 주제로 작성하세요.`
         : prompt;
-    const localizedPrompt = enforceSnsLanguage(finalPrompt, promptSettings.language);
+    const authorLanguage = getAuthorLanguage(pick.name, promptSettings.language);
+    const localizedPrompt = enforceSnsLanguage(finalPrompt, authorLanguage);
 
     try {
         const freshCtx = getContext();
@@ -416,7 +436,7 @@ export async function triggerNpcPosting() {
                 authorName: pick.name,
                 postContent,
             });
-            imageDescription = normalizeSnsText(await generateSnsText(freshCtx, enforceSnsLanguage(descPrompt, promptSettings.language), `${pick.name}-image-desc`), SNS_IMAGE_DESC_MAX);
+            imageDescription = normalizeSnsText(await generateSnsText(freshCtx, enforceSnsLanguage(descPrompt, authorLanguage), `${pick.name}-image-desc`), SNS_IMAGE_DESC_MAX);
         }
         if (!imageDescription && inlineCaption) imageDescription = inlineCaption;
 
@@ -967,7 +987,7 @@ function createTranslateButton(text, parent, findExisting, translationClass, com
             );
             let translated = '';
             if (ctx && (typeof ctx.generateRaw === 'function' || typeof ctx.generateQuietPrompt === 'function')) {
-                translated = await generateSnsText(ctx, customPrompt, 'sns-translation');
+                translated = await generateSnsText(ctx, customPrompt, 'sns-translation', 'snsTranslation');
             }
             if (!translated) translated = await translate(String(text || ''), 'ko');
             const line = document.createElement('div');
@@ -1046,7 +1066,7 @@ function findCommentNodeById(nodes, id) {
     return null;
 }
 
-async function generateSnsText(ctx, quietPrompt, quietName) {
+async function generateSnsText(ctx, quietPrompt, quietName, routeKey = 'sns') {
     if (!ctx) return '';
     const promptSettings = getSnsPromptSettings();
     if (promptSettings.externalApiUrl) {
@@ -1081,7 +1101,7 @@ async function generateSnsText(ctx, quietPrompt, quietName) {
         }
     }
     if (typeof ctx.generateRaw === 'function') {
-        const aiRoute = getSnsAiRouteSettings();
+        const aiRoute = getSnsAiRouteSettings(routeKey);
         const chatSettings = ctx.chatCompletionSettings;
         const sourceBefore = chatSettings?.chat_completion_source;
         let modelKey = '';
@@ -1157,6 +1177,7 @@ async function runDeferredCommentGeneration({ postId, commentId, text, userName,
         if (shouldReply && replyAuthorCandidates.length > 0) {
             const replyAuthor = replyAuthorCandidates[Math.floor(Math.random() * replyAuthorCandidates.length)];
             const replyAuthorHandle = getAuthorHandle(replyAuthor.name, userIds);
+            const replyLanguage = getAuthorLanguage(replyAuthor.name, promptSettings.language);
             const replyPrompt = enforceSnsLanguage(applyPromptTemplate(promptSettings.templates.reply, {
                 postAuthorName: p.authorName,
                 postAuthorHandle,
@@ -1167,7 +1188,7 @@ async function runDeferredCommentGeneration({ postId, commentId, text, userName,
                 replyAuthorName: replyAuthor.name,
                 replyAuthorHandle,
                 replyPersonality: replyAuthor.personality || '평범하고 자연스러운 말투',
-            }), promptSettings.language);
+            }), replyLanguage);
             replyText = await generateSnsText(ctx, replyPrompt, replyAuthor.name);
             if (replyText) {
                 const replyId = generateId();
@@ -1195,6 +1216,7 @@ async function runDeferredCommentGeneration({ postId, commentId, text, userName,
             if (candidates.length > 0) {
                 const picker = candidates[Math.floor(Math.random() * candidates.length)];
                 const pickerHandle = getAuthorHandle(picker.name, userIds);
+                const pickerLanguage = getAuthorLanguage(picker.name, promptSettings.language);
                 const contactPrompt = enforceSnsLanguage(applyPromptTemplate(promptSettings.templates.extraComment, {
                     postAuthorName: p.authorName,
                     postAuthorHandle,
@@ -1202,7 +1224,7 @@ async function runDeferredCommentGeneration({ postId, commentId, text, userName,
                     extraAuthorName: picker.name,
                     extraAuthorHandle: pickerHandle,
                     extraPersonality: picker.personality || '평범하고 자연스러운 말투',
-                }), promptSettings.language);
+                }), pickerLanguage);
                 const generated = await generateSnsText(ctx, contactPrompt, picker.name);
                 if (generated) {
                     extraContactComment = {
@@ -1503,6 +1525,7 @@ function openAvatarSettingsDialog(onUpdate) {
     const avatars = loadAvatars();
     const defaultImages = loadAuthorDefaultImages();
     const postingEnabled = loadPostingEnabledMap();
+    const authorLanguages = loadAuthorLanguages();
     const contacts = getContacts('chat');
     const userName = getContext()?.name1 || 'user';
     const allProfiles = [{ name: userName, avatar: avatars[userName] || getBuiltinUserAvatarUrl(), personality: 'user' }, ...contacts]
@@ -1512,10 +1535,12 @@ function openAvatarSettingsDialog(onUpdate) {
         if (!userIds[c.name]) userIds[c.name] = makeDefaultHandle(c.name);
         if (c.avatar && !avatars[c.name]) avatars[c.name] = c.avatar;
         if (c.name !== userName && postingEnabled[c.name] == null) postingEnabled[c.name] = true;
+        if (!['ko', 'en', 'ja', 'zh'].includes(authorLanguages[c.name])) authorLanguages[c.name] = 'ko';
     });
     saveUserIds(userIds);
     saveAvatars(avatars);
     savePostingEnabledMap(postingEnabled);
+    saveAuthorLanguages(authorLanguages);
 
     const contactList = document.createElement('div');
     contactList.className = 'slm-form';
@@ -1599,10 +1624,28 @@ function openAvatarSettingsDialog(onUpdate) {
             postToggle.appendChild(postCheck);
             postToggle.appendChild(document.createTextNode(' 게시물 활성화'));
 
+            const languageSelect = document.createElement('select');
+            languageSelect.className = 'slm-select';
+            [
+                { value: 'ko', label: '한국어' },
+                { value: 'zh', label: '中文' },
+                { value: 'ja', label: '日本語' },
+                { value: 'en', label: 'English' },
+            ].forEach(({ value, label }) => {
+                languageSelect.appendChild(Object.assign(document.createElement('option'), { value, textContent: label }));
+            });
+            languageSelect.value = authorLanguages[c.name] || 'ko';
+            languageSelect.onchange = () => {
+                authorLanguages[c.name] = languageSelect.value;
+                saveAuthorLanguages(authorLanguages);
+            };
+
             item.appendChild(Object.assign(document.createElement('label'), { className: 'slm-label', textContent: '아이디(@핸들)' }));
             item.appendChild(handleInput);
             item.appendChild(Object.assign(document.createElement('label'), { className: 'slm-label', textContent: '프로필 이미지 URL' }));
             item.appendChild(avatarInput);
+            item.appendChild(Object.assign(document.createElement('label'), { className: 'slm-label', textContent: '게시글/댓글 출력 언어' }));
+            item.appendChild(languageSelect);
             item.appendChild(Object.assign(document.createElement('label'), { className: 'slm-label', textContent: '게시글 기본 이미지 프리셋' }));
             item.appendChild(presetSelect);
             if (c.name !== userName) item.appendChild(postToggle);

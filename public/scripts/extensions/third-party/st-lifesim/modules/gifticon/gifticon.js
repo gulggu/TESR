@@ -15,6 +15,7 @@ import { createPopup } from '../../utils/popup.js';
 import { getContacts } from '../contacts/contacts.js';
 
 const MODULE_KEY = 'gifticons';
+const GIFTICON_TX_MARKER_PREFIX = 'stls-gifticon:';
 // 캐릭터 응답에서 "기프티콘을 사용/먹었다"는 의도를 감지하는 다국어(ko/en) 키워드.
 const GIFTICON_USAGE_HINT_RE = /(기프티콘|선물|먹|마셨|사용|썼|잘 먹|잘받|thanks|thank you)/i;
 
@@ -36,11 +37,29 @@ function getContactDisplayName(contact) {
  */
 
 function loadGifticons() {
-    return loadData(MODULE_KEY, [], getDefaultBinding());
+    const list = loadData(MODULE_KEY, [], getDefaultBinding());
+    return syncGifticonsWithChat(list);
 }
 
 function saveGifticons(list) {
     saveData(MODULE_KEY, list, getDefaultBinding());
+}
+
+function getGifticonMarker(id) {
+    return `${GIFTICON_TX_MARKER_PREFIX}${id}`;
+}
+
+function syncGifticonsWithChat(list) {
+    if (!Array.isArray(list) || list.length === 0) return Array.isArray(list) ? list : [];
+    const chat = getContext()?.chat || [];
+    const filtered = list.filter((item) => {
+        if (!item?.messageMarker) return true;
+        return chat.some((msg) => String(msg?.mes || '').includes(item.messageMarker));
+    });
+    if (filtered.length !== list.length) {
+        saveGifticons(filtered);
+    }
+    return filtered;
 }
 
 export function trackGifticonUsageFromCharacterMessage() {
@@ -321,8 +340,9 @@ function renderSendForm() {
 
         sendBtn.disabled = true;
         try {
+            const gifticonId = generateId();
             const g = {
-                id: generateId(),
+                id: gifticonId,
                 name,
                 emoji,
                 brand: brandInput.value.trim(),
@@ -331,14 +351,14 @@ function renderSendForm() {
                 counterpart: recipient,
                 date: new Date().toISOString(),
                 memo: memoInput.value.trim(),
+                messageMarker: getGifticonMarker(gifticonId),
             };
             const list = loadGifticons();
             list.push(g);
             saveGifticons(list);
 
             const senderName = getContext()?.name1 || 'user';
-            const msgHtml = `<div class="slm-transaction-card slm-gifticon-transfer-card"><div class="slm-transaction-title">${escapeHtml(emoji)} 기프티콘 전송 완료</div><div class="slm-transaction-route">${escapeHtml(senderName)} → ${escapeHtml(recipient)}</div><div class="slm-transaction-amount">${escapeHtml(g.name)}${g.value ? ` (${escapeHtml(g.value)})` : ''}</div>${g.memo ? `<div class="slm-transaction-memo">${escapeHtml(g.memo)}</div>` : ''}</div>`;
-            await slashSend(msgHtml);
+            await slashSend(`${escapeHtml(emoji)} **기프티콘 전송 완료**\n- 보내는 사람: ${escapeHtml(senderName)}\n- 받는 사람: ${escapeHtml(recipient)}\n- 품목: ${escapeHtml(g.name)}${g.value ? ` (${escapeHtml(g.value)})` : ''}${g.memo ? `\n- 메모: ${escapeHtml(g.memo)}` : ''}\n<!--${g.messageMarker}-->`);
             showToast(`${recipient}에게 기프티콘 전송 완료`, 'success');
 
             nameInput.value = '';

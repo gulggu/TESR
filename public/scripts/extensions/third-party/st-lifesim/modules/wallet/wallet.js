@@ -30,13 +30,16 @@ const DEFAULT_WALLET = {
     balance: 0,
     history: [],
 };
+const WALLET_TX_MARKER_PREFIX = 'stls-wallet-tx:';
 
 /**
  * 지갑 데이터를 불러온다
  * @returns {Object}
  */
 function loadWallet() {
-    return loadData(MODULE_KEY, { ...DEFAULT_WALLET }, CHAT_BINDING);
+    const wallet = loadData(MODULE_KEY, { ...DEFAULT_WALLET }, CHAT_BINDING);
+    syncWalletHistoryWithChat(wallet);
+    return wallet;
 }
 
 /**
@@ -45,6 +48,23 @@ function loadWallet() {
  */
 function saveWallet(wallet) {
     saveData(MODULE_KEY, wallet, CHAT_BINDING);
+}
+
+function getWalletMarker(id) {
+    return `${WALLET_TX_MARKER_PREFIX}${id}`;
+}
+
+function syncWalletHistoryWithChat(wallet) {
+    const history = Array.isArray(wallet?.history) ? wallet.history : [];
+    if (history.length === 0) return;
+    const chat = getContext()?.chat || [];
+    const filtered = history.filter((entry) => {
+        if (!entry?.messageMarker) return true;
+        return chat.some((msg) => String(msg?.mes || '').includes(entry.messageMarker));
+    });
+    if (filtered.length === history.length) return;
+    wallet.history = filtered;
+    saveWallet(wallet);
 }
 
 /**
@@ -473,7 +493,14 @@ async function handleSend(sender, recipient, amount, memo) {
     showToast(`💸 ${sender} → ${recipient} ${formatCurrency(amount, wallet.currencySymbol)} 송금 완료`, 'success');
     // '|'는 slash 체인 구분자로 해석될 수 있어 함께 정리한다.
     const safeMemo = String(memo || '').replace(/[|\r\n]/g, ' ').trim();
-    await slashSend(`<div class="slm-transaction-card"><div class="slm-transaction-title">💸 송금 완료</div><div class="slm-transaction-route">${escapeHtml(sender)} → ${escapeHtml(recipient)}</div><div class="slm-transaction-amount">${escapeHtml(formatCurrency(amount, wallet.currencySymbol))}</div>${safeMemo ? `<div class="slm-transaction-memo">메모: ${escapeHtml(safeMemo)}</div>` : ''}</div>`);
+    let marker = '';
+    if (wallet.history.length > 0) {
+        const historyEntry = wallet.history[wallet.history.length - 1];
+        marker = getWalletMarker(historyEntry.id);
+        historyEntry.messageMarker = marker;
+        saveWallet(wallet);
+    }
+    await slashSend(`💸 **송금 완료**\n- 보내는 사람: ${escapeHtml(sender)}\n- 받는 사람: ${escapeHtml(recipient)}\n- 금액: ${escapeHtml(formatCurrency(amount, wallet.currencySymbol))}${safeMemo ? `\n- 메모: ${escapeHtml(safeMemo)}` : ''}${marker ? `\n<!--${marker}-->` : ''}`);
 }
 
 /**

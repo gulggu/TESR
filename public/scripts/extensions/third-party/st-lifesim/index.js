@@ -117,6 +117,7 @@ const DEFAULT_SETTINGS = {
     snsPrompts: { ...SNS_PROMPT_DEFAULTS },
     aiRoutes: {
         sns: { ...AI_ROUTE_DEFAULTS },
+        snsTranslation: { ...AI_ROUTE_DEFAULTS },
         callSummary: { ...AI_ROUTE_DEFAULTS },
         contactProfile: { ...AI_ROUTE_DEFAULTS },
     },
@@ -205,11 +206,12 @@ function getSettings() {
     if (!ext[SETTINGS_KEY].aiRoutes || typeof ext[SETTINGS_KEY].aiRoutes !== 'object') {
         ext[SETTINGS_KEY].aiRoutes = {
             sns: { ...AI_ROUTE_DEFAULTS },
+            snsTranslation: { ...AI_ROUTE_DEFAULTS },
             callSummary: { ...AI_ROUTE_DEFAULTS },
             contactProfile: { ...AI_ROUTE_DEFAULTS },
         };
     }
-    ['sns', 'callSummary', 'contactProfile'].forEach((feature) => {
+    ['sns', 'snsTranslation', 'callSummary', 'contactProfile'].forEach((feature) => {
         if (!ext[SETTINGS_KEY].aiRoutes[feature] || typeof ext[SETTINGS_KEY].aiRoutes[feature] !== 'object') {
             ext[SETTINGS_KEY].aiRoutes[feature] = { ...AI_ROUTE_DEFAULTS };
         }
@@ -684,26 +686,6 @@ function openSettingsPanel(onBack) {
         callProbRow.append(callProbLbl, callProbInput, callProbPctLbl, callProbApplyBtn);
         wrapper.appendChild(callProbRow);
 
-        const snsLangRow = document.createElement('div');
-        snsLangRow.className = 'slm-input-row';
-        snsLangRow.style.marginTop = '8px';
-        const snsLangLbl = Object.assign(document.createElement('label'), { className: 'slm-label', textContent: 'SNS 출력 언어:' });
-        const snsLangSelect = document.createElement('select');
-        snsLangSelect.className = 'slm-select slm-input-sm';
-        [
-            { value: 'ko', label: '한국어' },
-            { value: 'en', label: 'English' },
-            { value: 'ja', label: '日本語' },
-            { value: 'zh', label: '中文' },
-        ].forEach(({ value, label }) => snsLangSelect.appendChild(Object.assign(document.createElement('option'), { value, textContent: label })));
-        snsLangSelect.value = settings.snsLanguage || 'ko';
-        snsLangSelect.onchange = () => {
-            settings.snsLanguage = snsLangSelect.value;
-            saveSettings();
-            showToast(`SNS 언어: ${snsLangSelect.options[snsLangSelect.selectedIndex].textContent}`, 'success', 1200);
-        };
-        snsLangRow.append(snsLangLbl, snsLangSelect);
-        wrapper.appendChild(snsLangRow);
         return wrapper;
     }
 
@@ -850,8 +832,9 @@ function openSettingsPanel(onBack) {
     function buildSnsPromptTab() {
         const wrapper = document.createElement('div');
         wrapper.className = 'slm-settings-wrapper slm-form';
-        if (!settings.aiRoutes) settings.aiRoutes = { sns: { ...AI_ROUTE_DEFAULTS }, callSummary: { ...AI_ROUTE_DEFAULTS }, contactProfile: { ...AI_ROUTE_DEFAULTS } };
+        if (!settings.aiRoutes) settings.aiRoutes = { sns: { ...AI_ROUTE_DEFAULTS }, snsTranslation: { ...AI_ROUTE_DEFAULTS }, callSummary: { ...AI_ROUTE_DEFAULTS }, contactProfile: { ...AI_ROUTE_DEFAULTS } };
         if (!settings.aiRoutes.sns) settings.aiRoutes.sns = { ...AI_ROUTE_DEFAULTS };
+        if (!settings.aiRoutes.snsTranslation) settings.aiRoutes.snsTranslation = { ...AI_ROUTE_DEFAULTS };
         if (!settings.aiRoutes.callSummary) settings.aiRoutes.callSummary = { ...AI_ROUTE_DEFAULTS };
         if (!settings.aiRoutes.contactProfile) settings.aiRoutes.contactProfile = { ...AI_ROUTE_DEFAULTS };
 
@@ -898,38 +881,34 @@ function openSettingsPanel(onBack) {
                 sourceSelect.appendChild(Object.assign(document.createElement('option'), { value: source, textContent: source }));
             });
             sourceSelect.value = chatSourceOptions.includes(route.chatSource) ? route.chatSource : '';
-            const modelSelect = document.createElement('select');
-            modelSelect.className = 'slm-select';
-            function refillModelOptions() {
-                modelSelect.innerHTML = '';
-                modelSelect.appendChild(Object.assign(document.createElement('option'), { value: '', textContent: '모델 자동 선택' }));
+            const modelInput = document.createElement('input');
+            modelInput.className = 'slm-input';
+            modelInput.type = 'text';
+            modelInput.placeholder = '모델 자동 선택';
+            function refreshModelInput() {
                 const modelKey = ROUTE_MODEL_KEY_BY_SOURCE[sourceSelect.value] || route.modelSettingKey || '';
                 const modelValue = String(chatSettings?.[modelKey] || '').trim();
-                if (modelValue) {
-                    modelSelect.appendChild(Object.assign(document.createElement('option'), { value: modelValue, textContent: modelValue }));
-                }
-                if (route.model && route.model !== modelValue) {
-                    modelSelect.appendChild(Object.assign(document.createElement('option'), { value: route.model, textContent: route.model }));
-                }
-                modelSelect.value = route.model || '';
+                modelInput.placeholder = modelValue || '모델 자동 선택';
+                modelInput.value = route.model || '';
             }
             sourceSelect.onchange = () => {
                 route.chatSource = sourceSelect.value;
                 route.modelSettingKey = ROUTE_MODEL_KEY_BY_SOURCE[route.chatSource] || '';
                 route.model = '';
-                refillModelOptions();
+                refreshModelInput();
                 saveSettings();
             };
             group.appendChild(sourceSelect);
 
-            refillModelOptions();
-            modelSelect.onchange = () => { route.model = modelSelect.value; saveSettings(); };
-            group.appendChild(modelSelect);
+            refreshModelInput();
+            modelInput.oninput = () => { route.model = modelInput.value.trim(); saveSettings(); };
+            group.appendChild(modelInput);
 
             wrapper.appendChild(group);
         }
 
         buildAiRouteEditor('SNS 생성 라우팅', settings.aiRoutes.sns);
+        buildAiRouteEditor('SNS 번역 라우팅', settings.aiRoutes.snsTranslation);
         buildAiRouteEditor('통화 요약 라우팅', settings.aiRoutes.callSummary);
         buildAiRouteEditor('연락처 AI 생성 라우팅', settings.aiRoutes.contactProfile);
         wrapper.appendChild(Object.assign(document.createElement('hr'), { className: 'slm-hr' }));
@@ -983,9 +962,8 @@ function openSettingsPanel(onBack) {
         translationPromptInput.className = 'slm-textarea';
         translationPromptInput.rows = 3;
         translationPromptInput.value = settings.snsKoreanTranslationPrompt || DEFAULT_SETTINGS.snsKoreanTranslationPrompt;
-        translationPromptInput.onchange = () => {
-            settings.snsKoreanTranslationPrompt = translationPromptInput.value.trim() || DEFAULT_SETTINGS.snsKoreanTranslationPrompt;
-            translationPromptInput.value = settings.snsKoreanTranslationPrompt;
+        translationPromptInput.oninput = () => {
+            settings.snsKoreanTranslationPrompt = translationPromptInput.value;
             saveSettings();
         };
         translationPromptGroup.append(translationPromptLabel, translationPromptInput);
@@ -1007,9 +985,8 @@ function openSettingsPanel(onBack) {
             input.className = 'slm-textarea';
             input.rows = 4;
             input.value = settings.snsPrompts[key] || SNS_PROMPT_DEFAULTS[key];
-            input.onchange = () => {
-                settings.snsPrompts[key] = input.value.trim() || SNS_PROMPT_DEFAULTS[key];
-                input.value = settings.snsPrompts[key];
+            input.oninput = () => {
+                settings.snsPrompts[key] = input.value;
                 saveSettings();
             };
             const resetBtn = document.createElement('button');
