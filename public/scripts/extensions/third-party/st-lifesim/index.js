@@ -1198,9 +1198,8 @@ async function init() {
     // 선톡 타이머 시작 (활성화된 경우)
     try { startFirstMsgTimer(settings.firstMsg); } catch (e) { console.error('[ST-LifeSim] 선톡 타이머 오류:', e); }
 
-    // AI 응답 후 컨텍스트 주입
-    const eventTypes = ctx.eventTypes || ctx.event_types;
-    const evSrc = ctx.eventSource;
+    // AI 응답 후 컨텍스트 주입 — eventSource/eventTypes 안전 접근
+    const { evSrc, eventTypes } = getSafeEventHandles();
 
     if (evSrc && eventTypes?.CHARACTER_MESSAGE_RENDERED) {
         evSrc.on(eventTypes.CHARACTER_MESSAGE_RENDERED, async () => {
@@ -1268,11 +1267,26 @@ async function initIfNeeded() {
     try { initialized = await init(); } catch (e) { console.error('[ST-LifeSim] 초기화 오류:', e); } finally { initializing = false; }
 }
 
+/**
+ * 안전하게 SillyTavern eventSource와 eventTypes를 가져온다.
+ * getContext()가 null을 반환하거나 속성이 없을 때에도 오류 없이 동작한다.
+ * @returns {{ evSrc: any, eventTypes: any }}
+ */
+function getSafeEventHandles() {
+    try {
+        const ctx = getContext();
+        if (!ctx) return { evSrc: null, eventTypes: null };
+        const evSrc = ctx.eventSource ?? null;
+        const eventTypes = ctx.eventTypes ?? ctx.event_types ?? null;
+        return { evSrc, eventTypes };
+    } catch {
+        return { evSrc: null, eventTypes: null };
+    }
+}
+
 // SillyTavern APP_READY 이벤트에서 초기화 실행 (호환성 위해 즉시 시도도 함께 수행)
 try {
-    const ctx = getContext();
-    const evSrc = ctx?.eventSource;
-    const eventTypes = ctx?.eventTypes || ctx?.event_types;
+    const { evSrc, eventTypes } = getSafeEventHandles();
     if (evSrc?.on && eventTypes?.APP_READY) {
         evSrc.on(eventTypes.APP_READY, initIfNeeded);
     }
