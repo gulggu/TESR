@@ -24,3 +24,11 @@ describe('normalizeNestedExtensionRepo', () => {
         }
     });
 });
+
+describe('st-lifesim manifest', () => {
+    test('should point homePage to dedicated GitHub repository', () => {
+        const manifestPath = path.resolve(process.cwd(), '..', 'public', 'scripts', 'extensions', 'third-party', 'st-lifesim', 'manifest.json');
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+        expect(manifest.homePage).toBe('https://github.com/superpimpy/ST-LifeSim');
+    });
+});
