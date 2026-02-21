@@ -560,8 +560,8 @@ async function startCall(charName, matchedContact = null, direction = 'outgoing'
     callStartTime = Date.now();
     callContact = charName;
 
-    // 통화 시작 직전 채팅 메시지 인덱스 기록
-    callStartMessageIdx = (ctx?.chat?.length ?? 1) - 1;
+    // 통화 시작 안내 메시지가 삽입되는 인덱스부터 통화 구간으로 기록
+    callStartMessageIdx = Math.max(0, (ctx?.chat?.length ?? 0));
 
     // 비-char 통화 시 컨텍스트 주입
     if (!isMainChar) {
