@@ -164,12 +164,12 @@ async function generateCallSummaryText(ctx, quietPrompt, quietName) {
 function loadCallLogs() {
     const logs = loadData(MODULE_KEY, [], 'chat');
     if (!Array.isArray(logs)) return [];
-    const chatLen = getContext()?.chat?.length ?? 0;
+    const chatMsgCount = getContext()?.chat?.length ?? 0;
     const sanitized = logs.filter((log) => {
         if (log?.missed) return true;
         if (typeof log?.startMessageIdx !== 'number' || typeof log?.endMessageIdx !== 'number') return false;
         if (log.startMessageIdx < 0 || log.endMessageIdx < log.startMessageIdx) return false;
-        return log.endMessageIdx < chatLen;
+        return log.endMessageIdx < chatMsgCount;
     });
     if (sanitized.length !== logs.length) saveCallLogs(sanitized);
     return sanitized;

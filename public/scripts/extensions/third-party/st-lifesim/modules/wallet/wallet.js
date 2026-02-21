@@ -466,6 +466,7 @@ async function handleSend(sender, recipient, amount, memo) {
     saveWallet(wallet);
 
     showToast(`💸 ${sender} → ${recipient} ${formatCurrency(amount, wallet.currencySymbol)} 송금 완료`, 'success');
+    // '|'는 slash 체인 구분자로 해석될 수 있어 함께 정리한다.
     const safeMemo = String(memo || '').replace(/[|\r\n]/g, ' ').trim();
     await slashSend(`💸 ${sender} → ${recipient} ${formatCurrency(amount, wallet.currencySymbol)} 송금 완료${safeMemo ? ` 메모: ${safeMemo}` : ''}`);
 }
