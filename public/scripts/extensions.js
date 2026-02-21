@@ -514,11 +514,8 @@ async function activateExtensions() {
                         const eventTag = Object.prototype.toString.call(err);
                         const isEventLike = err instanceof Event || eventTag === '[object Event]';
                         let errMsg = typeof err?.message === 'string' ? err.message : '';
-                        if (!errMsg && isEventLike && eventType) {
-                            errMsg = `Script ${eventType}`;
-                        }
-                        if (!errMsg && err instanceof Error) {
-                            errMsg = err.message;
+                        if (!errMsg && isEventLike) {
+                            errMsg = eventType ? `Script ${eventType}` : 'Script error';
                         }
                         if (!errMsg) {
                             errMsg = String(err);
