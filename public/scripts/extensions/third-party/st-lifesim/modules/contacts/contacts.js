@@ -589,7 +589,7 @@ async function generateContactProfileText(ctx, prompt) {
             chatSettings.chat_completion_source = aiRoute.chatSource;
         }
         if (chatSettings) {
-            modelKey = aiRoute.modelSettingKey || inferModelSettingKey(aiRoute.chatSource || sourceBefore);
+            modelKey = aiRoute.modelSettingKey || inferModelSettingKey(aiRoute.chatSource || sourceBefore || '');
             if (modelKey && aiRoute.model) {
                 modelBefore = chatSettings[modelKey];
                 chatSettings[modelKey] = aiRoute.model;
@@ -602,7 +602,10 @@ async function generateContactProfileText(ctx, prompt) {
             if (chatSettings && modelKey && aiRoute.model) chatSettings[modelKey] = modelBefore;
         }
     }
-    return (await ctx.generateQuietPrompt({ quietPrompt: prompt, quietName: ctx?.name2 || '{{char}}' }) || '').trim();
+    if (typeof ctx.generateQuietPrompt === 'function') {
+        return (await ctx.generateQuietPrompt({ quietPrompt: prompt, quietName: ctx?.name2 || '{{char}}' }) || '').trim();
+    }
+    return '';
 }
 
 /**

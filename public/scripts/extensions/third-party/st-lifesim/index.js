@@ -1056,7 +1056,7 @@ function hasForcedCallIntentFromLatestUserMessage() {
     const ctx = getContext();
     const lastUserMsg = ctx?.chat?.[ctx.chat.length - 1];
     if (!lastUserMsg || !lastUserMsg.is_user) return false;
-    const text = String(lastUserMsg.mes || '').toLowerCase();
+    const text = String(lastUserMsg.mes || '');
     return /(전화\s*해|전화\s*줘|전화\s*걸어|call\s*me|give\s*me\s*a\s*call|call\s*now)/i.test(text);
 }
 
