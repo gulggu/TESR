@@ -570,7 +570,7 @@ async function startCall(charName, matchedContact = null, direction = 'outgoing'
 
     try {
         const startMessage = direction === 'incoming'
-            ? `📞 ${charName}님께 걸려온 전화입니다. ${charName}님께서 전화를 받으셨습니다.`
+            ? `📞 ${charName}님께서 전화를 거셨습니다. {{user}}님께서 전화를 받으셨습니다.`
             : `📞 ${charName}님께 전화를 걸었습니다. ${charName}님께서 전화를 받으셨습니다.`;
         if (isMainChar) {
             await slashSend(formatVoiceMsg(startMessage));
