@@ -34,7 +34,7 @@ const DEFAULT_SNS_PROMPTS = {
     extraComment: '다음 SNS 게시글에 대한 추가 댓글 1개만 한국어로 작성하세요.\n게시글 작성자: {{postAuthorName}} ({{postAuthorHandle}})\n게시글: "{{postContent}}"\n댓글 작성자: {{extraAuthorName}} ({{extraAuthorHandle}})\n규칙: {{extraAuthorName}} 관점의 짧은 SNS 댓글 한 문장만 출력. 필요하면 @멘션은 고정 핸들만 사용. 한국어만 출력하고 영어/해설/따옴표/해시태그 금지. 성격 단서: {{extraPersonality}}.',
 };
 const SNS_PRESET_BINDING = 'character';
-const LEGACY_MODEL_KEY_BY_SOURCE = {
+const MODEL_KEY_BY_SOURCE = {
     openai: 'openai_model',
     claude: 'claude_model',
     makersuite: 'google_model',
@@ -142,7 +142,7 @@ function getSnsAiRouteSettings() {
 }
 
 function inferModelSettingKey(source) {
-    return LEGACY_MODEL_KEY_BY_SOURCE[String(source || '').toLowerCase()] || '';
+    return MODEL_KEY_BY_SOURCE[String(source || '').toLowerCase()] || '';
 }
 
 function applyPromptTemplate(template, vars) {

@@ -130,7 +130,7 @@ async function generateCallSummaryText(ctx, quietPrompt, quietName) {
         }
         if (chatSettings) {
             modelKey = aiRoute.modelSettingKey || inferModelSettingKey(aiRoute.chatSource || sourceBefore);
-            if (modelKey && aiRoute.model) {
+            if (modelKey && typeof aiRoute.model === 'string' && aiRoute.model.length > 0) {
                 modelBefore = chatSettings[modelKey];
                 chatSettings[modelKey] = aiRoute.model;
             }
@@ -146,7 +146,7 @@ async function generateCallSummaryText(ctx, quietPrompt, quietName) {
             if (chatSettings && aiRoute.chatSource) {
                 chatSettings.chat_completion_source = sourceBefore;
             }
-            if (chatSettings && modelKey && aiRoute.model) {
+            if (chatSettings && modelKey && typeof aiRoute.model === 'string' && aiRoute.model.length > 0) {
                 chatSettings[modelKey] = modelBefore;
             }
         }
