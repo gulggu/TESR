@@ -487,23 +487,42 @@ function openAddEmoticonDialog(onSave, existing = null) {
     const catLabel = document.createElement('label');
     catLabel.className = 'slm-label';
     catLabel.textContent = '카테고리';
+    const existingCategories = [...new Set(loadEmoticons().map(e => e.category).filter(Boolean))];
+    const categoryOptions = [...new Set(['기본', ...existingCategories])];
+    const initialCategory = existing?.category || '기본';
+    const directInputOptionValue = '__direct__';
+    const isDirectInput = !categoryOptions.includes(initialCategory);
+
+    const catSelect = document.createElement('select');
+    catSelect.className = 'slm-select';
+    categoryOptions.forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat;
+        opt.textContent = cat;
+        catSelect.appendChild(opt);
+    });
+    const directOpt = document.createElement('option');
+    directOpt.value = directInputOptionValue;
+    directOpt.textContent = '직접입력';
+    catSelect.appendChild(directOpt);
+
     const catInput = document.createElement('input');
     catInput.className = 'slm-input';
     catInput.type = 'text';
-    catInput.value = existing?.category || '기본';
-    const catDatalistId = 'slm-category-datalist';
-    catInput.setAttribute('list', catDatalistId);
-    const catDatalist = document.createElement('datalist');
-    catDatalist.id = catDatalistId;
-    const existingCategories = [...new Set(loadEmoticons().map(e => e.category).filter(Boolean))];
-    existingCategories.forEach(cat => {
-        const opt = document.createElement('option');
-        opt.value = cat;
-        catDatalist.appendChild(opt);
-    });
+    catInput.placeholder = '카테고리 직접 입력';
+    catInput.value = isDirectInput ? initialCategory : '';
+    catInput.style.display = isDirectInput ? '' : 'none';
+
+    catSelect.value = isDirectInput ? directInputOptionValue : initialCategory;
+    catSelect.onchange = () => {
+        const showInput = catSelect.value === directInputOptionValue;
+        catInput.style.display = showInput ? '' : 'none';
+        if (!showInput) catInput.value = '';
+    };
+
     wrapper.appendChild(catLabel);
+    wrapper.appendChild(catSelect);
     wrapper.appendChild(catInput);
-    wrapper.appendChild(catDatalist);
 
     // AI 사용 여부
     const aiRow = document.createElement('div');
@@ -574,7 +593,9 @@ function openAddEmoticonDialog(onSave, existing = null) {
     saveBtn.onclick = () => {
         const name = nameInput.value.trim();
         const url = urlInput.value.trim();
-        const category = catInput.value.trim() || '기본';
+        const category = (catSelect.value === directInputOptionValue
+            ? catInput.value.trim()
+            : catSelect.value.trim()) || '기본';
         const aiUsable = radioYes.checked;
         const aiOverrideAllow = overrideCheck.checked;
 
