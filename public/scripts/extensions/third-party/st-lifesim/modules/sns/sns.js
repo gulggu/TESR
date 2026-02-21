@@ -128,6 +128,8 @@ function getSnsPromptSettings() {
         templates: { ...DEFAULT_SNS_PROMPTS, ...prompts },
         externalApiUrl: String(ext?.snsExternalApiUrl || '').trim(),
         externalApiTimeoutMs: Math.max(1000, Math.min(60000, Number(ext?.snsExternalApiTimeoutMs) || 12000)),
+        language: ['ko', 'en', 'ja', 'zh'].includes(ext?.snsLanguage) ? ext.snsLanguage : 'ko',
+        koreanTranslationPrompt: String(ext?.snsKoreanTranslationPrompt || 'Translate the following SNS text into natural Korean. Output Korean text only.\n{{text}}').trim(),
     };
 }
 
@@ -148,6 +150,16 @@ function inferModelSettingKey(source) {
 
 function applyPromptTemplate(template, vars) {
     return String(template || '').replace(/\{\{(\w+)}}/g, (_, key) => String(vars?.[key] ?? ''));
+}
+
+function enforceSnsLanguage(prompt, language) {
+    const langLabel = {
+        ko: 'Korean',
+        en: 'English',
+        ja: 'Japanese',
+        zh: 'Chinese',
+    }[String(language || '').toLowerCase()] || 'Korean';
+    return `${prompt}\n\n[Output rule] Write the final output in ${langLabel} only.`;
 }
 
 /**
@@ -376,13 +388,14 @@ export async function triggerNpcPosting() {
     const finalPrompt = recentPosts
         ? `${prompt}\n최근 ${pick.name} 게시글 요약:\n${recentPosts}\n위 내용과 주제/표현을 반복하지 말고 새 일상 주제로 작성하세요.`
         : prompt;
+    const localizedPrompt = enforceSnsLanguage(finalPrompt, promptSettings.language);
 
     try {
         const freshCtx = getContext();
         if (!freshCtx) return;
         let postContent = '(게시물)';
         try {
-            postContent = await generateSnsText(freshCtx, finalPrompt, pick.name) || postContent;
+            postContent = await generateSnsText(freshCtx, localizedPrompt, pick.name) || postContent;
         } catch (genErr) {
             console.error('[ST-LifeSim] NPC 포스팅 텍스트 생성 오류:', genErr);
             showToast('NPC 포스팅 생성 실패: ' + genErr.message, 'error');
@@ -403,7 +416,7 @@ export async function triggerNpcPosting() {
                 authorName: pick.name,
                 postContent,
             });
-            imageDescription = normalizeSnsText(await generateSnsText(freshCtx, descPrompt, `${pick.name}-image-desc`), SNS_IMAGE_DESC_MAX);
+            imageDescription = normalizeSnsText(await generateSnsText(freshCtx, enforceSnsLanguage(descPrompt, promptSettings.language), `${pick.name}-image-desc`), SNS_IMAGE_DESC_MAX);
         }
         if (!imageDescription && inlineCaption) imageDescription = inlineCaption;
 
@@ -946,7 +959,17 @@ function createTranslateButton(text, parent, findExisting, translationClass, com
         }
         btn.disabled = true;
         try {
-            const translated = await translate(String(text || ''), 'ko');
+            const ctx = getContext();
+            const promptSettings = getSnsPromptSettings();
+            const customPrompt = applyPromptTemplate(
+                promptSettings.koreanTranslationPrompt || 'Translate the following SNS text into natural Korean. Output Korean text only.\n{{text}}',
+                { text: String(text || '') },
+            );
+            let translated = '';
+            if (ctx && (typeof ctx.generateRaw === 'function' || typeof ctx.generateQuietPrompt === 'function')) {
+                translated = await generateSnsText(ctx, customPrompt, 'sns-translation');
+            }
+            if (!translated) translated = await translate(String(text || ''), 'ko');
             const line = document.createElement('div');
             line.className = translationClass;
             line.textContent = `🇰🇷 ${translated || ''}`.trim();
@@ -1134,7 +1157,7 @@ async function runDeferredCommentGeneration({ postId, commentId, text, userName,
         if (shouldReply && replyAuthorCandidates.length > 0) {
             const replyAuthor = replyAuthorCandidates[Math.floor(Math.random() * replyAuthorCandidates.length)];
             const replyAuthorHandle = getAuthorHandle(replyAuthor.name, userIds);
-            const replyPrompt = applyPromptTemplate(promptSettings.templates.reply, {
+            const replyPrompt = enforceSnsLanguage(applyPromptTemplate(promptSettings.templates.reply, {
                 postAuthorName: p.authorName,
                 postAuthorHandle,
                 postContent: safePostContent,
@@ -1144,7 +1167,7 @@ async function runDeferredCommentGeneration({ postId, commentId, text, userName,
                 replyAuthorName: replyAuthor.name,
                 replyAuthorHandle,
                 replyPersonality: replyAuthor.personality || '평범하고 자연스러운 말투',
-            });
+            }), promptSettings.language);
             replyText = await generateSnsText(ctx, replyPrompt, replyAuthor.name);
             if (replyText) {
                 const replyId = generateId();
@@ -1172,14 +1195,14 @@ async function runDeferredCommentGeneration({ postId, commentId, text, userName,
             if (candidates.length > 0) {
                 const picker = candidates[Math.floor(Math.random() * candidates.length)];
                 const pickerHandle = getAuthorHandle(picker.name, userIds);
-                const contactPrompt = applyPromptTemplate(promptSettings.templates.extraComment, {
+                const contactPrompt = enforceSnsLanguage(applyPromptTemplate(promptSettings.templates.extraComment, {
                     postAuthorName: p.authorName,
                     postAuthorHandle,
                     postContent: safePostContent,
                     extraAuthorName: picker.name,
                     extraAuthorHandle: pickerHandle,
                     extraPersonality: picker.personality || '평범하고 자연스러운 말투',
-                });
+                }), promptSettings.language);
                 const generated = await generateSnsText(ctx, contactPrompt, picker.name);
                 if (generated) {
                     extraContactComment = {

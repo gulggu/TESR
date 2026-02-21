@@ -12,10 +12,11 @@
 import { getContext } from '../../utils/st-context.js';
 import { slashSend, slashGen, slashSendAs } from '../../utils/slash.js';
 import { showToast, escapeHtml, generateId } from '../../utils/ui.js';
-import { loadData, saveData, getDefaultBinding, getExtensionSettings } from '../../utils/storage.js';
+import { loadData, saveData, getExtensionSettings } from '../../utils/storage.js';
 
 // 사건 기록 아카이브 저장 키
 const ARCHIVE_KEY = 'event-archive';
+const ARCHIVE_BINDING = 'chat';
 const DEFAULT_IMAGE_RADIUS = 10;
 const MAX_IMAGE_RADIUS = 50;
 
@@ -362,14 +363,14 @@ async function generateEvent(category) {
         await slashSendAs('이벤트', formatted);
 
         const summary = `[${category}] ${eventTitle}`;
-        const archive = loadData(ARCHIVE_KEY, [], getDefaultBinding());
+        const archive = loadData(ARCHIVE_KEY, [], ARCHIVE_BINDING);
         archive.push({
             id: generateId(),
             category,
             summary,
             includeInContext: false,
         });
-        saveData(ARCHIVE_KEY, archive, getDefaultBinding());
+        saveData(ARCHIVE_KEY, archive, ARCHIVE_BINDING);
 
         showToast(`사건 생성: ${category}`, 'success', 1500);
     } catch (e) {
@@ -388,7 +389,7 @@ function buildEventCssMessage(title, content) {
  * @param {HTMLElement} container - 렌더링할 컨테이너
  */
 function showEventArchive(container) {
-    const archive = loadData(ARCHIVE_KEY, [], getDefaultBinding());
+    const archive = loadData(ARCHIVE_KEY, [], ARCHIVE_BINDING);
 
     const existing = container.querySelector('.slm-archive');
     if (existing) { existing.remove(); return; }

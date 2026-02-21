@@ -9,18 +9,45 @@
  */
 
 import { getContext } from '../../utils/st-context.js';
-import { loadData, saveData } from '../../utils/storage.js';
+import { loadData, saveData, getExtensionSettings } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
 import { showToast, escapeHtml, generateId } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 
 const MODULE_KEY = 'contacts';
 const MAX_AI_CONTACT_KEYWORD_LENGTH = 200;
+const MODEL_KEY_BY_SOURCE = {
+    openai: 'openai_model',
+    claude: 'claude_model',
+    makersuite: 'google_model',
+    vertexai: 'vertexai_model',
+    openrouter: 'openrouter_model',
+    ai21: 'ai21_model',
+    mistralai: 'mistralai_model',
+    cohere: 'cohere_model',
+    perplexity: 'perplexity_model',
+    groq: 'groq_model',
+    chutes: 'chutes_model',
+    siliconflow: 'siliconflow_model',
+    electronhub: 'electronhub_model',
+    nanogpt: 'nanogpt_model',
+    deepseek: 'deepseek_model',
+    aimlapi: 'aimlapi_model',
+    xai: 'xai_model',
+    pollinations: 'pollinations_model',
+    cometapi: 'cometapi_model',
+    moonshot: 'moonshot_model',
+    fireworks: 'fireworks_model',
+    azure_openai: 'azure_openai_model',
+    custom: 'custom_model',
+    zai: 'zai_model',
+};
 
 /**
  * @typedef {Object} Contact
  * @property {string} id
  * @property {string} name
+ * @property {string} [displayName]
  * @property {string} avatar
  * @property {string} description
  * @property {string} relationToUser
@@ -50,6 +77,10 @@ function saveContacts(contacts, binding = 'chat') {
     saveData(MODULE_KEY, contacts, binding);
 }
 
+function getContactDisplayName(contact) {
+    return String(contact?.displayName || contact?.name || '').trim();
+}
+
 /**
  * {{char}} 연락처를 자동으로 추가한다 (아직 없는 경우에만)
  */
@@ -66,6 +97,7 @@ function ensureCharContact() {
     contacts.push({
         id: generateId(),
         name: charName,
+        displayName: '',
         avatar: ctx.characters?.[ctx.characterId]?.avatar
             ? `/characters/${ctx.characters?.[ctx.characterId]?.avatar}`
             : '',
@@ -94,7 +126,7 @@ export function initContacts() {
         if (all.length === 0) return null;
 
         const lines = all.map(c => {
-            let line = `• ${c.name}`;
+            let line = `• ${getContactDisplayName(c)}`;
             if (c.relationToUser) line += ` | Relation to {{user}}: ${c.relationToUser}`;
             if (c.relationToChar) line += ` | Relation to {{char}}: ${c.relationToChar}`;
             if (c.personality) line += ` | Personality: ${c.personality}`;
@@ -171,7 +203,7 @@ function buildContactsContent() {
         const contacts = [...loadContacts('chat'), ...loadContacts('character')];
         const query = searchInput.value.toLowerCase();
         const filtered = query
-            ? contacts.filter(c => c.name.toLowerCase().includes(query) || (c.description || '').toLowerCase().includes(query))
+            ? contacts.filter(c => getContactDisplayName(c).toLowerCase().includes(query) || (c.description || '').toLowerCase().includes(query))
             : contacts;
 
         if (filtered.length === 0) {
@@ -183,6 +215,7 @@ function buildContactsContent() {
         }
 
         filtered.forEach(contact => {
+            const displayName = getContactDisplayName(contact);
             const row = document.createElement('div');
             row.className = 'slm-contact-row';
             row.style.cursor = 'pointer';
@@ -193,11 +226,11 @@ function buildContactsContent() {
             if (contact.avatar) {
                 const img = document.createElement('img');
                 img.src = contact.avatar;
-                img.alt = contact.name;
-                img.onerror = () => { avatar.textContent = contact.name[0] || '?'; };
+                img.alt = displayName;
+                img.onerror = () => { avatar.textContent = displayName[0] || '?'; };
                 avatar.appendChild(img);
             } else {
-                avatar.textContent = contact.name[0] || '?';
+                avatar.textContent = displayName[0] || '?';
             }
 
             // 정보
@@ -209,7 +242,7 @@ function buildContactsContent() {
 
             const name = document.createElement('span');
             name.className = 'slm-contact-name';
-            name.textContent = contact.name;
+            name.textContent = displayName;
 
             nameRow.appendChild(name);
 
@@ -294,7 +327,7 @@ function openContactDetailPopup(contact) {
     // 이름
     const nameEl = document.createElement('div');
     nameEl.className = 'slm-contact-detail-name';
-    nameEl.textContent = contact.name;
+    nameEl.textContent = getContactDisplayName(contact);
     wrapper.appendChild(nameEl);
 
     // 상세 필드들
@@ -321,7 +354,7 @@ function openContactDetailPopup(contact) {
 
     createPopup({
         id: 'contact-detail',
-        title: `👤 ${contact.name}`,
+        title: `👤 ${getContactDisplayName(contact)}`,
         content: wrapper,
         className: 'slm-sub-panel',
         onBack: () => openContactsPopup(),
@@ -340,7 +373,7 @@ function openContactDialog(existing, defaultBinding, onSave) {
     wrapper.className = 'slm-form';
 
     const fields = {
-        name: createFormField(wrapper, '이름 *', 'text', existing?.name || ''),
+        name: createFormField(wrapper, existing?.isCharAuto ? '표시 이름 *' : '이름 *', 'text', existing?.displayName || existing?.name || ''),
         avatar: createFormField(wrapper, '프로필 이미지 URL', 'url', existing?.avatar || ''),
         description: createFormField(wrapper, '설명', 'text', existing?.description || ''),
         relationToUser: createFormField(wrapper, '{{user}}와의 관계 *', 'text', existing?.relationToUser || ''),
@@ -399,9 +432,13 @@ function openContactDialog(existing, defaultBinding, onSave) {
         const targetBinding = selectedBinding;
         const sourceContacts = loadContacts(sourceBinding);
         const targetContacts = targetBinding === sourceBinding ? sourceContacts : loadContacts(targetBinding);
+        const isCharAuto = existing?.isCharAuto === true;
+        const canonicalName = isCharAuto ? (existing?.name || getContext()?.name2 || name) : name;
+        const displayName = isCharAuto && name !== canonicalName ? name : '';
         const data = {
             id: existing?.id || generateId(),
-            name,
+            name: canonicalName,
+            displayName,
             avatar: fields.avatar.value.trim(),
             description: fields.description.value.trim(),
             relationToUser,
@@ -410,6 +447,7 @@ function openContactDialog(existing, defaultBinding, onSave) {
             phone: '',
             tags: existing?.tags || [],
             binding: targetBinding,
+            isCharAuto,
         };
 
         if (isEdit) {
@@ -462,14 +500,14 @@ function openAiContactDialog(binding, onSave) {
         if (!q) { showToast('키워드를 입력해주세요.', 'warn'); return; }
         const safeKeyword = q.replace(/[{}\n\r]/g, ' ').slice(0, MAX_AI_CONTACT_KEYWORD_LENGTH);
         const ctx = getContext();
-        if (typeof ctx?.generateQuietPrompt !== 'function') {
+        if (!ctx || (typeof ctx.generateQuietPrompt !== 'function' && typeof ctx.generateRaw !== 'function')) {
             showToast('AI 생성 기능을 사용할 수 없습니다.', 'error');
             return;
         }
         createBtn.disabled = true;
         try {
             const prompt = `Create one realistic contact profile in JSON only (no markdown). Keyword: "${safeKeyword}". Write every text field in English only.\n{"name":"", "description":"", "relationToUser":"", "relationToChar":"", "personality":"", "avatar":""}`;
-            const raw = await ctx.generateQuietPrompt({ quietPrompt: prompt, quietName: ctx?.name2 || '{{char}}' }) || '';
+            const raw = await generateContactProfileText(ctx, prompt) || '';
             const match = raw.match(/\{[\s\S]*?\}/);
             if (!match) throw new Error('JSON 응답이 없습니다.');
             const parsed = JSON.parse(match[0]);
@@ -481,6 +519,7 @@ function openAiContactDialog(binding, onSave) {
             contacts.push({
                 id: generateId(),
                 name,
+                displayName: '',
                 avatar: (parsed.avatar || '').trim(),
                 description: (parsed.description || '').trim(),
                 relationToUser,
@@ -500,6 +539,70 @@ function openAiContactDialog(binding, onSave) {
             createBtn.disabled = false;
         }
     };
+}
+
+function inferModelSettingKey(source) {
+    return MODEL_KEY_BY_SOURCE[String(source || '').toLowerCase()] || '';
+}
+
+function getContactAiRouteSettings() {
+    const ext = getExtensionSettings()?.['st-lifesim'];
+    const route = ext?.aiRoutes?.contactProfile || {};
+    return {
+        api: String(route.api || '').trim(),
+        chatSource: String(route.chatSource || '').trim(),
+        modelSettingKey: String(route.modelSettingKey || '').trim(),
+        model: String(route.model || '').trim(),
+    };
+}
+
+async function generateContactProfileText(ctx, prompt) {
+    const ext = getExtensionSettings()?.['st-lifesim'];
+    const externalApiUrl = String(ext?.snsExternalApiUrl || '').trim();
+    const externalApiTimeoutMs = Math.max(1000, Math.min(60000, Number(ext?.snsExternalApiTimeoutMs) || 12000));
+    if (externalApiUrl) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), externalApiTimeoutMs);
+        try {
+            const headers = { 'Content-Type': 'application/json' };
+            if (typeof ctx.getRequestHeaders === 'function') Object.assign(headers, ctx.getRequestHeaders());
+            const response = await fetch(externalApiUrl, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ prompt, quietName: ctx?.name2 || '{{char}}', module: 'st-lifesim-contact-profile' }),
+                signal: controller.signal,
+            });
+            if (response.ok) return (await response.text() || '').trim();
+        } catch (error) {
+            console.warn('[ST-LifeSim] 연락처 외부 API 호출 실패, 내부 생성으로 폴백:', error);
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+    if (typeof ctx.generateRaw === 'function') {
+        const aiRoute = getContactAiRouteSettings();
+        const chatSettings = ctx.chatCompletionSettings;
+        const sourceBefore = chatSettings?.chat_completion_source;
+        let modelKey = '';
+        let modelBefore;
+        if (chatSettings && aiRoute.chatSource) {
+            chatSettings.chat_completion_source = aiRoute.chatSource;
+        }
+        if (chatSettings) {
+            modelKey = aiRoute.modelSettingKey || inferModelSettingKey(aiRoute.chatSource || sourceBefore);
+            if (modelKey && aiRoute.model) {
+                modelBefore = chatSettings[modelKey];
+                chatSettings[modelKey] = aiRoute.model;
+            }
+        }
+        try {
+            return (await ctx.generateRaw({ prompt, quietToLoud: false, trimNames: true, api: aiRoute.api || null }) || '').trim();
+        } finally {
+            if (chatSettings && aiRoute.chatSource) chatSettings.chat_completion_source = sourceBefore;
+            if (chatSettings && modelKey && aiRoute.model) chatSettings[modelKey] = modelBefore;
+        }
+    }
+    return (await ctx.generateQuietPrompt({ quietPrompt: prompt, quietName: ctx?.name2 || '{{char}}' }) || '').trim();
 }
 
 /**

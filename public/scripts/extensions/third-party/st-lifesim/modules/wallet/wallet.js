@@ -8,7 +8,7 @@
  * - 거래 내역 관리 (토글 접힘)
  */
 
-import { loadData, saveData, getDefaultBinding } from '../../utils/storage.js';
+import { loadData, saveData } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
 import { showToast, escapeHtml, generateId } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
@@ -19,6 +19,7 @@ import { slashSend } from '../../utils/slash.js';
 const MODULE_KEY = 'wallet';
 // 초기 설정 완료 여부 키
 const SETUP_DONE_KEY = 'wallet-setup-done';
+const CHAT_BINDING = 'chat';
 
 /**
  * 기본 지갑 데이터
@@ -35,7 +36,7 @@ const DEFAULT_WALLET = {
  * @returns {Object}
  */
 function loadWallet() {
-    return loadData(MODULE_KEY, { ...DEFAULT_WALLET }, getDefaultBinding());
+    return loadData(MODULE_KEY, { ...DEFAULT_WALLET }, CHAT_BINDING);
 }
 
 /**
@@ -43,7 +44,7 @@ function loadWallet() {
  * @param {Object} wallet
  */
 function saveWallet(wallet) {
-    saveData(MODULE_KEY, wallet, getDefaultBinding());
+    saveData(MODULE_KEY, wallet, CHAT_BINDING);
 }
 
 /**
@@ -56,12 +57,16 @@ function formatCurrency(amount, symbol) {
     return `${symbol} ${amount.toLocaleString('ko-KR')}`;
 }
 
+function getContactDisplayName(contact) {
+    return contact?.displayName || contact?.name || '';
+}
+
 /**
  * 초기 설정이 완료되었는지 확인한다
  * @returns {boolean}
  */
 function isSetupDone() {
-    return loadData(SETUP_DONE_KEY, false, getDefaultBinding()) === true;
+    return loadData(SETUP_DONE_KEY, false, CHAT_BINDING) === true;
 }
 
 /**
@@ -139,7 +144,7 @@ function openWalletSetupPopup(onBack) {
         w.currencySymbol = currSymInput.value.trim() || '₩';
         w.balance = parseInt(balInput.value) || 0;
         saveWallet(w);
-        saveData(SETUP_DONE_KEY, true, getDefaultBinding());
+        saveData(SETUP_DONE_KEY, true, CHAT_BINDING);
         close();
         openWalletPopup(onBack);
         showToast('지갑 설정 완료', 'success');
@@ -218,7 +223,7 @@ function buildWalletContent() {
     getContacts('chat').forEach(c => {
         const opt = document.createElement('option');
         opt.value = c.name;
-        opt.textContent = c.name;
+        opt.textContent = getContactDisplayName(c);
         senderSelect.appendChild(opt);
     });
 
@@ -244,7 +249,7 @@ function buildWalletContent() {
         contacts.forEach(c => {
             const opt = document.createElement('option');
             opt.value = c.name;
-            opt.textContent = c.name;
+            opt.textContent = getContactDisplayName(c);
             recipientSelect.appendChild(opt);
         });
     }
@@ -468,7 +473,7 @@ async function handleSend(sender, recipient, amount, memo) {
     showToast(`💸 ${sender} → ${recipient} ${formatCurrency(amount, wallet.currencySymbol)} 송금 완료`, 'success');
     // '|'는 slash 체인 구분자로 해석될 수 있어 함께 정리한다.
     const safeMemo = String(memo || '').replace(/[|\r\n]/g, ' ').trim();
-    await slashSend(`💸 ${sender} → ${recipient} ${formatCurrency(amount, wallet.currencySymbol)} 송금 완료${safeMemo ? ` 메모: ${safeMemo}` : ''}`);
+    await slashSend(`<div class="slm-transaction-card"><div class="slm-transaction-title">💸 송금 완료</div><div class="slm-transaction-route">${escapeHtml(sender)} → ${escapeHtml(recipient)}</div><div class="slm-transaction-amount">${escapeHtml(formatCurrency(amount, wallet.currencySymbol))}</div>${safeMemo ? `<div class="slm-transaction-memo">메모: ${escapeHtml(safeMemo)}</div>` : ''}</div>`);
 }
 
 /**
