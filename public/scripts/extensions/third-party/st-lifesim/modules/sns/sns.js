@@ -14,7 +14,23 @@ import { registerContextBuilder } from '../../utils/context-inject.js';
 import { showToast, generateId } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 import { getContacts } from '../contacts/contacts.js';
-import { translate } from '../../../../translate/index.js';
+/**
+ * SillyTavern 번역 확장의 translate 함수를 동적으로 가져온다.
+ * 정적 import 대신 동적 import를 사용하여 확장이 독립 레포에서 설치되어도 동작하도록 한다.
+ */
+let _translateFn = null;
+async function translate(text, lang) {
+    try {
+        if (!_translateFn) {
+            const module = await import('/scripts/extensions/translate/index.js');
+            _translateFn = module.translate;
+        }
+        return await _translateFn(text, lang);
+    } catch (e) {
+        console.warn('[ST-LifeSim] translate module not available:', e);
+        return text;
+    }
+}
 
 const MODULE_KEY = 'sns-feed';
 const AVATARS_KEY = 'sns-avatars';
