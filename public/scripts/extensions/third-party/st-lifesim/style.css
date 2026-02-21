@@ -477,7 +477,7 @@ body[data-theme="dark"],
 }
 
 .slm-toast {
-  background: var(--slm-text);
+  background: var(--slm-bg-secondary);
   color: var(--slm-text) !important;
   padding: 10px 18px;
   border-radius: 20px;

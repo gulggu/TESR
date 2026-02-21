@@ -873,6 +873,8 @@ function openSettingsPanel(onBack) {
             sourceSelect.onchange = () => {
                 route.chatSource = sourceSelect.value;
                 route.modelSettingKey = ROUTE_MODEL_KEY_BY_SOURCE[route.chatSource] || '';
+                route.model = '';
+                modelSelect.value = '';
                 saveSettings();
             };
             group.appendChild(sourceSelect);

@@ -15,6 +15,8 @@ import { createPopup } from '../../utils/popup.js';
 import { getContacts } from '../contacts/contacts.js';
 
 const MODULE_KEY = 'gifticons';
+// 캐릭터 응답에서 "기프티콘을 사용/먹었다"는 의도를 감지하는 다국어(ko/en) 키워드.
+const GIFTICON_USAGE_HINT_RE = /(기프티콘|선물|먹|마셨|사용|썼|잘 먹|잘받|thanks|thank you)/i;
 
 /**
  * @typedef {Object} Gifticon
@@ -43,7 +45,7 @@ export function trackGifticonUsageFromCharacterMessage() {
     const lastMsg = ctx?.chat?.[ctx.chat.length - 1];
     if (!charName || !lastMsg || lastMsg.is_user) return;
     const text = String(lastMsg.mes || '').toLowerCase();
-    if (!/(기프티콘|선물|먹|마셨|사용|썼|잘 먹|잘받|thanks|thank you)/i.test(text)) return;
+    if (!GIFTICON_USAGE_HINT_RE.test(text)) return;
     const all = loadGifticons();
     const pending = all.slice().reverse().find((item) => item.status === 'sent' && item.counterpart === charName);
     if (!pending) return;

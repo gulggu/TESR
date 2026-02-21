@@ -352,8 +352,13 @@ export async function triggerNpcPosting() {
     const userName = ctx?.name1 || 'user';
     const postingEnabled = loadPostingEnabledMap();
 
+    const seenContactNames = new Set();
     const contacts = [...getContacts('chat'), ...getContacts(getDefaultBinding())]
-        .filter((c, i, arr) => c?.name && arr.findIndex((x) => x?.name === c.name) === i);
+        .filter((c) => {
+            if (!c?.name || seenContactNames.has(c.name)) return false;
+            seenContactNames.add(c.name);
+            return true;
+        });
     const candidates = [
         { name: charName, personality: '', isChar: true },
         ...contacts.map(c => ({ name: c.name, personality: c.personality, isChar: false })),
