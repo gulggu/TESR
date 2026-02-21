@@ -1045,7 +1045,6 @@ async function runDeferredCommentGeneration({ postId, commentId, text, userName,
                     extraAuthorName: picker.name,
                     extraAuthorHandle: pickerHandle,
                     extraPersonality: picker.personality || '평범하고 자연스러운 말투',
-                    commentAuthorHandle: userHandle,
                 });
                 const generated = await generateSnsText(ctx, contactPrompt, picker.name);
                 if (generated) {
