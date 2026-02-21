@@ -40,7 +40,8 @@ export function normalizeNestedExtensionRepo(extensionPath) {
  * @returns {string} Sanitized directory name
  */
 export function resolveExtensionDirectoryName(repositoryUrl, manifest = {}) {
-    const manifestKey = typeof manifest.name === 'string' ? manifest.name.trim() : '';
+    const trimmedManifestName = typeof manifest.name === 'string' ? manifest.name.trim() : '';
+    const manifestKey = trimmedManifestName.length > 0 ? trimmedManifestName : '';
     const fallbackKey = path.basename(repositoryUrl, '.git');
     return sanitize(manifestKey || fallbackKey);
 }

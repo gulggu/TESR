@@ -121,8 +121,7 @@ router.post('/install', async (request, response) => {
 
         if (stableExtensionPath !== extensionPath) {
             if (fs.existsSync(stableExtensionPath)) {
-                fs.rmSync(extensionPath, { recursive: true, force: true });
-                return response.status(409).send(`Directory already exists at ${stableExtensionPath}`);
+                return response.status(409).send(`Extension already installed at ${stableExtensionPath}`);
             }
             fs.renameSync(extensionPath, stableExtensionPath);
         }
