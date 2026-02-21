@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, test, expect } from '@jest/globals';
-import { normalizeNestedExtensionRepo } from '../src/endpoints/extensions-util.js';
+import { normalizeNestedExtensionRepo, resolveExtensionDirectoryName } from '../src/endpoints/extensions-util.js';
 
 describe('normalizeNestedExtensionRepo', () => {
     test('should flatten a nested third-party extension repository layout', () => {
@@ -27,6 +27,13 @@ describe('normalizeNestedExtensionRepo', () => {
 });
 
 describe('st-lifesim manifest', () => {
+    test('should use a stable extension name key', () => {
+        const testDir = path.dirname(fileURLToPath(import.meta.url));
+        const manifestPath = path.resolve(testDir, '..', 'public', 'scripts', 'extensions', 'third-party', 'st-lifesim', 'manifest.json');
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+        expect(resolveExtensionDirectoryName('https://github.com/superpimpy/ST-LifeSim.git', manifest)).toBe('st-lifesim');
+    });
+
     test('should point homePage to dedicated GitHub repository', () => {
         const testDir = path.dirname(fileURLToPath(import.meta.url));
         const manifestPath = path.resolve(testDir, '..', 'public', 'scripts', 'extensions', 'third-party', 'st-lifesim', 'manifest.json');
