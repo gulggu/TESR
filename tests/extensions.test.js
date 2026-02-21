@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { describe, test, expect } from '@jest/globals';
 import { normalizeNestedExtensionRepo } from '../src/endpoints/extensions-util.js';
@@ -27,7 +28,8 @@ describe('normalizeNestedExtensionRepo', () => {
 
 describe('st-lifesim manifest', () => {
     test('should point homePage to dedicated GitHub repository', () => {
-        const manifestPath = path.resolve(process.cwd(), '..', 'public', 'scripts', 'extensions', 'third-party', 'st-lifesim', 'manifest.json');
+        const testDir = path.dirname(fileURLToPath(import.meta.url));
+        const manifestPath = path.resolve(testDir, '..', 'public', 'scripts', 'extensions', 'third-party', 'st-lifesim', 'manifest.json');
         const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
         expect(manifest.homePage).toBe('https://github.com/superpimpy/ST-LifeSim');
     });
