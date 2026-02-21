@@ -23,6 +23,10 @@ export function normalizeNestedExtensionRepo(extensionPath) {
     }
 
     for (const item of fs.readdirSync(candidates[0])) {
-        fs.cpSync(path.join(candidates[0], item), path.join(extensionPath, item), { recursive: true, force: true });
+        const targetPath = path.join(extensionPath, item);
+        if (fs.existsSync(targetPath)) {
+            throw new Error(`Cannot normalize nested extension repository: destination already exists at ${targetPath}. Please ensure the repository root does not contain conflicting files.`);
+        }
+        fs.cpSync(path.join(candidates[0], item), targetPath, { recursive: true });
     }
 }

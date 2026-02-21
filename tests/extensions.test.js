@@ -8,17 +8,19 @@ import { normalizeNestedExtensionRepo } from '../src/endpoints/extensions-util.j
 describe('normalizeNestedExtensionRepo', () => {
     test('should flatten a nested third-party extension repository layout', () => {
         const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'st-ext-nested-'));
-        const extensionPath = path.join(tempDir, 'repo');
-        const nestedPath = path.join(extensionPath, 'public', 'scripts', 'extensions', 'third-party', 'st-lifesim');
-        fs.mkdirSync(nestedPath, { recursive: true });
-        fs.writeFileSync(path.join(nestedPath, 'manifest.json'), JSON.stringify({ display_name: 'ST-LifeSim' }));
-        fs.writeFileSync(path.join(nestedPath, 'index.js'), 'export default {};');
+        try {
+            const extensionPath = path.join(tempDir, 'repo');
+            const nestedPath = path.join(extensionPath, 'public', 'scripts', 'extensions', 'third-party', 'test-extension');
+            fs.mkdirSync(nestedPath, { recursive: true });
+            fs.writeFileSync(path.join(nestedPath, 'manifest.json'), JSON.stringify({ display_name: 'Test Extension' }));
+            fs.writeFileSync(path.join(nestedPath, 'index.js'), 'export default {};');
 
-        normalizeNestedExtensionRepo(extensionPath);
+            normalizeNestedExtensionRepo(extensionPath);
 
-        expect(fs.existsSync(path.join(extensionPath, 'manifest.json'))).toBe(true);
-        expect(fs.existsSync(path.join(extensionPath, 'index.js'))).toBe(true);
-
-        fs.rmSync(tempDir, { recursive: true, force: true });
+            expect(fs.existsSync(path.join(extensionPath, 'manifest.json'))).toBe(true);
+            expect(fs.existsSync(path.join(extensionPath, 'index.js'))).toBe(true);
+        } finally {
+            fs.rmSync(tempDir, { recursive: true, force: true });
+        }
     });
 });
