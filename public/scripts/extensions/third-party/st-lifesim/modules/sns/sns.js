@@ -33,6 +33,33 @@ const DEFAULT_SNS_PROMPTS = {
     reply: '다음 SNS 상황에 대한 답글 1개만 한국어로 작성하세요.\n게시글 작성자: {{postAuthorName}} ({{postAuthorHandle}})\n게시글: "{{postContent}}"\n대상 댓글 작성자: {{commentAuthorName}} ({{commentAuthorHandle}})\n대상 댓글: "{{commentText}}"\n답글 작성자: {{replyAuthorName}} ({{replyAuthorHandle}})\n규칙: 답글은 반드시 {{replyAuthorName}} 시점으로 한 문장만 작성. 필요하면 @멘션은 위의 고정 핸들만 사용. 한국어만 출력하고 영어/해설/따옴표/해시태그 금지. 성격 단서: {{replyPersonality}}.',
     extraComment: '다음 SNS 게시글에 대한 추가 댓글 1개만 한국어로 작성하세요.\n게시글 작성자: {{postAuthorName}} ({{postAuthorHandle}})\n게시글: "{{postContent}}"\n댓글 작성자: {{extraAuthorName}} ({{extraAuthorHandle}})\n규칙: {{extraAuthorName}} 관점의 짧은 SNS 댓글 한 문장만 출력. 필요하면 @멘션은 고정 핸들만 사용. 한국어만 출력하고 영어/해설/따옴표/해시태그 금지. 성격 단서: {{extraPersonality}}.',
 };
+const SNS_PRESET_BINDING = 'character';
+const LEGACY_MODEL_KEY_BY_SOURCE = {
+    openai: 'openai_model',
+    claude: 'claude_model',
+    makersuite: 'google_model',
+    vertexai: 'vertexai_model',
+    openrouter: 'openrouter_model',
+    ai21: 'ai21_model',
+    mistralai: 'mistralai_model',
+    cohere: 'cohere_model',
+    perplexity: 'perplexity_model',
+    groq: 'groq_model',
+    chutes: 'chutes_model',
+    siliconflow: 'siliconflow_model',
+    electronhub: 'electronhub_model',
+    nanogpt: 'nanogpt_model',
+    deepseek: 'deepseek_model',
+    aimlapi: 'aimlapi_model',
+    xai: 'xai_model',
+    pollinations: 'pollinations_model',
+    cometapi: 'cometapi_model',
+    moonshot: 'moonshot_model',
+    fireworks: 'fireworks_model',
+    azure_openai: 'azure_openai_model',
+    custom: 'custom_model',
+    zai: 'zai_model',
+};
 // 댓글 직후 즉시 생성하지 않고, 유저 메시지 이벤트에서 확률적으로 하나씩 처리하는 큐다.
 const PENDING_COMMENT_REACTIONS = [];
 let pendingReactionInFlight = false;
@@ -42,7 +69,14 @@ let pendingReactionInFlight = false;
  * @returns {string[]}
  */
 function loadImagePresets() {
-    const raw = loadData(IMAGE_PRESETS_KEY, [], getDefaultBinding());
+    let raw = loadData(IMAGE_PRESETS_KEY, null, SNS_PRESET_BINDING);
+    if (!Array.isArray(raw)) {
+        const legacy = loadData(IMAGE_PRESETS_KEY, [], getDefaultBinding());
+        raw = Array.isArray(legacy) ? legacy : [];
+        if (raw.length > 0) {
+            saveData(IMAGE_PRESETS_KEY, raw, SNS_PRESET_BINDING);
+        }
+    }
     if (!Array.isArray(raw)) return [];
     return raw
         .map((item, i) => {
@@ -66,7 +100,7 @@ function loadImagePresets() {
  * @param {string[]} presets
  */
 function saveImagePresets(presets) {
-    saveData(IMAGE_PRESETS_KEY, presets, getDefaultBinding());
+    saveData(IMAGE_PRESETS_KEY, presets, SNS_PRESET_BINDING);
 }
 
 function loadPostingEnabledMap() {
@@ -94,6 +128,21 @@ function getSnsPromptSettings() {
         externalApiUrl: String(ext?.snsExternalApiUrl || '').trim(),
         externalApiTimeoutMs: Math.max(1000, Math.min(60000, Number(ext?.snsExternalApiTimeoutMs) || 12000)),
     };
+}
+
+function getSnsAiRouteSettings() {
+    const ext = getExtensionSettings()?.['st-lifesim'];
+    const route = ext?.aiRoutes?.sns || {};
+    return {
+        api: String(route.api || '').trim(),
+        chatSource: String(route.chatSource || '').trim(),
+        modelSettingKey: String(route.modelSettingKey || '').trim(),
+        model: String(route.model || '').trim(),
+    };
+}
+
+function inferModelSettingKey(source) {
+    return LEGACY_MODEL_KEY_BY_SOURCE[String(source || '').toLowerCase()] || '';
 }
 
 function applyPromptTemplate(template, vars) {
@@ -157,9 +206,9 @@ function saveAuthorDefaultImages(map) {
     saveData(AUTHOR_DEFAULT_IMAGE_KEY, map, getDefaultBinding());
 }
 
-function getAuthorDefaultImageUrl(authorName) {
+function getAuthorDefaultImageUrl(authorName, includeLegacy = true) {
     const map = loadAuthorDefaultImages();
-    return map[authorName] || getDefaultImageUrl();
+    return map[authorName] || (includeLegacy ? getDefaultImageUrl() : '');
 }
 
 /**
@@ -327,7 +376,7 @@ export async function triggerNpcPosting() {
         const inlineCaption = extractInlineCaption(postContent);
         postContent = normalizeSnsText(stripInlineCaptionBlocks(postContent), SNS_POST_TEXT_MAX) || '(게시물)';
 
-        const defaultImg = getAuthorDefaultImageUrl(pick.name);
+        const defaultImg = getAuthorDefaultImageUrl(pick.name, false);
         const presets = loadImagePresets().filter(p => p?.url);
         const presetPick = getRandomItem(presets);
         const presetImg = presetPick ? presetPick.url : '';
@@ -953,7 +1002,36 @@ async function generateSnsText(ctx, quietPrompt, quietName) {
         }
     }
     if (typeof ctx.generateRaw === 'function') {
-        return (await ctx.generateRaw({ prompt: quietPrompt, quietToLoud: false, trimNames: true }) || '').trim();
+        const aiRoute = getSnsAiRouteSettings();
+        const chatSettings = ctx.chatCompletionSettings;
+        const sourceBefore = chatSettings?.chat_completion_source;
+        let modelKey = '';
+        let modelBefore;
+        if (chatSettings && aiRoute.chatSource) {
+            chatSettings.chat_completion_source = aiRoute.chatSource;
+        }
+        if (chatSettings) {
+            modelKey = aiRoute.modelSettingKey || inferModelSettingKey(aiRoute.chatSource || sourceBefore);
+            if (modelKey && typeof aiRoute.model === 'string' && aiRoute.model.length > 0) {
+                modelBefore = chatSettings[modelKey];
+                chatSettings[modelKey] = aiRoute.model;
+            }
+        }
+        try {
+            return (await ctx.generateRaw({
+                prompt: quietPrompt,
+                quietToLoud: false,
+                trimNames: true,
+                api: aiRoute.api || null,
+            }) || '').trim();
+        } finally {
+            if (chatSettings && aiRoute.chatSource) {
+                chatSettings.chat_completion_source = sourceBefore;
+            }
+            if (chatSettings && modelKey && typeof aiRoute.model === 'string' && aiRoute.model.length > 0) {
+                chatSettings[modelKey] = modelBefore;
+            }
+        }
     }
     if (typeof ctx.generateQuietPrompt === 'function') {
         return (await ctx.generateQuietPrompt({ quietPrompt, quietName }) || '').trim();

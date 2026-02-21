@@ -35,6 +35,12 @@ const SETTINGS_KEY = 'st-lifesim';
 // 주간/야간 테마 저장 키 (localStorage)
 const THEME_STORAGE_KEY = 'st-lifesim:forced-theme';
 const ALWAYS_ON_MODULES = new Set(['quickTools', 'contacts']);
+const AI_ROUTE_DEFAULTS = {
+    api: '',
+    chatSource: '',
+    modelSettingKey: '',
+    model: '',
+};
 const SNS_PROMPT_DEFAULTS = {
     postChar: '{{charName}}의 SNS 게시글을 1개만 작성하세요. 반드시 한국어만 사용하고 {{charName}}의 성격/현재 상황에 맞는 자연스러운 일상 말투 한두 문장으로 작성하세요. 해시태그, 이미지 태그, 인용부호, 영어, 타인 반응/댓글, [캡션: ...] 같은 블록은 금지합니다. {{charName}} 본인 글만 출력하세요.',
     postContact: '{{authorName}}의 SNS 게시글을 1개만 작성하세요. 성격: {{personality}}. 반드시 한국어만 사용하고 자연스러운 일상 SNS 말투 한두 문장으로 작성하세요. 해시태그, 이미지 태그, 인용부호, 영어, 타인 반응/댓글, [캡션: ...] 같은 블록은 금지합니다. {{authorName}} 본인 글만 출력하세요.',
@@ -81,6 +87,10 @@ const DEFAULT_SETTINGS = {
     snsExternalApiUrl: '',
     snsExternalApiTimeoutMs: 12000,
     snsPrompts: { ...SNS_PROMPT_DEFAULTS },
+    aiRoutes: {
+        sns: { ...AI_ROUTE_DEFAULTS },
+        callSummary: { ...AI_ROUTE_DEFAULTS },
+    },
 };
 
 /**
@@ -156,6 +166,22 @@ function getSettings() {
         if (typeof ext[SETTINGS_KEY].snsPrompts[key] !== 'string') {
             ext[SETTINGS_KEY].snsPrompts[key] = SNS_PROMPT_DEFAULTS[key];
         }
+    });
+    if (!ext[SETTINGS_KEY].aiRoutes || typeof ext[SETTINGS_KEY].aiRoutes !== 'object') {
+        ext[SETTINGS_KEY].aiRoutes = {
+            sns: { ...AI_ROUTE_DEFAULTS },
+            callSummary: { ...AI_ROUTE_DEFAULTS },
+        };
+    }
+    ['sns', 'callSummary'].forEach((feature) => {
+        if (!ext[SETTINGS_KEY].aiRoutes[feature] || typeof ext[SETTINGS_KEY].aiRoutes[feature] !== 'object') {
+            ext[SETTINGS_KEY].aiRoutes[feature] = { ...AI_ROUTE_DEFAULTS };
+        }
+        Object.keys(AI_ROUTE_DEFAULTS).forEach((key) => {
+            if (typeof ext[SETTINGS_KEY].aiRoutes[feature][key] !== 'string') {
+                ext[SETTINGS_KEY].aiRoutes[feature][key] = AI_ROUTE_DEFAULTS[key];
+            }
+        });
     });
     return ext[SETTINGS_KEY];
 }
@@ -767,6 +793,72 @@ function openSettingsPanel(onBack) {
     function buildSnsPromptTab() {
         const wrapper = document.createElement('div');
         wrapper.className = 'slm-settings-wrapper slm-form';
+        if (!settings.aiRoutes) settings.aiRoutes = { sns: { ...AI_ROUTE_DEFAULTS }, callSummary: { ...AI_ROUTE_DEFAULTS } };
+        if (!settings.aiRoutes.sns) settings.aiRoutes.sns = { ...AI_ROUTE_DEFAULTS };
+        if (!settings.aiRoutes.callSummary) settings.aiRoutes.callSummary = { ...AI_ROUTE_DEFAULTS };
+
+        const apiRouteTitle = Object.assign(document.createElement('div'), {
+            className: 'slm-label',
+            textContent: '🤖 기능별 AI 라우팅 (내부 API/모델)',
+        });
+        apiRouteTitle.style.fontWeight = '700';
+        wrapper.appendChild(apiRouteTitle);
+
+        const apiOptions = [
+            { value: '', label: '전역 설정 사용' },
+            { value: 'openai', label: 'OpenAI/Chat Completion' },
+            { value: 'textgenerationwebui', label: 'TextGen WebUI' },
+            { value: 'novel', label: 'NovelAI' },
+            { value: 'kobold', label: 'KoboldAI' },
+            { value: 'koboldhorde', label: 'Kobold Horde' },
+        ];
+
+        function buildAiRouteEditor(title, route) {
+            const group = document.createElement('div');
+            group.className = 'slm-form-group';
+            const groupTitle = Object.assign(document.createElement('label'), { className: 'slm-label', textContent: title });
+            groupTitle.style.fontWeight = '600';
+            group.appendChild(groupTitle);
+
+            const apiSelect = document.createElement('select');
+            apiSelect.className = 'slm-select';
+            apiOptions.forEach(({ value, label }) => {
+                const opt = document.createElement('option');
+                opt.value = value;
+                opt.textContent = label;
+                apiSelect.appendChild(opt);
+            });
+            apiSelect.value = route.api || '';
+            apiSelect.onchange = () => { route.api = apiSelect.value; saveSettings(); };
+            group.appendChild(apiSelect);
+
+            const sourceInput = document.createElement('input');
+            sourceInput.className = 'slm-input';
+            sourceInput.placeholder = 'chat source (예: openai, claude, deepseek) - 선택';
+            sourceInput.value = route.chatSource || '';
+            sourceInput.onchange = () => { route.chatSource = sourceInput.value.trim(); saveSettings(); };
+            group.appendChild(sourceInput);
+
+            const modelKeyInput = document.createElement('input');
+            modelKeyInput.className = 'slm-input';
+            modelKeyInput.placeholder = 'model setting key (예: openai_model) - 선택';
+            modelKeyInput.value = route.modelSettingKey || '';
+            modelKeyInput.onchange = () => { route.modelSettingKey = modelKeyInput.value.trim(); saveSettings(); };
+            group.appendChild(modelKeyInput);
+
+            const modelInput = document.createElement('input');
+            modelInput.className = 'slm-input';
+            modelInput.placeholder = 'model id (예: gpt-4o-mini) - 선택';
+            modelInput.value = route.model || '';
+            modelInput.onchange = () => { route.model = modelInput.value.trim(); saveSettings(); };
+            group.appendChild(modelInput);
+
+            wrapper.appendChild(group);
+        }
+
+        buildAiRouteEditor('SNS 생성 라우팅', settings.aiRoutes.sns);
+        buildAiRouteEditor('통화 요약 라우팅', settings.aiRoutes.callSummary);
+        wrapper.appendChild(Object.assign(document.createElement('hr'), { className: 'slm-hr' }));
 
         const endpointRow = document.createElement('div');
         endpointRow.className = 'slm-form-group';

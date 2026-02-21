@@ -31,6 +31,32 @@ const PROACTIVE_CALL_COOLDOWN_MS = 30000;
 const PROACTIVE_CALL_DELAY_MS = 1600;
 const PROACTIVE_CALL_AFTER_AI_DELAY_MS = 3000;
 const PROACTIVE_CALL_DEFER_MAX_WAIT_MS = 45000;
+const MODEL_KEY_BY_SOURCE = {
+    openai: 'openai_model',
+    claude: 'claude_model',
+    makersuite: 'google_model',
+    vertexai: 'vertexai_model',
+    openrouter: 'openrouter_model',
+    ai21: 'ai21_model',
+    mistralai: 'mistralai_model',
+    cohere: 'cohere_model',
+    perplexity: 'perplexity_model',
+    groq: 'groq_model',
+    chutes: 'chutes_model',
+    siliconflow: 'siliconflow_model',
+    electronhub: 'electronhub_model',
+    nanogpt: 'nanogpt_model',
+    deepseek: 'deepseek_model',
+    aimlapi: 'aimlapi_model',
+    xai: 'xai_model',
+    pollinations: 'pollinations_model',
+    cometapi: 'cometapi_model',
+    moonshot: 'moonshot_model',
+    fireworks: 'fireworks_model',
+    azure_openai: 'azure_openai_model',
+    custom: 'custom_model',
+    zai: 'zai_model',
+};
 
 /**
  * 음성메세지 포맷: 텍스트 내 첫 번째 `<br>` 이후의 내용을 `**...**`로 감싸 이탤릭체 처리한다.
@@ -75,6 +101,60 @@ function isCallModuleEnabled() {
     const ext = getExtensionSettings();
     const settings = ext?.['st-lifesim'];
     return settings?.enabled !== false && settings?.modules?.call !== false;
+}
+
+function getCallSummaryAiRouteSettings() {
+    const route = getExtensionSettings()?.['st-lifesim']?.aiRoutes?.callSummary || {};
+    return {
+        api: String(route.api || '').trim(),
+        chatSource: String(route.chatSource || '').trim(),
+        modelSettingKey: String(route.modelSettingKey || '').trim(),
+        model: String(route.model || '').trim(),
+    };
+}
+
+function inferModelSettingKey(source) {
+    return MODEL_KEY_BY_SOURCE[String(source || '').toLowerCase()] || '';
+}
+
+async function generateCallSummaryText(ctx, quietPrompt, quietName) {
+    if (!ctx) return '';
+    if (typeof ctx.generateRaw === 'function') {
+        const aiRoute = getCallSummaryAiRouteSettings();
+        const chatSettings = ctx.chatCompletionSettings;
+        const sourceBefore = chatSettings?.chat_completion_source;
+        let modelKey = '';
+        let modelBefore;
+        if (chatSettings && aiRoute.chatSource) {
+            chatSettings.chat_completion_source = aiRoute.chatSource;
+        }
+        if (chatSettings) {
+            modelKey = aiRoute.modelSettingKey || inferModelSettingKey(aiRoute.chatSource || sourceBefore);
+            if (modelKey && aiRoute.model) {
+                modelBefore = chatSettings[modelKey];
+                chatSettings[modelKey] = aiRoute.model;
+            }
+        }
+        try {
+            return (await ctx.generateRaw({
+                prompt: quietPrompt,
+                quietToLoud: false,
+                trimNames: true,
+                api: aiRoute.api || null,
+            }) || '').trim();
+        } finally {
+            if (chatSettings && aiRoute.chatSource) {
+                chatSettings.chat_completion_source = sourceBefore;
+            }
+            if (chatSettings && modelKey && aiRoute.model) {
+                chatSettings[modelKey] = modelBefore;
+            }
+        }
+    }
+    if (typeof ctx.generateQuietPrompt === 'function') {
+        return (await ctx.generateQuietPrompt({ quietPrompt, quietName }) || '').trim();
+    }
+    return '';
 }
 
 /**
@@ -521,10 +601,10 @@ async function endCall() {
         const chatLen = ctx?.chat?.length ?? 0;
         const startFrom = Math.max(0, startIdx);
         const callMsgs = ctx?.chat?.slice(startFrom, chatLen) ?? [];
-        if (callMsgs.length > 0 && typeof ctx?.generateQuietPrompt === 'function') {
+        if (callMsgs.length > 0) {
             const msgText = callMsgs.map(m => `${m.is_user ? '{{user}}' : m.name}: ${m.mes}`).join('\n');
             const summaryPrompt = `The following is the conversation transcript from a call with ${endedContact}. Write a concise 2-3 sentence summary IN KOREAN of what was discussed during the call. The summary must be written in Korean regardless of the conversation language. Character names may be kept as-is:\n${msgText}`;
-            summary = await ctx.generateQuietPrompt({ quietPrompt: summaryPrompt, quietName: endedContact }) || '';
+            summary = await generateCallSummaryText(ctx, summaryPrompt, endedContact);
         }
     } catch (e) {
         console.error('[ST-LifeSim] 통화 요약 생성 오류:', e);
