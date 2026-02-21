@@ -15,6 +15,8 @@ import { showToast, generateId, escapeHtml } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 import { isCallActive } from '../call/call.js';
 
+const GLOBAL_BINDING = 'global';
+
 /**
  * 이모티콘 출력 크기를 가져온다 (extension_settings에서)
  * @returns {number}
@@ -35,6 +37,7 @@ function getEmoticonRadius() {
 
 const MODULE_KEY = 'emoticons';
 const CATEGORY_AI_KEY = 'emoticon-category-ai';
+const CATEGORY_VISIBILITY_KEY = 'emoticon-category-visibility';
 
 /**
  * @typedef {Object} Emoticon
@@ -51,7 +54,15 @@ const CATEGORY_AI_KEY = 'emoticon-category-ai';
  * @returns {Emoticon[]}
  */
 function loadEmoticons() {
-    return loadData(MODULE_KEY, [], getDefaultBinding());
+    const globalEmoticons = loadData(MODULE_KEY, null, GLOBAL_BINDING);
+    if (Array.isArray(globalEmoticons)) {
+        return globalEmoticons;
+    }
+    const legacy = loadData(MODULE_KEY, [], getDefaultBinding());
+    if (legacy.length > 0) {
+        saveData(MODULE_KEY, legacy, GLOBAL_BINDING);
+    }
+    return legacy;
 }
 
 /**
@@ -59,15 +70,31 @@ function loadEmoticons() {
  * @param {Emoticon[]} emoticons
  */
 function saveEmoticons(emoticons) {
-    saveData(MODULE_KEY, emoticons, getDefaultBinding());
+    saveData(MODULE_KEY, emoticons, GLOBAL_BINDING);
 }
 
 function loadCategoryAiMap() {
-    return loadData(CATEGORY_AI_KEY, {}, getDefaultBinding());
+    const globalMap = loadData(CATEGORY_AI_KEY, null, GLOBAL_BINDING);
+    if (globalMap && typeof globalMap === 'object') {
+        return globalMap;
+    }
+    const legacy = loadData(CATEGORY_AI_KEY, {}, getDefaultBinding());
+    if (Object.keys(legacy).length > 0) {
+        saveData(CATEGORY_AI_KEY, legacy, GLOBAL_BINDING);
+    }
+    return legacy;
 }
 
 function saveCategoryAiMap(map) {
-    saveData(CATEGORY_AI_KEY, map, getDefaultBinding());
+    saveData(CATEGORY_AI_KEY, map, GLOBAL_BINDING);
+}
+
+function loadCategoryVisibilityMap() {
+    return loadData(CATEGORY_VISIBILITY_KEY, {}, GLOBAL_BINDING);
+}
+
+function saveCategoryVisibilityMap(map) {
+    saveData(CATEGORY_VISIBILITY_KEY, map, GLOBAL_BINDING);
 }
 
 function isAiUsableByPolicy(emoticon, categoryAiMap) {
@@ -298,6 +325,25 @@ function buildEmoticonContent() {
 
     function renderCategoryAiControl() {
         categoryAiRow.innerHTML = '';
+        const categoryVisibilityMap = loadCategoryVisibilityMap();
+        const hasCurrentCategory = currentCategory !== '전체' && currentCategory !== '즐겨찾기';
+        if (hasCurrentCategory) {
+            const visibleLbl = document.createElement('label');
+            visibleLbl.className = 'slm-toggle-label';
+            const visibleChk = document.createElement('input');
+            visibleChk.type = 'checkbox';
+            visibleChk.checked = categoryVisibilityMap[currentCategory] !== false;
+            visibleChk.onchange = () => {
+                const nextMap = loadCategoryVisibilityMap();
+                nextMap[currentCategory] = visibleChk.checked;
+                saveCategoryVisibilityMap(nextMap);
+                renderAll();
+            };
+            visibleLbl.appendChild(visibleChk);
+            visibleLbl.appendChild(document.createTextNode(` 카테고리 표시 (${currentCategory})`));
+            categoryAiRow.appendChild(visibleLbl);
+        }
+
         if (currentCategory === '전체' || currentCategory === '즐겨찾기') return;
         const categoryAiMap = loadCategoryAiMap();
         const lbl = document.createElement('label');
@@ -320,12 +366,14 @@ function buildEmoticonContent() {
     function renderTabs() {
         tabBar.innerHTML = '';
         const emoticons = loadEmoticons();
+        const categoryVisibilityMap = loadCategoryVisibilityMap();
         const categories = ['전체', '즐겨찾기', ...new Set(emoticons.map(e => e.category).filter(Boolean))];
 
         categories.forEach(cat => {
             const btn = document.createElement('button');
             btn.className = 'slm-tab-btn' + (cat === currentCategory ? ' active' : '');
-            btn.textContent = cat;
+            const isHiddenCategory = cat !== '전체' && cat !== '즐겨찾기' && categoryVisibilityMap[cat] === false;
+            btn.textContent = isHiddenCategory ? `${cat} (숨김)` : cat;
             btn.onclick = () => {
                 currentCategory = cat;
                 renderAll();
@@ -337,7 +385,8 @@ function buildEmoticonContent() {
     // 이모티콘 그리드 렌더링
     function renderGrid() {
         grid.innerHTML = '';
-        const emoticons = loadEmoticons();
+        const categoryVisibilityMap = loadCategoryVisibilityMap();
+        const emoticons = loadEmoticons().filter(e => categoryVisibilityMap[e.category] !== false);
 
         let filtered = emoticons;
         if (currentCategory === '즐겨찾기') {
