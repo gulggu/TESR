@@ -112,10 +112,13 @@ const DEFAULT_SETTINGS = {
     proactiveCallProbability: 0, // % (0~100)
     snsExternalApiUrl: '',
     snsExternalApiTimeoutMs: 12000,
+    snsLanguage: 'ko',
+    snsKoreanTranslationPrompt: 'Translate the following SNS text into natural Korean. Output Korean text only.\n{{text}}',
     snsPrompts: { ...SNS_PROMPT_DEFAULTS },
     aiRoutes: {
         sns: { ...AI_ROUTE_DEFAULTS },
         callSummary: { ...AI_ROUTE_DEFAULTS },
+        contactProfile: { ...AI_ROUTE_DEFAULTS },
     },
 };
 
@@ -185,6 +188,12 @@ function getSettings() {
     if (!Number.isFinite(ext[SETTINGS_KEY].snsExternalApiTimeoutMs)) {
         ext[SETTINGS_KEY].snsExternalApiTimeoutMs = DEFAULT_SETTINGS.snsExternalApiTimeoutMs;
     }
+    if (!['ko', 'en', 'ja', 'zh'].includes(ext[SETTINGS_KEY].snsLanguage)) {
+        ext[SETTINGS_KEY].snsLanguage = DEFAULT_SETTINGS.snsLanguage;
+    }
+    if (typeof ext[SETTINGS_KEY].snsKoreanTranslationPrompt !== 'string') {
+        ext[SETTINGS_KEY].snsKoreanTranslationPrompt = DEFAULT_SETTINGS.snsKoreanTranslationPrompt;
+    }
     if (!ext[SETTINGS_KEY].snsPrompts || typeof ext[SETTINGS_KEY].snsPrompts !== 'object') {
         ext[SETTINGS_KEY].snsPrompts = { ...SNS_PROMPT_DEFAULTS };
     }
@@ -197,9 +206,10 @@ function getSettings() {
         ext[SETTINGS_KEY].aiRoutes = {
             sns: { ...AI_ROUTE_DEFAULTS },
             callSummary: { ...AI_ROUTE_DEFAULTS },
+            contactProfile: { ...AI_ROUTE_DEFAULTS },
         };
     }
-    ['sns', 'callSummary'].forEach((feature) => {
+    ['sns', 'callSummary', 'contactProfile'].forEach((feature) => {
         if (!ext[SETTINGS_KEY].aiRoutes[feature] || typeof ext[SETTINGS_KEY].aiRoutes[feature] !== 'object') {
             ext[SETTINGS_KEY].aiRoutes[feature] = { ...AI_ROUTE_DEFAULTS };
         }
@@ -673,6 +683,27 @@ function openSettingsPanel(onBack) {
         };
         callProbRow.append(callProbLbl, callProbInput, callProbPctLbl, callProbApplyBtn);
         wrapper.appendChild(callProbRow);
+
+        const snsLangRow = document.createElement('div');
+        snsLangRow.className = 'slm-input-row';
+        snsLangRow.style.marginTop = '8px';
+        const snsLangLbl = Object.assign(document.createElement('label'), { className: 'slm-label', textContent: 'SNS 출력 언어:' });
+        const snsLangSelect = document.createElement('select');
+        snsLangSelect.className = 'slm-select slm-input-sm';
+        [
+            { value: 'ko', label: '한국어' },
+            { value: 'en', label: 'English' },
+            { value: 'ja', label: '日本語' },
+            { value: 'zh', label: '中文' },
+        ].forEach(({ value, label }) => snsLangSelect.appendChild(Object.assign(document.createElement('option'), { value, textContent: label })));
+        snsLangSelect.value = settings.snsLanguage || 'ko';
+        snsLangSelect.onchange = () => {
+            settings.snsLanguage = snsLangSelect.value;
+            saveSettings();
+            showToast(`SNS 언어: ${snsLangSelect.options[snsLangSelect.selectedIndex].textContent}`, 'success', 1200);
+        };
+        snsLangRow.append(snsLangLbl, snsLangSelect);
+        wrapper.appendChild(snsLangRow);
         return wrapper;
     }
 
@@ -819,9 +850,10 @@ function openSettingsPanel(onBack) {
     function buildSnsPromptTab() {
         const wrapper = document.createElement('div');
         wrapper.className = 'slm-settings-wrapper slm-form';
-        if (!settings.aiRoutes) settings.aiRoutes = { sns: { ...AI_ROUTE_DEFAULTS }, callSummary: { ...AI_ROUTE_DEFAULTS } };
+        if (!settings.aiRoutes) settings.aiRoutes = { sns: { ...AI_ROUTE_DEFAULTS }, callSummary: { ...AI_ROUTE_DEFAULTS }, contactProfile: { ...AI_ROUTE_DEFAULTS } };
         if (!settings.aiRoutes.sns) settings.aiRoutes.sns = { ...AI_ROUTE_DEFAULTS };
         if (!settings.aiRoutes.callSummary) settings.aiRoutes.callSummary = { ...AI_ROUTE_DEFAULTS };
+        if (!settings.aiRoutes.contactProfile) settings.aiRoutes.contactProfile = { ...AI_ROUTE_DEFAULTS };
 
         const apiRouteTitle = Object.assign(document.createElement('div'), {
             className: 'slm-label',
@@ -840,10 +872,6 @@ function openSettingsPanel(onBack) {
         ];
         const chatSettings = getContext()?.chatCompletionSettings || {};
         const chatSourceOptions = Object.keys(ROUTE_MODEL_KEY_BY_SOURCE);
-        const knownModelValues = [...new Set(Object.values(ROUTE_MODEL_KEY_BY_SOURCE)
-            .map((key) => String(chatSettings?.[key] || '').trim())
-            .filter(Boolean))];
-
         function buildAiRouteEditor(title, route) {
             const group = document.createElement('div');
             group.className = 'slm-form-group';
@@ -870,25 +898,31 @@ function openSettingsPanel(onBack) {
                 sourceSelect.appendChild(Object.assign(document.createElement('option'), { value: source, textContent: source }));
             });
             sourceSelect.value = chatSourceOptions.includes(route.chatSource) ? route.chatSource : '';
+            const modelSelect = document.createElement('select');
+            modelSelect.className = 'slm-select';
+            function refillModelOptions() {
+                modelSelect.innerHTML = '';
+                modelSelect.appendChild(Object.assign(document.createElement('option'), { value: '', textContent: '모델 자동 선택' }));
+                const modelKey = ROUTE_MODEL_KEY_BY_SOURCE[sourceSelect.value] || route.modelSettingKey || '';
+                const modelValue = String(chatSettings?.[modelKey] || '').trim();
+                if (modelValue) {
+                    modelSelect.appendChild(Object.assign(document.createElement('option'), { value: modelValue, textContent: modelValue }));
+                }
+                if (route.model && route.model !== modelValue) {
+                    modelSelect.appendChild(Object.assign(document.createElement('option'), { value: route.model, textContent: route.model }));
+                }
+                modelSelect.value = route.model || '';
+            }
             sourceSelect.onchange = () => {
                 route.chatSource = sourceSelect.value;
                 route.modelSettingKey = ROUTE_MODEL_KEY_BY_SOURCE[route.chatSource] || '';
                 route.model = '';
-                modelSelect.value = '';
+                refillModelOptions();
                 saveSettings();
             };
             group.appendChild(sourceSelect);
 
-            const modelSelect = document.createElement('select');
-            modelSelect.className = 'slm-select';
-            modelSelect.appendChild(Object.assign(document.createElement('option'), { value: '', textContent: '모델 자동 선택' }));
-            knownModelValues.forEach((modelValue) => {
-                modelSelect.appendChild(Object.assign(document.createElement('option'), { value: modelValue, textContent: modelValue }));
-            });
-            if (route.model && !knownModelValues.includes(route.model)) {
-                modelSelect.appendChild(Object.assign(document.createElement('option'), { value: route.model, textContent: route.model }));
-            }
-            modelSelect.value = route.model || '';
+            refillModelOptions();
             modelSelect.onchange = () => { route.model = modelSelect.value; saveSettings(); };
             group.appendChild(modelSelect);
 
@@ -897,6 +931,7 @@ function openSettingsPanel(onBack) {
 
         buildAiRouteEditor('SNS 생성 라우팅', settings.aiRoutes.sns);
         buildAiRouteEditor('통화 요약 라우팅', settings.aiRoutes.callSummary);
+        buildAiRouteEditor('연락처 AI 생성 라우팅', settings.aiRoutes.contactProfile);
         wrapper.appendChild(Object.assign(document.createElement('hr'), { className: 'slm-hr' }));
 
         const endpointRow = document.createElement('div');
@@ -940,6 +975,21 @@ function openSettingsPanel(onBack) {
         timeoutRow.append(timeoutLabel, timeoutInput, timeoutUnit, timeoutApply);
         wrapper.appendChild(timeoutRow);
         wrapper.appendChild(Object.assign(document.createElement('hr'), { className: 'slm-hr' }));
+
+        const translationPromptGroup = document.createElement('div');
+        translationPromptGroup.className = 'slm-form-group';
+        const translationPromptLabel = Object.assign(document.createElement('label'), { className: 'slm-label', textContent: '한글 번역 프롬프트 ({{text}} 사용)' });
+        const translationPromptInput = document.createElement('textarea');
+        translationPromptInput.className = 'slm-textarea';
+        translationPromptInput.rows = 3;
+        translationPromptInput.value = settings.snsKoreanTranslationPrompt || DEFAULT_SETTINGS.snsKoreanTranslationPrompt;
+        translationPromptInput.onchange = () => {
+            settings.snsKoreanTranslationPrompt = translationPromptInput.value.trim() || DEFAULT_SETTINGS.snsKoreanTranslationPrompt;
+            translationPromptInput.value = settings.snsKoreanTranslationPrompt;
+            saveSettings();
+        };
+        translationPromptGroup.append(translationPromptLabel, translationPromptInput);
+        wrapper.appendChild(translationPromptGroup);
 
         if (!settings.snsPrompts) settings.snsPrompts = { ...SNS_PROMPT_DEFAULTS };
         const promptDefs = [
@@ -1000,6 +1050,14 @@ function openSettingsPanel(onBack) {
 function saveSettings() {
     const ctx = getContext();
     if (ctx?.saveSettingsDebounced) ctx.saveSettingsDebounced();
+}
+
+function hasForcedCallIntentFromLatestUserMessage() {
+    const ctx = getContext();
+    const lastUserMsg = ctx?.chat?.[ctx.chat.length - 1];
+    if (!lastUserMsg || !lastUserMsg.is_user) return false;
+    const text = String(lastUserMsg.mes || '');
+    return /(전화\s*해|전화\s*줘|전화\s*걸어|call\s*me|give\s*me\s*a\s*call|call\s*now)/i.test(text);
 }
 
 function syncQuickSendButtons() {
@@ -1160,8 +1218,9 @@ async function init() {
             }
             if (!isModuleEnabled('call')) return;
             const callProb = getSettings().proactiveCallProbability ?? 0;
-            if (callProb > 0) {
-                triggerProactiveIncomingCall(callProb, { deferUntilAiResponse: true })
+            const forceCall = hasForcedCallIntentFromLatestUserMessage();
+            if (callProb > 0 || forceCall) {
+                triggerProactiveIncomingCall(callProb, { deferUntilAiResponse: true, force: forceCall })
                     .catch(e => console.error('[ST-LifeSim] 선전화 트리거 오류:', e));
             }
         });

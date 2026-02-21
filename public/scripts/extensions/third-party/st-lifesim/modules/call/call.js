@@ -74,6 +74,7 @@ function formatVoiceMsg(text) {
 
 // 통화 감지 키워드 (설정에서 변경 가능)
 const DEFAULT_KEYWORDS = ['전화할게', '전화 걸게', '전화해도 돼', '전화 줄게', 'call', 'phone'];
+const EXPLICIT_CHAR_CALL_INTENT_RE = /(지금\s*전화(할게|걸게)|곧\s*전화(할게|걸게)|I['’]m calling( you)? now|calling you now)/i;
 
 // 통화 진행 중 상태
 let callActive = false;
@@ -265,12 +266,13 @@ export function initCall() {
 /**
  * 유저 메시지 전송 시 확률적으로 수신전화를 트리거한다
  * @param {number} probabilityPercent - 0~100
- * @param {{ deferUntilAiResponse?: boolean }} [options] - AI 응답 완료 후 실행할지 여부
+ * @param {{ deferUntilAiResponse?: boolean, force?: boolean }} [options] - AI 응답 완료 후 실행할지 여부/강제 실행 여부
  */
 export async function triggerProactiveIncomingCall(probabilityPercent, options = {}) {
     if (callActive || incomingCallUiOpen || proactiveCallPending) return;
     const chance = Math.max(0, Math.min(100, Number(probabilityPercent) || 0)) / 100;
-    if (chance <= 0 || Math.random() >= chance) return;
+    const force = options?.force === true;
+    if (!force && (chance <= 0 || Math.random() >= chance)) return;
     if (Date.now() - lastProactiveCallAt < PROACTIVE_CALL_COOLDOWN_MS) return;
     const charName = getContext()?.name2;
     if (!charName) return;
@@ -361,6 +363,9 @@ async function detectCallKeywords() {
 }
 
 async function classifyIncomingCallIntent(messageText) {
+    if (EXPLICIT_CHAR_CALL_INTENT_RE.test(String(messageText || ''))) {
+        return { incoming: true };
+    }
     const ctx = getContext();
     const fallback = {
         incoming: /(전화할게|전화 걸게|calling you|pick up|answer)/i.test(messageText),
@@ -391,6 +396,7 @@ No prose, no markdown, JSON only.`;
 async function showIncomingCallDialog(charName) {
     if (incomingCallUiOpen) return;
     incomingCallUiOpen = true;
+    const displayName = getDisplayNameForContact(charName);
 
     const existing = document.getElementById('slm-incoming-call-overlay');
     if (existing) existing.remove();
@@ -406,7 +412,7 @@ async function showIncomingCallDialog(charName) {
     title.textContent = '📲 수신 전화';
     const caller = document.createElement('div');
     caller.className = 'slm-incoming-call-caller';
-    caller.textContent = charName;
+    caller.textContent = displayName;
 
     const row = document.createElement('div');
     row.className = 'slm-incoming-call-actions';
@@ -444,8 +450,8 @@ async function showIncomingCallDialog(charName) {
 
     rejectBtn.onclick = async () => {
         cleanup();
-        await slashSend(`📵 수신 거절 — ${charName}`);
-        appendMissedCallLog(charName, '수신 거절');
+        await slashSend(`📵 수신 거절 — ${displayName}`);
+        appendMissedCallLog(displayName, '수신 거절');
         await slashGen(
             `${charName}'s call was rejected by {{user}}. Generate one short follow-up reaction as a normal chat message.`,
             charName,
@@ -454,14 +460,19 @@ async function showIncomingCallDialog(charName) {
 
     missedBtn.onclick = async () => {
         cleanup();
-        await slashSend(`📵 부재중 전화 — ${charName}`);
-        appendMissedCallLog(charName, '부재중');
+        await slashSend(`📵 부재중 전화 — ${displayName}`);
+        appendMissedCallLog(displayName, '부재중');
         await slashGen(
             `${charName} called {{user}} but {{user}} didn't answer. ${charName} noticed the missed call. Generate one short natural follow-up reaction (e.g. a text message or leaving a voicemail comment) as ${charName}.`,
             charName,
         );
     };
 
+}
+
+function getDisplayNameForContact(name) {
+    const contact = [...getContacts('chat'), ...getContacts('character')].find(c => c?.name === name);
+    return contact?.displayName || name;
 }
 
 function appendMissedCallLog(charName, summary) {

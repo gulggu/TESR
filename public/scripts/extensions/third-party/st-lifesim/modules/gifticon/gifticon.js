@@ -18,6 +18,10 @@ const MODULE_KEY = 'gifticons';
 // 캐릭터 응답에서 "기프티콘을 사용/먹었다"는 의도를 감지하는 다국어(ko/en) 키워드.
 const GIFTICON_USAGE_HINT_RE = /(기프티콘|선물|먹|마셨|사용|썼|잘 먹|잘받|thanks|thank you)/i;
 
+function getContactDisplayName(contact) {
+    return contact?.displayName || contact?.name || '';
+}
+
 /**
  * @typedef {Object} Gifticon
  * @property {string} id
@@ -268,7 +272,7 @@ function renderSendForm() {
         if (c.name !== charName) {
             const opt = document.createElement('option');
             opt.value = c.name;
-            opt.textContent = c.name;
+            opt.textContent = getContactDisplayName(c);
             recipSelect.appendChild(opt);
         }
     });
@@ -332,7 +336,8 @@ function renderSendForm() {
             list.push(g);
             saveGifticons(list);
 
-            const msgHtml = `${escapeHtml(emoji)} <b>${escapeHtml(recipient)}</b>에게 기프티콘을 보냈습니다!<br><b>${escapeHtml(g.name)}</b>${g.value ? ` (${escapeHtml(g.value)})` : ''}${g.memo ? `<br><em>${escapeHtml(g.memo)}</em>` : ''}`;
+            const senderName = getContext()?.name1 || 'user';
+            const msgHtml = `<div class="slm-transaction-card slm-gifticon-transfer-card"><div class="slm-transaction-title">${escapeHtml(emoji)} 기프티콘 전송 완료</div><div class="slm-transaction-route">${escapeHtml(senderName)} → ${escapeHtml(recipient)}</div><div class="slm-transaction-amount">${escapeHtml(g.name)}${g.value ? ` (${escapeHtml(g.value)})` : ''}</div>${g.memo ? `<div class="slm-transaction-memo">${escapeHtml(g.memo)}</div>` : ''}</div>`;
             await slashSend(msgHtml);
             showToast(`${recipient}에게 기프티콘 전송 완료`, 'success');
 
