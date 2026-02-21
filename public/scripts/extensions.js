@@ -510,11 +510,18 @@ async function activateExtensions() {
                     .then(() => activeExtensions.add(name))
                     .catch(err => {
                         console.log('Could not activate extension', name, err);
-                        let errMsg = String(err);
-                        if (err instanceof Event) {
-                            errMsg = err.message || `Script ${err.type}`;
-                        } else if (err instanceof Error) {
+                        const eventType = typeof err?.type === 'string' ? err.type : '';
+                        const eventTag = Object.prototype.toString.call(err);
+                        const isEventLike = err instanceof Event || eventTag === '[object Event]';
+                        let errMsg = typeof err?.message === 'string' ? err.message : '';
+                        if (!errMsg && isEventLike && eventType) {
+                            errMsg = `Script ${eventType}`;
+                        }
+                        if (!errMsg && err instanceof Error) {
                             errMsg = err.message;
+                        }
+                        if (!errMsg) {
+                            errMsg = String(err);
                         }
                         extensionLoadErrors.add(t`Extension "${displayName}" failed to load: ${errMsg}`);
                     });
