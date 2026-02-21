@@ -489,7 +489,7 @@ function openAddEmoticonDialog(onSave, existing = null) {
     catLabel.textContent = '카테고리';
     const existingCategories = [...new Set(loadEmoticons().map(e => e.category).filter(Boolean))];
     const categoryOptions = [...new Set(['기본', ...existingCategories])];
-    const initialCategory = existing?.category || '기본';
+    const initialCategory = existing?.category?.trim() || '기본';
     const directInputOptionValue = '__direct__';
     const isDirectInput = !categoryOptions.includes(initialCategory);
 
