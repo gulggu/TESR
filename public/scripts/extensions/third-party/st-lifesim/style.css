@@ -2138,7 +2138,7 @@ body[data-theme="dark"],
     border-color: var(--slm-accent);
   }
   .slm-gifticon-inbox {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
   .slm-gifticon-recipient-row {
     grid-template-columns: 1fr;
