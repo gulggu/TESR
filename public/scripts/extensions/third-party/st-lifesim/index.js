@@ -870,6 +870,7 @@ function openSettingsPanel(onBack) {
             { value: 'custom', label: '커스텀 API', models: [] },
         ];
 
+        let aiRouteEditorCount = 0;
         function buildAiRouteEditor(title, route) {
             const group = document.createElement('div');
             group.className = 'slm-form-group';
@@ -885,14 +886,25 @@ function openSettingsPanel(onBack) {
             const validSources = PROVIDER_OPTIONS.map(o => o.value);
             sourceSelect.value = validSources.includes(route.chatSource) ? route.chatSource : '';
 
+            const modelDatalistId = `slm-mdl-${++aiRouteEditorCount}`;
+            const modelDatalist = document.createElement('datalist');
+            modelDatalist.id = modelDatalistId;
+
             const modelInput = document.createElement('input');
             modelInput.className = 'slm-input';
             modelInput.type = 'text';
+            modelInput.setAttribute('list', modelDatalistId);
 
             function refreshModelInput() {
                 const presets = PROVIDER_OPTIONS.find(o => o.value === sourceSelect.value)?.models || [];
                 modelInput.placeholder = presets.length > 0 ? `예: ${presets[0]}` : '모델명 입력 (예: gpt-4o-mini)';
                 modelInput.value = route.model || '';
+                modelDatalist.innerHTML = '';
+                presets.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m;
+                    modelDatalist.appendChild(opt);
+                });
             }
 
             sourceSelect.onchange = () => {
@@ -907,6 +919,7 @@ function openSettingsPanel(onBack) {
 
             refreshModelInput();
             modelInput.oninput = () => { route.model = modelInput.value.trim(); saveSettings(); };
+            group.appendChild(modelDatalist);
             group.appendChild(modelInput);
 
             wrapper.appendChild(group);
