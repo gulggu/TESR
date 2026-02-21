@@ -1038,10 +1038,17 @@ function createTranslateButton(text, parent, findExisting, translationClass, com
                 translated = await generateSnsText(ctx, customPrompt, 'sns-translation', 'snsTranslation');
             }
             if (!translated) {
-                const translateFn = typeof globalThis.translate === 'function'
-                    ? globalThis.translate
-                    : (await import('../../../../translate/index.js')).translate;
-                translated = await translateFn(String(text || ''), 'ko');
+                let translateFn = typeof globalThis.translate === 'function' ? globalThis.translate : null;
+                if (!translateFn) {
+                    try {
+                        translateFn = (await import('../../../../translate/index.js')).translate;
+                    } catch {
+                        console.warn('[ST-LifeSim] translate 모듈을 불러올 수 없습니다.');
+                    }
+                }
+                if (typeof translateFn === 'function') {
+                    translated = await translateFn(String(text || ''), 'ko');
+                }
             }
             const line = document.createElement('div');
             line.className = translationClass;
