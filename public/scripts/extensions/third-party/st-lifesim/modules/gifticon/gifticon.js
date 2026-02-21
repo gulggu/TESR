@@ -15,6 +15,8 @@ import { createPopup } from '../../utils/popup.js';
 import { getContacts } from '../contacts/contacts.js';
 
 const MODULE_KEY = 'gifticons';
+// 캐릭터 응답에서 "기프티콘을 사용/먹었다"는 의도를 감지하는 다국어(ko/en) 키워드.
+const GIFTICON_USAGE_HINT_RE = /(기프티콘|선물|먹|마셨|사용|썼|잘 먹|잘받|thanks|thank you)/i;
 
 /**
  * @typedef {Object} Gifticon
@@ -35,6 +37,23 @@ function loadGifticons() {
 
 function saveGifticons(list) {
     saveData(MODULE_KEY, list, getDefaultBinding());
+}
+
+export function trackGifticonUsageFromCharacterMessage() {
+    const ctx = getContext();
+    const charName = ctx?.name2;
+    const lastMsg = ctx?.chat?.[ctx.chat.length - 1];
+    if (!charName || !lastMsg || lastMsg.is_user) return;
+    const text = String(lastMsg.mes || '').toLowerCase();
+    if (!GIFTICON_USAGE_HINT_RE.test(text)) return;
+    const all = loadGifticons();
+    const pending = all.slice().reverse().find((item) => item.status === 'sent' && item.counterpart === charName);
+    if (!pending) return;
+    const target = all.find((item) => item.id === pending.id);
+    if (!target || target.status !== 'sent') return;
+    target.status = 'used';
+    saveGifticons(all);
+    showToast(`${charName}의 사용 반응을 감지해 "${pending.name}"를 사용 완료 처리했습니다.`, 'success', 1800);
 }
 
 export function initGifticon() {
@@ -111,10 +130,23 @@ function renderInbox() {
     }
 
     const filterRow = document.createElement('div');
-    filterRow.className = 'slm-btn-row';
+    filterRow.className = 'slm-input-row';
     const filters = ['전체', '받은', '보낸', '사용됨'];
     let activeFilter = '전체';
+    const filterSelect = document.createElement('select');
+    filterSelect.className = 'slm-select';
+    filters.forEach((value) => {
+        filterSelect.appendChild(Object.assign(document.createElement('option'), { value, textContent: value }));
+    });
+    filterSelect.value = activeFilter;
+    filterSelect.onchange = () => {
+        activeFilter = filterSelect.value;
+        renderList();
+    };
+    filterRow.appendChild(Object.assign(document.createElement('label'), { className: 'slm-label', textContent: '필터:' }));
+    filterRow.appendChild(filterSelect);
     const listDiv = document.createElement('div');
+    listDiv.className = 'slm-gifticon-list';
 
     function renderList() {
         listDiv.innerHTML = '';
@@ -129,29 +161,34 @@ function renderInbox() {
         }
 
         filtered.slice().reverse().forEach(g => {
-            const card = document.createElement('div');
+            const card = document.createElement('details');
             card.className = `slm-gifticon-card slm-gifticon-${g.status}`;
+            const summary = document.createElement('summary');
+            summary.className = 'slm-gifticon-summary';
 
-            const topRow = document.createElement('div');
-            topRow.className = 'slm-gifticon-top';
-
-            // 이모지 아이콘 (이미지 URL 대신)
             const emojiEl = document.createElement('div');
             emojiEl.className = 'slm-gifticon-emoji';
             emojiEl.textContent = g.emoji || '🎁';
-            topRow.appendChild(emojiEl);
+            summary.appendChild(emojiEl);
+
+            const summaryInfo = document.createElement('div');
+            summaryInfo.className = 'slm-gifticon-summary-info';
+            summaryInfo.innerHTML = `
+                <div class="slm-gifticon-name">${escapeHtml(g.name)}</div>
+                <div class="slm-gifticon-counterpart">${g.status === 'received' ? '받은 선물' : (g.status === 'sent' ? '보낸 선물' : '사용됨')}</div>
+            `;
+            summary.appendChild(summaryInfo);
+            card.appendChild(summary);
 
             const info = document.createElement('div');
             info.className = 'slm-gifticon-info';
             info.innerHTML = `
-                <div class="slm-gifticon-name">${escapeHtml(g.name)}</div>
                 <div class="slm-gifticon-brand">${escapeHtml(g.brand || '')}</div>
                 ${g.value ? `<div class="slm-gifticon-value">${escapeHtml(g.value)}</div>` : ''}
                 <div class="slm-gifticon-counterpart">${g.status === 'received' ? '보낸이' : '받는이'}: ${escapeHtml(g.counterpart || '?')}</div>
                 ${g.memo ? `<div class="slm-gifticon-memo">${escapeHtml(g.memo)}</div>` : ''}
             `;
-            topRow.appendChild(info);
-            card.appendChild(topRow);
+            card.appendChild(info);
 
             if (g.status === 'received') {
                 const useBtn = document.createElement('button');
@@ -183,19 +220,6 @@ function renderInbox() {
             listDiv.appendChild(card);
         });
     }
-
-    filters.forEach(f => {
-        const btn = document.createElement('button');
-        btn.className = 'slm-btn slm-btn-secondary slm-btn-sm' + (f === activeFilter ? ' active' : '');
-        btn.textContent = f;
-        btn.onclick = () => {
-            filterRow.querySelectorAll('.slm-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            activeFilter = f;
-            renderList();
-        };
-        filterRow.appendChild(btn);
-    });
 
     container.appendChild(filterRow);
     container.appendChild(listDiv);

@@ -162,7 +162,17 @@ async function generateCallSummaryText(ctx, quietPrompt, quietName) {
  * @returns {Object[]}
  */
 function loadCallLogs() {
-    return loadData(MODULE_KEY, [], 'chat');
+    const logs = loadData(MODULE_KEY, [], 'chat');
+    if (!Array.isArray(logs)) return [];
+    const chatMsgCount = getContext()?.chat?.length ?? 0;
+    const sanitized = logs.filter((log) => {
+        if (log?.missed) return true;
+        if (typeof log?.startMessageIdx !== 'number' || typeof log?.endMessageIdx !== 'number') return false;
+        if (log.startMessageIdx < 0 || log.endMessageIdx < log.startMessageIdx) return false;
+        return log.endMessageIdx < chatMsgCount;
+    });
+    if (sanitized.length !== logs.length) saveCallLogs(sanitized);
+    return sanitized;
 }
 
 /**
@@ -424,9 +434,10 @@ async function showIncomingCallDialog(charName) {
     acceptBtn.onclick = async () => {
         cleanup();
         const matchedContact = getContacts('chat').find(c => c.name === charName) || null;
-        await startCall(charName, matchedContact);
+        await startCall(charName, matchedContact, 'incoming');
+        const recentDialogue = buildRecentDialogueLines(5);
         await slashGen(
-            'You just connected a phone call with {{user}}. Start the call naturally with one short opening utterance. Do not narrate that the call was already active before this moment.',
+            `You just connected a phone call with {{user}}. Start the call naturally with one short opening utterance. Do not narrate that the call was already active before this moment. Base your response on the latest five dialogue lines when relevant.\n${recentDialogue ? `Latest 5 dialogue lines:\n${recentDialogue}` : ''}`,
             charName,
         );
     };
@@ -517,7 +528,16 @@ function removeCallBanner() {
  * @param {string} charName - 통화 상대 이름
  * @param {Object|null} [matchedContact] - 연락처 정보 (비-char 통화 시 컨텍스트 주입용)
  */
-async function startCall(charName, matchedContact = null) {
+function buildRecentDialogueLines(limit = 5) {
+    const chat = getContext()?.chat || [];
+    return chat
+        .slice(Math.max(0, chat.length - limit))
+        .map((msg) => `${msg?.is_user ? '{{user}}' : (msg?.name || '{{char}}')}: ${String(msg?.mes || '').replace(/\s+/g, ' ').trim()}`)
+        .filter((line) => line.length > 0)
+        .join('\n');
+}
+
+async function startCall(charName, matchedContact = null, direction = 'outgoing') {
     if (callActive) return;
 
     const ctx = getContext();
@@ -538,10 +558,13 @@ async function startCall(charName, matchedContact = null) {
     }
 
     try {
+        const startMessage = direction === 'incoming'
+            ? `📞 ${charName}님께 걸려온 전화입니다. ${charName}님께서 전화를 받으셨습니다.`
+            : `📞 ${charName}님께 전화를 걸었습니다. ${charName}님께서 전화를 받으셨습니다.`;
         if (isMainChar) {
-            await slashSend(formatVoiceMsg(`📞 통화 시작 — ${charName}`));
+            await slashSend(formatVoiceMsg(startMessage));
         } else {
-            await slashSendAs('전화', formatVoiceMsg(`📞 통화 시작 — ${charName}와(과) 연결되었습니다.`));
+            await slashSendAs('전화', formatVoiceMsg(startMessage));
         }
     } catch (e) {
         console.error('[ST-LifeSim] 통화 시작 오류:', e);
@@ -643,9 +666,9 @@ async function initiateCallWithAiDecision(charName) {
     // 발신 중 메시지 삽입
     try {
         if (isMainChar) {
-            await slashSend(`📱 발신 중... ${charName}`);
+            await slashSend(`📱 ${charName}님께 전화를 거는 중입니다.`);
         } else {
-            await slashSendAs(charName, '📱 {{user}}의 전화 요청...');
+            await slashSendAs(charName, '📱 {{user}}님께서 전화를 거는 중입니다.');
         }
     } catch (e) {
         console.error('[ST-LifeSim] 발신 메시지 오류:', e);
@@ -695,7 +718,7 @@ async function initiateCallWithAiDecision(charName) {
         showToast(`${charName}이(가) 전화를 거부했습니다.`, 'warn', 3000);
     } else {
         // 착신 수락: 통화 시작 (matchedContact 전달)
-        await startCall(charName, matchedContact);
+        await startCall(charName, matchedContact, 'outgoing');
     }
 }
 

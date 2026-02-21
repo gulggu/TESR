@@ -14,6 +14,7 @@ import { registerContextBuilder } from '../../utils/context-inject.js';
 import { showToast, generateId } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 import { getContacts } from '../contacts/contacts.js';
+import { translate } from '../../../../translate/index.js';
 
 const MODULE_KEY = 'sns-feed';
 const AVATARS_KEY = 'sns-avatars';
@@ -27,11 +28,11 @@ const SNS_EXTRA_COMMENT_PROBABILITY = 0.35;
 const SNS_POST_TEXT_MAX = 280;
 const SNS_IMAGE_DESC_MAX = 220;
 const DEFAULT_SNS_PROMPTS = {
-    postChar: '{{charName}}의 SNS 게시글을 1개만 작성하세요. 반드시 한국어만 사용하고 {{charName}}의 성격/현재 상황에 맞는 자연스러운 일상 말투 한두 문장으로 작성하세요. 해시태그, 이미지 태그, 인용부호, 영어, 타인 반응/댓글, [캡션: ...] 같은 블록은 금지합니다. {{charName}} 본인 글만 출력하세요.',
-    postContact: '{{authorName}}의 SNS 게시글을 1개만 작성하세요. 성격: {{personality}}. 반드시 한국어만 사용하고 자연스러운 일상 SNS 말투 한두 문장으로 작성하세요. 해시태그, 이미지 태그, 인용부호, 영어, 타인 반응/댓글, [캡션: ...] 같은 블록은 금지합니다. {{authorName}} 본인 글만 출력하세요.',
-    imageDescription: '{{authorName}}의 SNS 게시글 "{{postContent}}"에 첨부된 사진 설명을 한국어 한 문장으로만 작성하세요. 사진에 실제로 보이는 내용만 간단히 말하고, 해시태그/따옴표/괄호/"캡션:" 접두어/영어는 금지합니다.',
-    reply: '다음 SNS 상황에 대한 답글 1개만 한국어로 작성하세요.\n게시글 작성자: {{postAuthorName}} ({{postAuthorHandle}})\n게시글: "{{postContent}}"\n대상 댓글 작성자: {{commentAuthorName}} ({{commentAuthorHandle}})\n대상 댓글: "{{commentText}}"\n답글 작성자: {{replyAuthorName}} ({{replyAuthorHandle}})\n규칙: 답글은 반드시 {{replyAuthorName}} 시점으로 한 문장만 작성. 필요하면 @멘션은 위의 고정 핸들만 사용. 한국어만 출력하고 영어/해설/따옴표/해시태그 금지. 성격 단서: {{replyPersonality}}.',
-    extraComment: '다음 SNS 게시글에 대한 추가 댓글 1개만 한국어로 작성하세요.\n게시글 작성자: {{postAuthorName}} ({{postAuthorHandle}})\n게시글: "{{postContent}}"\n댓글 작성자: {{extraAuthorName}} ({{extraAuthorHandle}})\n규칙: {{extraAuthorName}} 관점의 짧은 SNS 댓글 한 문장만 출력. 필요하면 @멘션은 고정 핸들만 사용. 한국어만 출력하고 영어/해설/따옴표/해시태그 금지. 성격 단서: {{extraPersonality}}.',
+    postChar: 'Write exactly one SNS post for {{charName}}. Use natural language and tone that fit {{charName}}\'s nationality/background, personality, and current situation. Keep it 1-2 casual daily-life sentences. Avoid repeating topics or phrasing from recent posts. Do not include hashtags, image tags, quotation marks, other people\'s reactions/comments, or [caption: ...] blocks. Output only {{charName}}\'s own post text.',
+    postContact: 'Write exactly one SNS post for {{authorName}}. Personality: {{personality}}. Use natural language and tone that fit {{authorName}}\'s nationality/background and daily context. Keep it 1-2 casual daily-life sentences and avoid repeating recent topics/phrasing. Do not include hashtags, image tags, quotation marks, other people\'s reactions/comments, or [caption: ...] blocks. Output only {{authorName}}\'s own post text.',
+    imageDescription: 'For {{authorName}}\'s SNS post "{{postContent}}", write exactly one short sentence describing the attached image. Mention only visible content. Do not use hashtags, quotes, parentheses, or any "caption:" prefix.',
+    reply: 'Write exactly one SNS reply for this thread.\nPost author: {{postAuthorName}} ({{postAuthorHandle}})\nPost: "{{postContent}}"\nTarget comment author: {{commentAuthorName}} ({{commentAuthorHandle}})\nTarget comment: "{{commentText}}"\nReply author: {{replyAuthorName}} ({{replyAuthorHandle}})\nRules: one sentence only from {{replyAuthorName}}\'s perspective; use only fixed @handles if needed; use natural language fitting {{replyAuthorName}}\'s background; no explanations, quotes, or hashtags. Personality hint: {{replyPersonality}}.',
+    extraComment: 'Write exactly one additional SNS comment for this post.\nPost author: {{postAuthorName}} ({{postAuthorHandle}})\nPost: "{{postContent}}"\nComment author: {{extraAuthorName}} ({{extraAuthorHandle}})\nRules: one short sentence from {{extraAuthorName}}\'s perspective; use only fixed @handles if needed; use natural language fitting {{extraAuthorName}}\'s background; no explanations, quotes, or hashtags. Personality hint: {{extraPersonality}}.',
 };
 const SNS_PRESET_BINDING = 'character';
 const MODEL_KEY_BY_SOURCE = {
@@ -344,7 +345,13 @@ export async function triggerNpcPosting() {
     const userName = ctx?.name1 || 'user';
     const postingEnabled = loadPostingEnabledMap();
 
-    const contacts = getContacts(getDefaultBinding());
+    const seenContactNames = new Set();
+    const contacts = [...getContacts('chat'), ...getContacts(getDefaultBinding())]
+        .filter((c) => {
+            if (!c?.name || seenContactNames.has(c.name)) return false;
+            seenContactNames.add(c.name);
+            return true;
+        });
     const candidates = [
         { name: charName, personality: '', isChar: true },
         ...contacts.map(c => ({ name: c.name, personality: c.personality, isChar: false })),
@@ -361,13 +368,21 @@ export async function triggerNpcPosting() {
         authorName: pick.name,
         personality: pick.personality || '평범함',
     });
+    const recentPosts = loadFeed()
+        .filter((item) => item?.authorName === pick.name && item?.content)
+        .slice(-5)
+        .map((item) => `- ${normalizeSnsText(item.content, 120)}`)
+        .join('\n');
+    const finalPrompt = recentPosts
+        ? `${prompt}\n최근 ${pick.name} 게시글 요약:\n${recentPosts}\n위 내용과 주제/표현을 반복하지 말고 새 일상 주제로 작성하세요.`
+        : prompt;
 
     try {
         const freshCtx = getContext();
         if (!freshCtx) return;
         let postContent = '(게시물)';
         try {
-            postContent = await generateSnsText(freshCtx, prompt, pick.name) || postContent;
+            postContent = await generateSnsText(freshCtx, finalPrompt, pick.name) || postContent;
         } catch (genErr) {
             console.error('[ST-LifeSim] NPC 포스팅 텍스트 생성 오류:', genErr);
             showToast('NPC 포스팅 생성 실패: ' + genErr.message, 'error');
@@ -653,6 +668,13 @@ function buildPostCard(post, onUpdate) {
 
     actions.appendChild(likeBtn);
     actions.appendChild(commentBtn);
+    const translatePostBtn = createTranslateButton(
+        post.content,
+        card,
+        () => card.querySelector('.slm-post-translation'),
+        'slm-post-translation',
+    );
+    actions.appendChild(translatePostBtn);
     actions.appendChild(contextLabel);
     card.appendChild(actions);
 
@@ -864,6 +886,14 @@ function renderComments(container, post, onUpdate) {
         textSpan.textContent = isReply ? ` ${node.text}` : node.text;
         commentDiv.appendChild(authorSpan);
         commentDiv.appendChild(textSpan);
+        const translateCommentBtn = createTranslateButton(
+            node.text,
+            commentDiv,
+            () => commentDiv.querySelector('.slm-comment-translation'),
+            'slm-comment-translation',
+            true,
+        );
+        commentDiv.appendChild(translateCommentBtn);
         parent.appendChild(commentDiv);
 
         if (Array.isArray(node.replies) && node.replies.length > 0) {
@@ -902,6 +932,32 @@ function renderComments(container, post, onUpdate) {
     inputRow.appendChild(input);
     inputRow.appendChild(submitBtn);
     container.appendChild(inputRow);
+}
+
+function createTranslateButton(text, parent, findExisting, translationClass, compact = false) {
+    const btn = document.createElement('button');
+    btn.className = `slm-btn slm-btn-ghost ${compact ? 'slm-btn-xs' : 'slm-btn-sm'}`;
+    btn.textContent = '한글 번역';
+    btn.onclick = async () => {
+        const existing = findExisting?.();
+        if (existing) {
+            existing.remove();
+            return;
+        }
+        btn.disabled = true;
+        try {
+            const translated = await translate(String(text || ''), 'ko');
+            const line = document.createElement('div');
+            line.className = translationClass;
+            line.textContent = `🇰🇷 ${translated || ''}`.trim();
+            parent.appendChild(line);
+        } catch (error) {
+            showToast('번역 실패', 'warn', 1200);
+        } finally {
+            btn.disabled = false;
+        }
+    };
+    return btn;
 }
 
 /**
@@ -1251,7 +1307,7 @@ function openWritePostDialog(onSave) {
             likedByUser: false,
             comments: [],
             isStory: false,
-            includeInContext: false,
+            includeInContext: true,
         });
         saveFeed(feed);
 

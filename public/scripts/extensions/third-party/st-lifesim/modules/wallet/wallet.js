@@ -3,7 +3,7 @@
  * 지갑 & 송금 모듈
  * - 첫 액세스 시 초기 잔액/화폐 설정
  * - 잔액 관리 (충전/차감)
- * - 송금 기능 (채팅에 노출되지 않음 — 내부 기록만)
+ * - 송금 기능 (채팅에 결과 노출 + 내부 기록)
  * - 커스텀 화폐 이름/기호 설정 (토글 접힘)
  * - 거래 내역 관리 (토글 접힘)
  */
@@ -14,6 +14,7 @@ import { showToast, escapeHtml, generateId } from '../../utils/ui.js';
 import { createPopup } from '../../utils/popup.js';
 import { getContacts } from '../contacts/contacts.js';
 import { getContext } from '../../utils/st-context.js';
+import { slashSend } from '../../utils/slash.js';
 
 const MODULE_KEY = 'wallet';
 // 초기 설정 완료 여부 키
@@ -441,7 +442,7 @@ function adjustBalance(delta, type, counterpart, onDone) {
 }
 
 /**
- * 송금을 처리한다 (채팅에 노출되지 않음 — 내부 기록만)
+ * 송금을 처리한다
  */
 async function handleSend(sender, recipient, amount, memo) {
     const wallet = loadWallet();
@@ -465,6 +466,9 @@ async function handleSend(sender, recipient, amount, memo) {
     saveWallet(wallet);
 
     showToast(`💸 ${sender} → ${recipient} ${formatCurrency(amount, wallet.currencySymbol)} 송금 완료`, 'success');
+    // '|'는 slash 체인 구분자로 해석될 수 있어 함께 정리한다.
+    const safeMemo = String(memo || '').replace(/[|\r\n]/g, ' ').trim();
+    await slashSend(`💸 ${sender} → ${recipient} ${formatCurrency(amount, wallet.currencySymbol)} 송금 완료${safeMemo ? ` 메모: ${safeMemo}` : ''}`);
 }
 
 /**
