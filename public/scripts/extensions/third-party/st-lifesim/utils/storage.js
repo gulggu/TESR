@@ -19,7 +19,7 @@ export function getExtensionSettings() {
 
 /**
  * 전역 설정에서 기본 바인딩 타입을 가져온다
- * @returns {'chat'|'character'|'global'}
+ * @returns {'chat'|'character'}
  */
 export function getDefaultBinding() {
     const ext = getExtensionSettings();
@@ -28,13 +28,10 @@ export function getDefaultBinding() {
 
 /**
  * 현재 바인딩 키를 반환한다 (채팅 ID 또는 캐릭터 ID)
- * @param {'chat'|'character'|'global'} binding - 바인딩 타입
+ * @param {'chat'|'character'} binding - 바인딩 타입
  * @returns {string} 저장소 키
  */
 function getBindingKey(binding) {
-    if (binding === 'global') {
-        return 'global';
-    }
     const ctx = getContext();
     if (!ctx) return 'default';
     if (binding === 'character') {
@@ -51,7 +48,7 @@ function getBindingKey(binding) {
  * 모듈 데이터를 저장한다
  * @param {string} module - 모듈 이름 (예: 'contacts', 'wallet')
  * @param {*} data - 저장할 데이터
- * @param {'chat'|'character'|'global'} binding - 바인딩 타입
+ * @param {'chat'|'character'} binding - 바인딩 타입
  */
 export function saveData(module, data, binding = 'chat') {
     const key = `${PREFIX}${module}:${getBindingKey(binding)}`;
@@ -66,7 +63,7 @@ export function saveData(module, data, binding = 'chat') {
  * 모듈 데이터를 불러온다
  * @param {string} module - 모듈 이름
  * @param {*} defaultValue - 기본값 (데이터가 없을 때 반환)
- * @param {'chat'|'character'|'global'} binding - 바인딩 타입
+ * @param {'chat'|'character'} binding - 바인딩 타입
  * @returns {*} 저장된 데이터 또는 기본값
  */
 export function loadData(module, defaultValue = null, binding = 'chat') {
@@ -84,7 +81,7 @@ export function loadData(module, defaultValue = null, binding = 'chat') {
 /**
  * 모듈 데이터를 삭제한다
  * @param {string} module - 모듈 이름
- * @param {'chat'|'character'|'global'} binding - 바인딩 타입
+ * @param {'chat'|'character'} binding - 바인딩 타입
  */
 export function deleteData(module, binding = 'chat') {
     const key = `${PREFIX}${module}:${getBindingKey(binding)}`;
