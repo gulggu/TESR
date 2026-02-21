@@ -35,6 +35,13 @@ const SETTINGS_KEY = 'st-lifesim';
 // 주간/야간 테마 저장 키 (localStorage)
 const THEME_STORAGE_KEY = 'st-lifesim:forced-theme';
 const ALWAYS_ON_MODULES = new Set(['quickTools', 'contacts']);
+const SNS_PROMPT_DEFAULTS = {
+    postChar: '{{charName}}의 SNS 게시글을 1개만 작성하세요. 반드시 한국어만 사용하고 {{charName}}의 성격/현재 상황에 맞는 자연스러운 일상 말투 한두 문장으로 작성하세요. 해시태그, 이미지 태그, 인용부호, 영어, 타인 반응/댓글, [캡션: ...] 같은 블록은 금지합니다. {{charName}} 본인 글만 출력하세요.',
+    postContact: '{{authorName}}의 SNS 게시글을 1개만 작성하세요. 성격: {{personality}}. 반드시 한국어만 사용하고 자연스러운 일상 SNS 말투 한두 문장으로 작성하세요. 해시태그, 이미지 태그, 인용부호, 영어, 타인 반응/댓글, [캡션: ...] 같은 블록은 금지합니다. {{authorName}} 본인 글만 출력하세요.',
+    imageDescription: '{{authorName}}의 SNS 게시글 "{{postContent}}"에 첨부된 사진 설명을 한국어 한 문장으로만 작성하세요. 사진에 실제로 보이는 내용만 간단히 말하고, 해시태그/따옴표/괄호/"캡션:" 접두어/영어는 금지합니다.',
+    reply: '다음 SNS 상황에 대한 답글 1개만 한국어로 작성하세요.\n게시글 작성자: {{postAuthorName}} ({{postAuthorHandle}})\n게시글: "{{postContent}}"\n대상 댓글 작성자: {{commentAuthorName}} ({{commentAuthorHandle}})\n대상 댓글: "{{commentText}}"\n답글 작성자: {{replyAuthorName}} ({{replyAuthorHandle}})\n규칙: 답글은 반드시 {{replyAuthorName}} 시점으로 한 문장만 작성. 필요하면 @멘션은 위의 고정 핸들만 사용. 한국어만 출력하고 영어/해설/따옴표/해시태그 금지. 성격 단서: {{replyPersonality}}.',
+    extraComment: '다음 SNS 게시글에 대한 추가 댓글 1개만 한국어로 작성하세요.\n게시글 작성자: {{postAuthorName}} ({{postAuthorHandle}})\n게시글: "{{postContent}}"\n댓글 작성자: {{extraAuthorName}} ({{extraAuthorHandle}})\n규칙: {{extraAuthorName}} 관점의 짧은 SNS 댓글 한 문장만 출력. 필요하면 @멘션은 고정 핸들만 사용. 한국어만 출력하고 영어/해설/따옴표/해시태그 금지. 성격 단서: {{extraPersonality}}.',
+};
 
 // 기본 설정
 const DEFAULT_SETTINGS = {
@@ -71,6 +78,9 @@ const DEFAULT_SETTINGS = {
     },
     snsPostingProbability: 10, // % (0~100)
     proactiveCallProbability: 0, // % (0~100)
+    snsExternalApiUrl: '',
+    snsExternalApiTimeoutMs: 12000,
+    snsPrompts: { ...SNS_PROMPT_DEFAULTS },
 };
 
 /**
@@ -133,6 +143,20 @@ function getSettings() {
     if (ext[SETTINGS_KEY].proactiveCallProbability == null) {
         ext[SETTINGS_KEY].proactiveCallProbability = DEFAULT_SETTINGS.proactiveCallProbability;
     }
+    if (typeof ext[SETTINGS_KEY].snsExternalApiUrl !== 'string') {
+        ext[SETTINGS_KEY].snsExternalApiUrl = DEFAULT_SETTINGS.snsExternalApiUrl;
+    }
+    if (!Number.isFinite(ext[SETTINGS_KEY].snsExternalApiTimeoutMs)) {
+        ext[SETTINGS_KEY].snsExternalApiTimeoutMs = DEFAULT_SETTINGS.snsExternalApiTimeoutMs;
+    }
+    if (!ext[SETTINGS_KEY].snsPrompts || typeof ext[SETTINGS_KEY].snsPrompts !== 'object') {
+        ext[SETTINGS_KEY].snsPrompts = { ...SNS_PROMPT_DEFAULTS };
+    }
+    Object.keys(SNS_PROMPT_DEFAULTS).forEach((key) => {
+        if (typeof ext[SETTINGS_KEY].snsPrompts[key] !== 'string') {
+            ext[SETTINGS_KEY].snsPrompts[key] = SNS_PROMPT_DEFAULTS[key];
+        }
+    });
     return ext[SETTINGS_KEY];
 }
 
@@ -740,12 +764,88 @@ function openSettingsPanel(onBack) {
         return wrapper;
     }
 
+    function buildSnsPromptTab() {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'slm-settings-wrapper slm-form';
+
+        const endpointRow = document.createElement('div');
+        endpointRow.className = 'slm-form-group';
+        endpointRow.appendChild(Object.assign(document.createElement('label'), { className: 'slm-label', textContent: 'SNS 외부 API URL (선택)' }));
+        const endpointInput = document.createElement('input');
+        endpointInput.className = 'slm-input';
+        endpointInput.type = 'text';
+        endpointInput.placeholder = 'https://... 또는 /api/...';
+        endpointInput.value = settings.snsExternalApiUrl || '';
+        endpointInput.onchange = () => {
+            settings.snsExternalApiUrl = endpointInput.value.trim();
+            saveSettings();
+        };
+        endpointRow.appendChild(endpointInput);
+        wrapper.appendChild(endpointRow);
+
+        const timeoutRow = document.createElement('div');
+        timeoutRow.className = 'slm-input-row';
+        const timeoutLabel = Object.assign(document.createElement('label'), { className: 'slm-label', textContent: '외부 API 타임아웃:' });
+        const timeoutInput = Object.assign(document.createElement('input'), {
+            className: 'slm-input slm-input-sm', type: 'number', min: '1000', max: '60000',
+            value: String(settings.snsExternalApiTimeoutMs ?? 12000),
+        });
+        timeoutInput.style.width = '100px';
+        const timeoutUnit = Object.assign(document.createElement('span'), { className: 'slm-label', textContent: 'ms' });
+        const timeoutApply = document.createElement('button');
+        timeoutApply.className = 'slm-btn slm-btn-primary slm-btn-sm';
+        timeoutApply.textContent = '적용';
+        timeoutApply.onclick = () => {
+            settings.snsExternalApiTimeoutMs = Math.max(1000, Math.min(60000, parseInt(timeoutInput.value) || 12000));
+            timeoutInput.value = String(settings.snsExternalApiTimeoutMs);
+            saveSettings();
+        };
+        timeoutRow.append(timeoutLabel, timeoutInput, timeoutUnit, timeoutApply);
+        wrapper.appendChild(timeoutRow);
+        wrapper.appendChild(Object.assign(document.createElement('hr'), { className: 'slm-hr' }));
+
+        if (!settings.snsPrompts) settings.snsPrompts = { ...SNS_PROMPT_DEFAULTS };
+        const promptDefs = [
+            { key: 'postChar', label: '캐릭터 게시글 프롬프트' },
+            { key: 'postContact', label: '연락처 게시글 프롬프트' },
+            { key: 'imageDescription', label: '이미지 설명 프롬프트' },
+            { key: 'reply', label: '답글 프롬프트' },
+            { key: 'extraComment', label: '추가 댓글 프롬프트' },
+        ];
+        promptDefs.forEach(({ key, label }) => {
+            const group = document.createElement('div');
+            group.className = 'slm-form-group';
+            const lbl = Object.assign(document.createElement('label'), { className: 'slm-label', textContent: label });
+            const input = document.createElement('textarea');
+            input.className = 'slm-textarea';
+            input.rows = 4;
+            input.value = settings.snsPrompts[key] || SNS_PROMPT_DEFAULTS[key];
+            input.onchange = () => {
+                settings.snsPrompts[key] = input.value.trim() || SNS_PROMPT_DEFAULTS[key];
+                input.value = settings.snsPrompts[key];
+                saveSettings();
+            };
+            const resetBtn = document.createElement('button');
+            resetBtn.className = 'slm-btn slm-btn-ghost slm-btn-sm';
+            resetBtn.textContent = '↺ 기본값';
+            resetBtn.onclick = () => {
+                settings.snsPrompts[key] = SNS_PROMPT_DEFAULTS[key];
+                input.value = settings.snsPrompts[key];
+                saveSettings();
+            };
+            group.append(lbl, input, resetBtn);
+            wrapper.appendChild(group);
+        });
+        return wrapper;
+    }
+
     const tabs = createTabs([
         { key: 'general', label: '⚙️ 일반', content: buildGeneralTab() },
         { key: 'modules', label: '🧩 모듈', content: buildModulesTab() },
         { key: 'media', label: '🖼️ 이미지', content: buildMediaTab() },
         { key: 'probability', label: '🎲 확률', content: buildProbabilityTab() },
         { key: 'theme', label: '🎨 테마', content: buildThemeTab() },
+        { key: 'prompts', label: '📝 프롬프트', content: buildSnsPromptTab() },
     ], 'general');
 
     createPopup({

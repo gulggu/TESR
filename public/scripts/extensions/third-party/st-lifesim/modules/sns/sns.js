@@ -26,6 +26,13 @@ const SNS_REPLY_PROBABILITY = 0.7;
 const SNS_EXTRA_COMMENT_PROBABILITY = 0.35;
 const SNS_POST_TEXT_MAX = 280;
 const SNS_IMAGE_DESC_MAX = 220;
+const DEFAULT_SNS_PROMPTS = {
+    postChar: '{{charName}}의 SNS 게시글을 1개만 작성하세요. 반드시 한국어만 사용하고 {{charName}}의 성격/현재 상황에 맞는 자연스러운 일상 말투 한두 문장으로 작성하세요. 해시태그, 이미지 태그, 인용부호, 영어, 타인 반응/댓글, [캡션: ...] 같은 블록은 금지합니다. {{charName}} 본인 글만 출력하세요.',
+    postContact: '{{authorName}}의 SNS 게시글을 1개만 작성하세요. 성격: {{personality}}. 반드시 한국어만 사용하고 자연스러운 일상 SNS 말투 한두 문장으로 작성하세요. 해시태그, 이미지 태그, 인용부호, 영어, 타인 반응/댓글, [캡션: ...] 같은 블록은 금지합니다. {{authorName}} 본인 글만 출력하세요.',
+    imageDescription: '{{authorName}}의 SNS 게시글 "{{postContent}}"에 첨부된 사진 설명을 한국어 한 문장으로만 작성하세요. 사진에 실제로 보이는 내용만 간단히 말하고, 해시태그/따옴표/괄호/"캡션:" 접두어/영어는 금지합니다.',
+    reply: '다음 SNS 상황에 대한 답글 1개만 한국어로 작성하세요.\n게시글 작성자: {{postAuthorName}} ({{postAuthorHandle}})\n게시글: "{{postContent}}"\n대상 댓글 작성자: {{commentAuthorName}} ({{commentAuthorHandle}})\n대상 댓글: "{{commentText}}"\n답글 작성자: {{replyAuthorName}} ({{replyAuthorHandle}})\n규칙: 답글은 반드시 {{replyAuthorName}} 시점으로 한 문장만 작성. 필요하면 @멘션은 위의 고정 핸들만 사용. 한국어만 출력하고 영어/해설/따옴표/해시태그 금지. 성격 단서: {{replyPersonality}}.',
+    extraComment: '다음 SNS 게시글에 대한 추가 댓글 1개만 한국어로 작성하세요.\n게시글 작성자: {{postAuthorName}} ({{postAuthorHandle}})\n게시글: "{{postContent}}"\n댓글 작성자: {{extraAuthorName}} ({{extraAuthorHandle}})\n규칙: {{extraAuthorName}} 관점의 짧은 SNS 댓글 한 문장만 출력. 필요하면 @멘션은 고정 핸들만 사용. 한국어만 출력하고 영어/해설/따옴표/해시태그 금지. 성격 단서: {{extraPersonality}}.',
+};
 // 댓글 직후 즉시 생성하지 않고, 유저 메시지 이벤트에서 확률적으로 하나씩 처리하는 큐다.
 const PENDING_COMMENT_REACTIONS = [];
 let pendingReactionInFlight = false;
@@ -77,6 +84,20 @@ function savePostingEnabledMap(map) {
 function getDefaultImageUrl() {
     const ext = getExtensionSettings();
     return ext?.['st-lifesim']?.defaultSnsImageUrl || '';
+}
+
+function getSnsPromptSettings() {
+    const ext = getExtensionSettings()?.['st-lifesim'];
+    const prompts = ext?.snsPrompts || {};
+    return {
+        templates: { ...DEFAULT_SNS_PROMPTS, ...prompts },
+        externalApiUrl: String(ext?.snsExternalApiUrl || '').trim(),
+        externalApiTimeoutMs: Math.max(1000, Math.min(60000, Number(ext?.snsExternalApiTimeoutMs) || 12000)),
+    };
+}
+
+function applyPromptTemplate(template, vars) {
+    return String(template || '').replace(/\{\{(\w+)}}/g, (_, key) => String(vars?.[key] ?? ''));
 }
 
 /**
@@ -284,9 +305,13 @@ export async function triggerNpcPosting() {
 
     const pick = getRandomItem(candidates);
     if (!pick) return;
-    const prompt = pick.isChar
-        ? `${charName}의 SNS 게시글을 1개만 작성하세요. 반드시 한국어만 사용하고 ${charName}의 성격/현재 상황에 맞는 자연스러운 일상 말투 한두 문장으로 작성하세요. 해시태그, 이미지 태그, 인용부호, 영어, 타인 반응/댓글, [캡션: ...] 같은 블록은 금지합니다. ${charName} 본인 글만 출력하세요.`
-        : `${pick.name}의 SNS 게시글을 1개만 작성하세요. 성격: ${pick.personality || '평범함'}. 반드시 한국어만 사용하고 자연스러운 일상 SNS 말투 한두 문장으로 작성하세요. 해시태그, 이미지 태그, 인용부호, 영어, 타인 반응/댓글, [캡션: ...] 같은 블록은 금지합니다. ${pick.name} 본인 글만 출력하세요.`;
+    const promptSettings = getSnsPromptSettings();
+    const promptTemplate = pick.isChar ? promptSettings.templates.postChar : promptSettings.templates.postContact;
+    const prompt = applyPromptTemplate(promptTemplate, {
+        charName,
+        authorName: pick.name,
+        personality: pick.personality || '평범함',
+    });
 
     try {
         const freshCtx = getContext();
@@ -310,7 +335,10 @@ export async function triggerNpcPosting() {
         const finalImageUrl = defaultImg || presetImg;
         let imageDescription = '';
         if (finalImageUrl && (typeof freshCtx.generateQuietPrompt === 'function' || typeof freshCtx.generateRaw === 'function')) {
-            const descPrompt = `${pick.name}의 SNS 게시글 "${postContent}"에 첨부된 사진 설명을 한국어 한 문장으로만 작성하세요. 사진에 실제로 보이는 내용만 간단히 말하고, 해시태그/따옴표/괄호/"캡션:" 접두어/영어는 금지합니다.`;
+            const descPrompt = applyPromptTemplate(promptSettings.templates.imageDescription, {
+                authorName: pick.name,
+                postContent,
+            });
             imageDescription = normalizeSnsText(await generateSnsText(freshCtx, descPrompt, `${pick.name}-image-desc`), SNS_IMAGE_DESC_MAX);
         }
         if (!imageDescription && inlineCaption) imageDescription = inlineCaption;
@@ -892,6 +920,38 @@ function findCommentNodeById(nodes, id) {
 
 async function generateSnsText(ctx, quietPrompt, quietName) {
     if (!ctx) return '';
+    const promptSettings = getSnsPromptSettings();
+    if (promptSettings.externalApiUrl) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), promptSettings.externalApiTimeoutMs);
+        try {
+            const headers = { 'Content-Type': 'application/json' };
+            if (typeof ctx.getRequestHeaders === 'function') {
+                Object.assign(headers, ctx.getRequestHeaders());
+            }
+            const response = await fetch(promptSettings.externalApiUrl, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ prompt: quietPrompt, quietName, module: 'st-lifesim-sns' }),
+                signal: controller.signal,
+            });
+            if (response.ok) {
+                const rawText = await response.text();
+                try {
+                    const json = JSON.parse(rawText || 'null');
+                    if (typeof json === 'string') return json.trim();
+                    if (typeof json?.text === 'string') return json.text.trim();
+                } catch { /* non-JSON 응답은 그대로 사용 */ }
+                if (rawText) return rawText.trim();
+            } else {
+                console.warn('[ST-LifeSim] SNS 외부 API 응답 오류:', response.status);
+            }
+        } catch (error) {
+            console.warn('[ST-LifeSim] SNS 외부 API 호출 실패, 내부 생성으로 폴백:', error);
+        } finally {
+            clearTimeout(timer);
+        }
+    }
     if (typeof ctx.generateRaw === 'function') {
         return (await ctx.generateRaw({ prompt: quietPrompt, quietToLoud: false, trimNames: true }) || '').trim();
     }
@@ -912,6 +972,7 @@ async function runDeferredCommentGeneration({ postId, commentId, text, userName,
 
         const safePostContent = String(p.content || '').replace(/[{}\n\r]/g, ' ').slice(0, 300);
         const safeComment = String(text || '').replace(/[{}\n\r]/g, ' ').slice(0, 200);
+        const promptSettings = getSnsPromptSettings();
         const userIds = loadUserIds();
         const postAuthorHandle = getAuthorHandle(p.authorName, userIds);
         const userHandle = getAuthorHandle(userName, userIds);
@@ -939,7 +1000,17 @@ async function runDeferredCommentGeneration({ postId, commentId, text, userName,
         if (shouldReply && replyAuthorCandidates.length > 0) {
             const replyAuthor = replyAuthorCandidates[Math.floor(Math.random() * replyAuthorCandidates.length)];
             const replyAuthorHandle = getAuthorHandle(replyAuthor.name, userIds);
-            const replyPrompt = `다음 SNS 상황에 대한 답글 1개만 한국어로 작성하세요.\n게시글 작성자: ${p.authorName} (${postAuthorHandle})\n게시글: "${safePostContent}"\n대상 댓글 작성자: ${userName} (${userHandle})\n대상 댓글: "${safeComment}"\n답글 작성자: ${replyAuthor.name} (${replyAuthorHandle})\n규칙: 답글은 반드시 ${replyAuthor.name} 시점으로 한 문장만 작성. 필요하면 @멘션은 위의 고정 핸들(${postAuthorHandle}, ${userHandle}, ${replyAuthorHandle})만 사용. 한국어만 출력하고 영어/해설/따옴표/해시태그 금지. 성격 단서: ${replyAuthor.personality || '평범하고 자연스러운 말투'}.`;
+            const replyPrompt = applyPromptTemplate(promptSettings.templates.reply, {
+                postAuthorName: p.authorName,
+                postAuthorHandle,
+                postContent: safePostContent,
+                commentAuthorName: userName,
+                commentAuthorHandle: userHandle,
+                commentText: safeComment,
+                replyAuthorName: replyAuthor.name,
+                replyAuthorHandle,
+                replyPersonality: replyAuthor.personality || '평범하고 자연스러운 말투',
+            });
             replyText = await generateSnsText(ctx, replyPrompt, replyAuthor.name);
             if (replyText) {
                 const replyId = generateId();
@@ -967,7 +1038,15 @@ async function runDeferredCommentGeneration({ postId, commentId, text, userName,
             if (candidates.length > 0) {
                 const picker = candidates[Math.floor(Math.random() * candidates.length)];
                 const pickerHandle = getAuthorHandle(picker.name, userIds);
-                const contactPrompt = `다음 SNS 게시글에 대한 추가 댓글 1개만 한국어로 작성하세요.\n게시글 작성자: ${p.authorName} (${postAuthorHandle})\n게시글: "${safePostContent}"\n댓글 작성자: ${picker.name} (${pickerHandle})\n규칙: ${picker.name} 관점의 짧은 SNS 댓글 한 문장만 출력. 필요하면 @멘션은 고정 핸들(${postAuthorHandle}, ${userHandle}, ${pickerHandle})만 사용. 한국어만 출력하고 영어/해설/따옴표/해시태그 금지. 성격 단서: ${picker.personality || '평범하고 자연스러운 말투'}.`;
+                const contactPrompt = applyPromptTemplate(promptSettings.templates.extraComment, {
+                    postAuthorName: p.authorName,
+                    postAuthorHandle,
+                    postContent: safePostContent,
+                    extraAuthorName: picker.name,
+                    extraAuthorHandle: pickerHandle,
+                    extraPersonality: picker.personality || '평범하고 자연스러운 말투',
+                    commentAuthorHandle: userHandle,
+                });
                 const generated = await generateSnsText(ctx, contactPrompt, picker.name);
                 if (generated) {
                     extraContactComment = {
