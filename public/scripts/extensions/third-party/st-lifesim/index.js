@@ -13,7 +13,7 @@
  * 6. 확장 전체 ON/OFF 및 각 모듈별 개별 활성화 관리
  */
 
-import { getContext } from './utils/st-context.js';
+import { getContext, getSafeEventHandles } from './utils/st-context.js';
 import { getExtensionSettings } from './utils/storage.js';
 import { injectContext, clearContext } from './utils/context-inject.js';
 import { createPopup, createTabs, closePopup } from './utils/popup.js';
@@ -1265,23 +1265,6 @@ async function initIfNeeded() {
     if (initialized || initializing) return;
     initializing = true;
     try { initialized = await init(); } catch (e) { console.error('[ST-LifeSim] 초기화 오류:', e); } finally { initializing = false; }
-}
-
-/**
- * 안전하게 SillyTavern eventSource와 eventTypes를 가져온다.
- * getContext()가 null을 반환하거나 속성이 없을 때에도 오류 없이 동작한다.
- * @returns {{ evSrc: any, eventTypes: any }}
- */
-function getSafeEventHandles() {
-    try {
-        const ctx = getContext();
-        if (!ctx) return { evSrc: null, eventTypes: null };
-        const evSrc = ctx.eventSource ?? null;
-        const eventTypes = ctx.eventTypes ?? ctx.event_types ?? null;
-        return { evSrc, eventTypes };
-    } catch {
-        return { evSrc: null, eventTypes: null };
-    }
 }
 
 // SillyTavern APP_READY 이벤트에서 초기화 실행 (호환성 위해 즉시 시도도 함께 수행)

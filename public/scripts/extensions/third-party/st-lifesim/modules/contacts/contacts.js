@@ -8,7 +8,7 @@
  * - 채팅별 또는 캐릭터별 바인딩
  */
 
-import { getContext } from '../../utils/st-context.js';
+import { getContext, getSafeEventHandles } from '../../utils/st-context.js';
 import { loadData, saveData, getExtensionSettings } from '../../utils/storage.js';
 import { registerContextBuilder } from '../../utils/context-inject.js';
 import { showToast, escapeHtml, generateId } from '../../utils/ui.js';
@@ -138,9 +138,7 @@ export function initContacts() {
 
     // 채팅 로드 시 {{char}} 자동 추가
     try {
-        const ctx = getContext();
-        const evSrc = ctx?.eventSource;
-        const evTypes = ctx?.eventTypes ?? ctx?.event_types;
+        const { evSrc, eventTypes: evTypes } = getSafeEventHandles();
         if (evSrc?.on && evTypes?.CHAT_CHANGED) {
             evSrc.on(evTypes.CHAT_CHANGED, () => {
                 ensureCharContact();
