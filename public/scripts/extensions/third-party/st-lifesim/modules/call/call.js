@@ -74,6 +74,7 @@ function formatVoiceMsg(text) {
 
 // 통화 감지 키워드 (설정에서 변경 가능)
 const DEFAULT_KEYWORDS = ['전화할게', '전화 걸게', '전화해도 돼', '전화 줄게', 'call', 'phone'];
+const EXPLICIT_CHAR_CALL_INTENT_RE = /(지금\s*전화(할게|걸게)|곧\s*전화(할게|걸게)|I['’]m calling( you)? now|calling you now)/i;
 
 // 통화 진행 중 상태
 let callActive = false;
@@ -362,6 +363,9 @@ async function detectCallKeywords() {
 }
 
 async function classifyIncomingCallIntent(messageText) {
+    if (EXPLICIT_CHAR_CALL_INTENT_RE.test(String(messageText || ''))) {
+        return { incoming: true };
+    }
     const ctx = getContext();
     const fallback = {
         incoming: /(전화할게|전화 걸게|calling you|pick up|answer)/i.test(messageText),
