@@ -1753,6 +1753,7 @@ export async function openThirdPartyExtensionMenu(suggestUrl = '') {
     const isCurrentUserAdmin = isAdmin();
     const html = await renderTemplateAsync('installExtension', { isCurrentUserAdmin });
     const okButton = isCurrentUserAdmin ? t`Install just for me` : t`Install`;
+    const defaultUrl = typeof suggestUrl === 'string' ? suggestUrl : '';
 
     let global = false;
     const installForAllButton = {
@@ -1773,7 +1774,7 @@ export async function openThirdPartyExtensionMenu(suggestUrl = '') {
 
     const customButtons = isCurrentUserAdmin ? [installForAllButton] : [];
     const customInputs = [branchNameInput];
-    const popup = new Popup(html, POPUP_TYPE.INPUT, suggestUrl ?? '', { okButton, customButtons, customInputs });
+    const popup = new Popup(html, POPUP_TYPE.INPUT, defaultUrl, { okButton, customButtons, customInputs });
     const input = await popup.show();
 
     if (!input) {
