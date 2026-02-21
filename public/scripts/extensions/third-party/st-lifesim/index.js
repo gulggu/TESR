@@ -840,21 +840,36 @@ function openSettingsPanel(onBack) {
 
         const apiRouteTitle = Object.assign(document.createElement('div'), {
             className: 'slm-label',
-            textContent: '🤖 기능별 AI 라우팅 (내부 API/모델)',
+            textContent: '🤖 기능별 AI 모델 지정',
         });
         apiRouteTitle.style.fontWeight = '700';
         wrapper.appendChild(apiRouteTitle);
 
-        const apiOptions = [
-            { value: '', label: '전역 설정 사용' },
-            { value: 'openai', label: 'OpenAI/Chat Completion' },
-            { value: 'textgenerationwebui', label: 'TextGen WebUI' },
-            { value: 'novel', label: 'NovelAI' },
-            { value: 'kobold', label: 'KoboldAI' },
-            { value: 'koboldhorde', label: 'Kobold Horde' },
+        const apiRouteDesc = Object.assign(document.createElement('div'), {
+            className: 'slm-label',
+            textContent: '공급자와 모델을 지정하면 해당 기능에만 별도 AI를 사용합니다. 비워두면 현재 전역 설정을 사용합니다.',
+        });
+        apiRouteDesc.style.fontSize = '12px';
+        apiRouteDesc.style.marginBottom = '8px';
+        wrapper.appendChild(apiRouteDesc);
+
+        // 공급자별 표시 레이블 및 예시 모델
+        const PROVIDER_OPTIONS = [
+            { value: '', label: '전역 설정 사용 (기본)', models: [] },
+            { value: 'openai', label: 'OpenAI (GPT)', models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'] },
+            { value: 'claude', label: 'Claude (Anthropic)', models: ['claude-3-5-sonnet-latest', 'claude-3-5-haiku-latest', 'claude-3-opus-latest'] },
+            { value: 'makersuite', label: 'Google AI (Gemini)', models: ['gemini-2.5-pro', 'gemini-2.0-flash', 'gemini-1.5-pro'] },
+            { value: 'openrouter', label: 'OpenRouter', models: ['google/gemini-2.0-flash-001', 'anthropic/claude-3.5-haiku', 'meta-llama/llama-3.3-70b-instruct'] },
+            { value: 'deepseek', label: 'DeepSeek', models: ['deepseek-chat', 'deepseek-reasoner'] },
+            { value: 'groq', label: 'Groq', models: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'] },
+            { value: 'mistralai', label: 'Mistral AI', models: ['mistral-large-latest', 'mistral-small-latest'] },
+            { value: 'xai', label: 'xAI (Grok)', models: ['grok-2-latest', 'grok-beta'] },
+            { value: 'cohere', label: 'Cohere', models: ['command-r-plus', 'command-r'] },
+            { value: 'perplexity', label: 'Perplexity', models: ['llama-3.1-sonar-large-128k-online'] },
+            { value: 'vertexai', label: 'Vertex AI (Google Cloud)', models: ['gemini-2.5-pro', 'gemini-2.0-flash'] },
+            { value: 'custom', label: '커스텀 API', models: [] },
         ];
-        const chatSettings = getContext()?.chatCompletionSettings || {};
-        const chatSourceOptions = Object.keys(ROUTE_MODEL_KEY_BY_SOURCE);
+
         function buildAiRouteEditor(title, route) {
             const group = document.createElement('div');
             group.className = 'slm-form-group';
@@ -862,37 +877,27 @@ function openSettingsPanel(onBack) {
             groupTitle.style.fontWeight = '600';
             group.appendChild(groupTitle);
 
-            const apiSelect = document.createElement('select');
-            apiSelect.className = 'slm-select';
-            apiOptions.forEach(({ value, label }) => {
-                const opt = document.createElement('option');
-                opt.value = value;
-                opt.textContent = label;
-                apiSelect.appendChild(opt);
-            });
-            apiSelect.value = route.api || '';
-            apiSelect.onchange = () => { route.api = apiSelect.value; saveSettings(); };
-            group.appendChild(apiSelect);
-
             const sourceSelect = document.createElement('select');
             sourceSelect.className = 'slm-select';
-            sourceSelect.appendChild(Object.assign(document.createElement('option'), { value: '', textContent: 'chat source 자동' }));
-            chatSourceOptions.forEach((source) => {
-                sourceSelect.appendChild(Object.assign(document.createElement('option'), { value: source, textContent: source }));
+            PROVIDER_OPTIONS.forEach(({ value, label }) => {
+                sourceSelect.appendChild(Object.assign(document.createElement('option'), { value, textContent: label }));
             });
-            sourceSelect.value = chatSourceOptions.includes(route.chatSource) ? route.chatSource : '';
+            const validSources = PROVIDER_OPTIONS.map(o => o.value);
+            sourceSelect.value = validSources.includes(route.chatSource) ? route.chatSource : '';
+
             const modelInput = document.createElement('input');
             modelInput.className = 'slm-input';
             modelInput.type = 'text';
-            modelInput.placeholder = '모델 자동 선택';
+
             function refreshModelInput() {
-                const modelKey = ROUTE_MODEL_KEY_BY_SOURCE[sourceSelect.value] || route.modelSettingKey || '';
-                const modelValue = String(chatSettings?.[modelKey] || '').trim();
-                modelInput.placeholder = modelValue || '모델 자동 선택';
+                const presets = PROVIDER_OPTIONS.find(o => o.value === sourceSelect.value)?.models || [];
+                modelInput.placeholder = presets.length > 0 ? `예: ${presets[0]}` : '모델명 입력 (예: gpt-4o-mini)';
                 modelInput.value = route.model || '';
             }
+
             sourceSelect.onchange = () => {
                 route.chatSource = sourceSelect.value;
+                route.api = '';
                 route.modelSettingKey = ROUTE_MODEL_KEY_BY_SOURCE[route.chatSource] || '';
                 route.model = '';
                 refreshModelInput();
@@ -1034,7 +1039,11 @@ function hasForcedCallIntentFromLatestUserMessage() {
     const lastUserMsg = ctx?.chat?.[ctx.chat.length - 1];
     if (!lastUserMsg || !lastUserMsg.is_user) return false;
     const text = String(lastUserMsg.mes || '');
-    return /(전화\s*해|전화\s*줘|전화\s*걸어|call\s*me|give\s*me\s*a\s*call|call\s*now)/i.test(text);
+    // 전화 요청 패턴: "전화해줘", "call me" 등
+    const callRequestRe = /전화\s*해|전화\s*줘|전화\s*걸어|전화\s*해줘|call\s*me|give\s*me\s*a\s*call|call\s*now/i;
+    // 그리움/보고싶다 패턴: 전화 유도 강도 있는 표현
+    const longingRe = /보고\s*싶[어다]|보고\s*싶[어다]고|그립[다워]|miss\s+you\b/i;
+    return callRequestRe.test(text) || longingRe.test(text);
 }
 
 function syncQuickSendButtons() {
