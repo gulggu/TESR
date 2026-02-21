@@ -27,7 +27,7 @@ import { initCall, onCharacterMessageRenderedForProactiveCall, openCallLogsPopup
 import { initWallet, openWalletPopup } from './modules/wallet/wallet.js';
 import { initSns, openSnsPopup, triggerNpcPosting, triggerPendingCommentReaction, hasPendingCommentReaction } from './modules/sns/sns.js';
 import { initCalendar, openCalendarPopup } from './modules/calendar/calendar.js';
-import { initGifticon, openGifticonPopup } from './modules/gifticon/gifticon.js';
+import { initGifticon, openGifticonPopup, trackGifticonUsageFromCharacterMessage } from './modules/gifticon/gifticon.js';
 
 // 설정 키
 const SETTINGS_KEY = 'st-lifesim';
@@ -41,12 +41,38 @@ const AI_ROUTE_DEFAULTS = {
     modelSettingKey: '',
     model: '',
 };
+const ROUTE_MODEL_KEY_BY_SOURCE = {
+    openai: 'openai_model',
+    claude: 'claude_model',
+    makersuite: 'google_model',
+    vertexai: 'vertexai_model',
+    openrouter: 'openrouter_model',
+    ai21: 'ai21_model',
+    mistralai: 'mistralai_model',
+    cohere: 'cohere_model',
+    perplexity: 'perplexity_model',
+    groq: 'groq_model',
+    chutes: 'chutes_model',
+    siliconflow: 'siliconflow_model',
+    electronhub: 'electronhub_model',
+    nanogpt: 'nanogpt_model',
+    deepseek: 'deepseek_model',
+    aimlapi: 'aimlapi_model',
+    xai: 'xai_model',
+    pollinations: 'pollinations_model',
+    cometapi: 'cometapi_model',
+    moonshot: 'moonshot_model',
+    fireworks: 'fireworks_model',
+    azure_openai: 'azure_openai_model',
+    custom: 'custom_model',
+    zai: 'zai_model',
+};
 const SNS_PROMPT_DEFAULTS = {
-    postChar: '{{charName}}의 SNS 게시글을 1개만 작성하세요. 반드시 한국어만 사용하고 {{charName}}의 성격/현재 상황에 맞는 자연스러운 일상 말투 한두 문장으로 작성하세요. 해시태그, 이미지 태그, 인용부호, 영어, 타인 반응/댓글, [캡션: ...] 같은 블록은 금지합니다. {{charName}} 본인 글만 출력하세요.',
-    postContact: '{{authorName}}의 SNS 게시글을 1개만 작성하세요. 성격: {{personality}}. 반드시 한국어만 사용하고 자연스러운 일상 SNS 말투 한두 문장으로 작성하세요. 해시태그, 이미지 태그, 인용부호, 영어, 타인 반응/댓글, [캡션: ...] 같은 블록은 금지합니다. {{authorName}} 본인 글만 출력하세요.',
-    imageDescription: '{{authorName}}의 SNS 게시글 "{{postContent}}"에 첨부된 사진 설명을 한국어 한 문장으로만 작성하세요. 사진에 실제로 보이는 내용만 간단히 말하고, 해시태그/따옴표/괄호/"캡션:" 접두어/영어는 금지합니다.',
-    reply: '다음 SNS 상황에 대한 답글 1개만 한국어로 작성하세요.\n게시글 작성자: {{postAuthorName}} ({{postAuthorHandle}})\n게시글: "{{postContent}}"\n대상 댓글 작성자: {{commentAuthorName}} ({{commentAuthorHandle}})\n대상 댓글: "{{commentText}}"\n답글 작성자: {{replyAuthorName}} ({{replyAuthorHandle}})\n규칙: 답글은 반드시 {{replyAuthorName}} 시점으로 한 문장만 작성. 필요하면 @멘션은 위의 고정 핸들만 사용. 한국어만 출력하고 영어/해설/따옴표/해시태그 금지. 성격 단서: {{replyPersonality}}.',
-    extraComment: '다음 SNS 게시글에 대한 추가 댓글 1개만 한국어로 작성하세요.\n게시글 작성자: {{postAuthorName}} ({{postAuthorHandle}})\n게시글: "{{postContent}}"\n댓글 작성자: {{extraAuthorName}} ({{extraAuthorHandle}})\n규칙: {{extraAuthorName}} 관점의 짧은 SNS 댓글 한 문장만 출력. 필요하면 @멘션은 고정 핸들만 사용. 한국어만 출력하고 영어/해설/따옴표/해시태그 금지. 성격 단서: {{extraPersonality}}.',
+    postChar: '{{charName}}의 SNS 게시글을 1개만 작성하세요. {{charName}}의 국적/배경에 자연스러운 언어와 말투를 사용하고, 성격/현재 상황에 맞는 일상 문장 한두 줄만 작성하세요. 최근 게시글과 주제/표현이 겹치지 않게 완전히 다른 일상 주제를 선택하세요. 해시태그, 이미지 태그, 인용부호, 타인 반응/댓글, [캡션: ...] 같은 블록은 금지합니다. {{charName}} 본인 글만 출력하세요.',
+    postContact: '{{authorName}}의 SNS 게시글을 1개만 작성하세요. 성격: {{personality}}. {{authorName}}의 국적/배경에 자연스러운 언어와 말투를 사용하고, 최근 게시글과 주제/표현이 겹치지 않게 다른 일상 주제를 선택하세요. 해시태그, 이미지 태그, 인용부호, 타인 반응/댓글, [캡션: ...] 같은 블록은 금지합니다. {{authorName}} 본인 글만 출력하세요.',
+    imageDescription: '{{authorName}}의 SNS 게시글 "{{postContent}}"에 첨부된 사진 설명을 한 문장으로만 작성하세요. 사진에 실제로 보이는 내용만 간단히 말하고, 해시태그/따옴표/괄호/"캡션:" 접두어는 금지합니다.',
+    reply: '다음 SNS 상황에 대한 답글 1개를 작성하세요.\n게시글 작성자: {{postAuthorName}} ({{postAuthorHandle}})\n게시글: "{{postContent}}"\n대상 댓글 작성자: {{commentAuthorName}} ({{commentAuthorHandle}})\n대상 댓글: "{{commentText}}"\n답글 작성자: {{replyAuthorName}} ({{replyAuthorHandle}})\n규칙: 답글은 반드시 {{replyAuthorName}} 시점으로 한 문장만 작성. 필요하면 @멘션은 위의 고정 핸들만 사용. {{replyAuthorName}}의 배경에 자연스러운 언어를 사용하고 해설/따옴표/해시태그 금지. 성격 단서: {{replyPersonality}}.',
+    extraComment: '다음 SNS 게시글에 대한 추가 댓글 1개를 작성하세요.\n게시글 작성자: {{postAuthorName}} ({{postAuthorHandle}})\n게시글: "{{postContent}}"\n댓글 작성자: {{extraAuthorName}} ({{extraAuthorHandle}})\n규칙: {{extraAuthorName}} 관점의 짧은 SNS 댓글 한 문장만 출력. 필요하면 @멘션은 고정 핸들만 사용. {{extraAuthorName}}의 배경에 자연스러운 언어를 사용하고 해설/따옴표/해시태그 금지. 성격 단서: {{extraPersonality}}.',
 };
 
 // 기본 설정
@@ -812,6 +838,11 @@ function openSettingsPanel(onBack) {
             { value: 'kobold', label: 'KoboldAI' },
             { value: 'koboldhorde', label: 'Kobold Horde' },
         ];
+        const chatSettings = getContext()?.chatCompletionSettings || {};
+        const chatSourceOptions = Object.keys(ROUTE_MODEL_KEY_BY_SOURCE);
+        const knownModelValues = [...new Set(Object.values(ROUTE_MODEL_KEY_BY_SOURCE)
+            .map((key) => String(chatSettings?.[key] || '').trim())
+            .filter(Boolean))];
 
         function buildAiRouteEditor(title, route) {
             const group = document.createElement('div');
@@ -832,26 +863,32 @@ function openSettingsPanel(onBack) {
             apiSelect.onchange = () => { route.api = apiSelect.value; saveSettings(); };
             group.appendChild(apiSelect);
 
-            const sourceInput = document.createElement('input');
-            sourceInput.className = 'slm-input';
-            sourceInput.placeholder = 'chat source (예: openai, claude, deepseek) - 선택';
-            sourceInput.value = route.chatSource || '';
-            sourceInput.onchange = () => { route.chatSource = sourceInput.value.trim(); saveSettings(); };
-            group.appendChild(sourceInput);
+            const sourceSelect = document.createElement('select');
+            sourceSelect.className = 'slm-select';
+            sourceSelect.appendChild(Object.assign(document.createElement('option'), { value: '', textContent: 'chat source 자동' }));
+            chatSourceOptions.forEach((source) => {
+                sourceSelect.appendChild(Object.assign(document.createElement('option'), { value: source, textContent: source }));
+            });
+            sourceSelect.value = chatSourceOptions.includes(route.chatSource) ? route.chatSource : '';
+            sourceSelect.onchange = () => {
+                route.chatSource = sourceSelect.value;
+                route.modelSettingKey = ROUTE_MODEL_KEY_BY_SOURCE[route.chatSource] || '';
+                saveSettings();
+            };
+            group.appendChild(sourceSelect);
 
-            const modelKeyInput = document.createElement('input');
-            modelKeyInput.className = 'slm-input';
-            modelKeyInput.placeholder = 'model setting key (예: openai_model) - 선택';
-            modelKeyInput.value = route.modelSettingKey || '';
-            modelKeyInput.onchange = () => { route.modelSettingKey = modelKeyInput.value.trim(); saveSettings(); };
-            group.appendChild(modelKeyInput);
-
-            const modelInput = document.createElement('input');
-            modelInput.className = 'slm-input';
-            modelInput.placeholder = 'model id (예: gpt-4o-mini) - 선택';
-            modelInput.value = route.model || '';
-            modelInput.onchange = () => { route.model = modelInput.value.trim(); saveSettings(); };
-            group.appendChild(modelInput);
+            const modelSelect = document.createElement('select');
+            modelSelect.className = 'slm-select';
+            modelSelect.appendChild(Object.assign(document.createElement('option'), { value: '', textContent: '모델 자동 선택' }));
+            knownModelValues.forEach((modelValue) => {
+                modelSelect.appendChild(Object.assign(document.createElement('option'), { value: modelValue, textContent: modelValue }));
+            });
+            if (route.model && !knownModelValues.includes(route.model)) {
+                modelSelect.appendChild(Object.assign(document.createElement('option'), { value: route.model, textContent: route.model }));
+            }
+            modelSelect.value = route.model || '';
+            modelSelect.onchange = () => { route.model = modelSelect.value; saveSettings(); };
+            group.appendChild(modelSelect);
 
             wrapper.appendChild(group);
         }
@@ -863,16 +900,22 @@ function openSettingsPanel(onBack) {
         const endpointRow = document.createElement('div');
         endpointRow.className = 'slm-form-group';
         endpointRow.appendChild(Object.assign(document.createElement('label'), { className: 'slm-label', textContent: 'SNS 외부 API URL (선택)' }));
-        const endpointInput = document.createElement('input');
-        endpointInput.className = 'slm-input';
-        endpointInput.type = 'text';
-        endpointInput.placeholder = 'https://... 또는 /api/...';
-        endpointInput.value = settings.snsExternalApiUrl || '';
-        endpointInput.onchange = () => {
-            settings.snsExternalApiUrl = endpointInput.value.trim();
+        const endpointSelect = document.createElement('select');
+        endpointSelect.className = 'slm-select';
+        const endpointOptions = ['', '/api/backends/chat-completions/generate', '/api/openai/chat/completions'];
+        if (settings.snsExternalApiUrl && !endpointOptions.includes(settings.snsExternalApiUrl)) endpointOptions.push(settings.snsExternalApiUrl);
+        endpointOptions.forEach((value) => {
+            endpointSelect.appendChild(Object.assign(document.createElement('option'), {
+                value,
+                textContent: value || '내부 생성 사용',
+            }));
+        });
+        endpointSelect.value = settings.snsExternalApiUrl || '';
+        endpointSelect.onchange = () => {
+            settings.snsExternalApiUrl = endpointSelect.value.trim();
             saveSettings();
         };
-        endpointRow.appendChild(endpointInput);
+        endpointRow.appendChild(endpointSelect);
         wrapper.appendChild(endpointRow);
 
         const timeoutRow = document.createElement('div');
@@ -1125,6 +1168,7 @@ async function init() {
     if (evSrc && eventTypes?.CHARACTER_MESSAGE_RENDERED) {
         evSrc.on(eventTypes.CHARACTER_MESSAGE_RENDERED, () => {
             onCharacterMessageRenderedForProactiveCall();
+            trackGifticonUsageFromCharacterMessage();
         });
     }
 
