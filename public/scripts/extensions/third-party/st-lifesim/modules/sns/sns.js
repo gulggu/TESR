@@ -17,17 +17,26 @@ import { getContacts } from '../contacts/contacts.js';
 /**
  * SillyTavern 번역 확장의 translate 함수를 동적으로 가져온다.
  * 정적 import 대신 동적 import를 사용하여 확장이 독립 레포에서 설치되어도 동작하도록 한다.
+ * 번역 확장이 없거나 로드 실패 시 원본 텍스트를 그대로 반환한다.
  */
 let _translateFn = null;
+let _translateLoadFailed = false;
 async function translate(text, lang) {
+    if (_translateLoadFailed) return text;
     try {
         if (!_translateFn) {
             const module = await import('/scripts/extensions/translate/index.js');
-            _translateFn = module.translate;
+            if (typeof module.translate === 'function') {
+                _translateFn = module.translate;
+            } else {
+                _translateLoadFailed = true;
+                return text;
+            }
         }
         return await _translateFn(text, lang);
     } catch (e) {
         console.warn('[ST-LifeSim] translate module not available:', e);
+        _translateLoadFailed = true;
         return text;
     }
 }

@@ -13,7 +13,7 @@
  * 6. 확장 전체 ON/OFF 및 각 모듈별 개별 활성화 관리
  */
 
-import { getContext } from './utils/st-context.js';
+import { getContext, getSafeEventHandles } from './utils/st-context.js';
 import { getExtensionSettings } from './utils/storage.js';
 import { injectContext, clearContext } from './utils/context-inject.js';
 import { createPopup, createTabs, closePopup } from './utils/popup.js';
@@ -1198,9 +1198,8 @@ async function init() {
     // 선톡 타이머 시작 (활성화된 경우)
     try { startFirstMsgTimer(settings.firstMsg); } catch (e) { console.error('[ST-LifeSim] 선톡 타이머 오류:', e); }
 
-    // AI 응답 후 컨텍스트 주입
-    const eventTypes = ctx.eventTypes || ctx.event_types;
-    const evSrc = ctx.eventSource;
+    // AI 응답 후 컨텍스트 주입 — eventSource/eventTypes 안전 접근
+    const { evSrc, eventTypes } = getSafeEventHandles();
 
     if (evSrc && eventTypes?.CHARACTER_MESSAGE_RENDERED) {
         evSrc.on(eventTypes.CHARACTER_MESSAGE_RENDERED, async () => {
@@ -1270,9 +1269,7 @@ async function initIfNeeded() {
 
 // SillyTavern APP_READY 이벤트에서 초기화 실행 (호환성 위해 즉시 시도도 함께 수행)
 try {
-    const ctx = getContext();
-    const evSrc = ctx?.eventSource;
-    const eventTypes = ctx?.eventTypes || ctx?.event_types;
+    const { evSrc, eventTypes } = getSafeEventHandles();
     if (evSrc?.on && eventTypes?.APP_READY) {
         evSrc.on(eventTypes.APP_READY, initIfNeeded);
     }
