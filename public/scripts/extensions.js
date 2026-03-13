@@ -510,11 +510,15 @@ async function activateExtensions() {
                     .then(() => activeExtensions.add(name))
                     .catch(err => {
                         console.log('Could not activate extension', name, err);
-                        let errMsg = String(err);
-                        if (err instanceof Event) {
-                            errMsg = err.message || `Script ${err.type}`;
-                        } else if (err instanceof Error) {
-                            errMsg = err.message;
+                        const eventType = typeof err?.type === 'string' ? err.type : '';
+                        const eventTag = Object.prototype.toString.call(err);
+                        const isEventLike = err instanceof Event || eventTag === '[object Event]';
+                        let errMsg = typeof err?.message === 'string' ? err.message : '';
+                        if (!errMsg && isEventLike) {
+                            errMsg = eventType ? `Script ${eventType}` : 'Script error';
+                        }
+                        if (!errMsg) {
+                            errMsg = String(err);
                         }
                         extensionLoadErrors.add(t`Extension "${displayName}" failed to load: ${errMsg}`);
                     });
@@ -1753,6 +1757,7 @@ export async function openThirdPartyExtensionMenu(suggestUrl = '') {
     const isCurrentUserAdmin = isAdmin();
     const html = await renderTemplateAsync('installExtension', { isCurrentUserAdmin });
     const okButton = isCurrentUserAdmin ? t`Install just for me` : t`Install`;
+    const defaultUrl = typeof suggestUrl === 'string' ? suggestUrl : '';
 
     let global = false;
     const installForAllButton = {
@@ -1773,7 +1778,7 @@ export async function openThirdPartyExtensionMenu(suggestUrl = '') {
 
     const customButtons = isCurrentUserAdmin ? [installForAllButton] : [];
     const customInputs = [branchNameInput];
-    const popup = new Popup(html, POPUP_TYPE.INPUT, suggestUrl ?? '', { okButton, customButtons, customInputs });
+    const popup = new Popup(html, POPUP_TYPE.INPUT, defaultUrl, { okButton, customButtons, customInputs });
     const input = await popup.show();
 
     if (!input) {
