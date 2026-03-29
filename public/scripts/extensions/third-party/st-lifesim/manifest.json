@@ -4,7 +4,7 @@
     "loading_order": 50,
     "requires": [],
     "optional": [],
-    "js": "bootstrap.js",
+    "js": "index.js",
     "css": "style.css",
     "author": "ST-LifeSim",
     "version": "1.0.0",
